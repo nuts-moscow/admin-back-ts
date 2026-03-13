@@ -75,6 +75,15 @@ export const TournamentParamsSchema = z
   })
   .openapi("TournamentParams");
 
+/** Response: total rebuy count for tournament */
+export const RebuyCountResponseSchema = z
+  .object({
+    rebuyCount: z
+      .number()
+      .openapi({ description: "Total rebuy count for tournament", example: 42 }),
+  })
+  .openapi("RebuyCountResponse");
+
 /** Request body: add bounty count */
 export const BountyCountBodySchema = z
   .object({

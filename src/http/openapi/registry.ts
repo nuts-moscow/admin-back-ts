@@ -5,6 +5,7 @@ import {
   EntryPaymentBodySchema,
   InGameUserStateSchema,
   PlayerSchema,
+  RebuyCountResponseSchema,
   ReentryCountBodySchema,
   ReentryPaymentBodySchema,
   StatusBodySchema,
@@ -149,6 +150,26 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: `${basePath}/rebuy-count`,
+  tags: ["Tournament Players"],
+  operationId: "getTotalRebuyCount",
+  summary: "Get total rebuy count",
+  description: "Returns the total number of rebuys for a tournament",
+  request: {
+    params: TournamentParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Total rebuy count for the tournament",
+      content: {
+        "application/json": { schema: RebuyCountResponseSchema },
+      },
     },
   },
 });

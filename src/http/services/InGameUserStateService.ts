@@ -32,6 +32,11 @@ export class InGameUserStateService {
     return InGameUserStateCache.getAllByTournament(tournamentId);
   }
 
+  async getTotalRebuyCount(tournamentId: TournamentId): Promise<number> {
+    const states = await InGameUserStateCache.getAllByTournament(tournamentId);
+    return states.reduce((sum, s) => sum + s.totalReentryCount, 0);
+  }
+
   async addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId

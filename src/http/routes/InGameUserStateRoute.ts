@@ -90,6 +90,15 @@ export function inGameUserStateRoutes() {
         return Response.json(toApiResponse(state, playerName));
       },
     },
+    "/api/tournaments/:tournamentId/rebuy-count": {
+      GET: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/rebuy-count">
+      ) => {
+        const { tournamentId } = req.params;
+        const rebuyCount = await service.getTotalRebuyCount(tournamentId);
+        return Response.json({ rebuyCount });
+      },
+    },
     "/api/tournaments/:tournamentId/players": {
       GET: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players">
