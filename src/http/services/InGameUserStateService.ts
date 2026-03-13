@@ -1,4 +1,5 @@
 import { InGameUserStateCache } from "../../cache";
+import { logger } from "../../logger";
 import type {
   EntryPaymentMethod,
   InGameUserState,
@@ -34,7 +35,9 @@ export class InGameUserStateService {
 
   async getTotalRebuyCount(tournamentId: TournamentId): Promise<number> {
     const states = await InGameUserStateCache.getAllByTournament(tournamentId);
-    return states.reduce((sum, s) => sum + s.totalReentryCount, 0);
+    const rebuyCount = states.reduce((sum, s) => sum + s.totalReentryCount, 0);
+    logger.info({ tournamentId, rebuyCount }, "[InGameUserStateService] getTotalRebuyCount result");
+    return rebuyCount;
   }
 
   async addPlayerToTournament(
