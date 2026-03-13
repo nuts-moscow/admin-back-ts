@@ -24,6 +24,9 @@ export const InGameBonusSchema = z
 /** In-game user state */
 export const InGameUserStateSchema = z
   .object({
+    tournamentPlayerId: z
+      .number()
+      .openapi({ description: "Player ID within tournament, starts at 1", example: 1 }),
     playerId: z.string().openapi({ description: "Player ID", example: "player-123" }),
     status: InGamePlayerStatusSchema,
     tableId: z.string().nullable().openapi({ description: "Table ID", example: "table-1" }),

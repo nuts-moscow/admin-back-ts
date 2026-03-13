@@ -47,6 +47,8 @@ export type BonusesByType = [InGameBonus, number][];
 
 /** In-game user state */
 export interface InGameUserState {
+  /** Player ID within tournament, starts at 1 */
+  tournamentPlayerId: number;
   playerId: PlayerId;
   status: InGamePlayerStatus;
   tableId: TableId | null;
@@ -63,10 +65,12 @@ export interface InGameUserState {
 /** Creates initial state: optional fields empty, bountyCount = 0 */
 export function initInGameUserState(
   playerId: PlayerId,
+  tournamentPlayerId: number,
   freeEntryCount: number,
   freeReentryCount: number
 ): InGameUserState {
   return {
+    tournamentPlayerId,
     playerId,
     status: InGamePlayerStatus.Registered,
     tableId: null,

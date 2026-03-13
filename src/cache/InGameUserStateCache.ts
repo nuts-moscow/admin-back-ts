@@ -220,6 +220,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     try {
       const k = key(tournamentId, playerId);
       await RedisClient.instance.hset(k, {
+        tournamentPlayerId: String(state.tournamentPlayerId),
         playerId: state.playerId,
         status: state.status,
         tableId: state.tableId ?? "",
@@ -257,6 +258,8 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         }
       }
 
+      states.sort((a, b) => a.tournamentPlayerId - b.tournamentPlayerId);
+
       logger.info(
         {
           count: states.length,
@@ -276,7 +279,12 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId
   ): Promise<boolean> {
     logger.info({ playerId, tournamentId }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`);
-    const state = initInGameUserState(playerId, 0, 0);
+    const existing = await this.getAllByTournament(tournamentId);
+    const nextId =
+      existing.length === 0
+        ? 1
+        : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
+    const state = initInGameUserState(playerId, nextId, 0, 0);
     const result = await this.set(playerId, tournamentId, state);
     logger.info({ stored: result }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result`);
     return result;
@@ -517,7 +525,16 @@ function parseHashToState(
   if (bonuses === undefined) {
     return null;
   }
+  const tournamentPlayerId =
+    hash.tournamentPlayerId !== undefined && hash.tournamentPlayerId !== null && hash.tournamentPlayerId !== ""
+      ? parseInt(hash.tournamentPlayerId, 10)
+      : 0;
+  if (Number.isNaN(tournamentPlayerId) || tournamentPlayerId < 0) {
+    logger.info({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid tournamentPlayerId`);
+    return null;
+  }
   return {
+    tournamentPlayerId,
     playerId,
     status: hash.status as InGamePlayerStatus,
     tableId: (hash.tableId || null) as TableId | null,
