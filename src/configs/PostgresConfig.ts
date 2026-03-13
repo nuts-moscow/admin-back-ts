@@ -2,6 +2,10 @@ export interface PostgresConfig {
   url: string;
   ssl: boolean;
   sslRejectUnauthorized: boolean;
+  /** Resolved host for logging (from URL or env) */
+  host: string;
+  /** Resolved database for logging (from URL or env) */
+  database: string;
 }
 
 export function loadPostgresConfig(): PostgresConfig {
@@ -15,5 +19,16 @@ export function loadPostgresConfig(): PostgresConfig {
     `postgres://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
   const ssl = process.env.POSTGRES_SSL !== "false" && process.env.POSTGRES_SSL !== "0";
   const sslRejectUnauthorized = process.env.POSTGRES_SSL_REJECT_UNAUTHORIZED === "true" || process.env.POSTGRES_SSL_REJECT_UNAUTHORIZED === "1";
-  return { url, ssl, sslRejectUnauthorized };
+  let resolvedHost = host;
+  let resolvedDb = database;
+  if (process.env.POSTGRES_URL) {
+    try {
+      const u = new URL(process.env.POSTGRES_URL.replace(/^postgres:/, "https:"));
+      resolvedHost = u.hostname;
+      resolvedDb = u.pathname?.replace(/^\//, "") || database;
+    } catch {
+      /* keep defaults */
+    }
+  }
+  return { url, ssl, sslRejectUnauthorized, host: resolvedHost, database: resolvedDb };
 }

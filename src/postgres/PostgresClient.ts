@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { ApplicationConfigs } from "../configs";
+import { logger } from "../logger";
 
 export class PostgresClient {
   private static _instance: Pool | null = null;
@@ -8,7 +9,8 @@ export class PostgresClient {
     if (PostgresClient._instance) {
       return PostgresClient._instance;
     }
-    const { url, ssl, sslRejectUnauthorized } = ApplicationConfigs.instance.postgres;
+    const { url, ssl, sslRejectUnauthorized, host, database } = ApplicationConfigs.instance.postgres;
+    logger.info({ host, database }, "[Postgres] connecting");
     PostgresClient._instance = new Pool({
       connectionString: url,
       ssl: ssl ? { rejectUnauthorized: sslRejectUnauthorized } : false,
