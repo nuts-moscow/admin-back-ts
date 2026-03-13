@@ -308,9 +308,14 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     logger.info({ playerId, tournamentId }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament entry`);
     try {
       const k = key(tournamentId, playerId);
+      const exists = await RedisClient.instance.exists(k);
+      if (!exists) {
+        logger.info({ key: k }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament result: key not found`);
+        return false;
+      }
       const deleted = await RedisClient.instance.del(k);
       const ok = deleted > 0;
-      logger.info({ removed: ok }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament result`);
+      logger.info({ key: k, removed: ok }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament result`);
       return ok;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament failed`);
