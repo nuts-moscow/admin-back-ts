@@ -45,6 +45,15 @@ export type InGameBonus =
 /** Bonuses: (bonus, count) */
 export type BonusesByType = [InGameBonus, number][];
 
+/** Bounty elimination type: Rebuy = eliminated player gets reentry, Out = no reentry */
+export const BountyEliminationType = {
+  Rebuy: "Rebuy",
+  Out: "Out",
+} as const;
+
+export type BountyEliminationTypeValue =
+  (typeof BountyEliminationType)[keyof typeof BountyEliminationType];
+
 /** In-game user state */
 export interface InGameUserState {
   /** Player ID within tournament, starts at 1 */

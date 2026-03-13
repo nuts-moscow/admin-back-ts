@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BountyCountBodySchema,
+  BountyEliminateBodySchema,
   CreatePlayerBodySchema,
   EntryPaymentBodySchema,
   InGameUserStateSchema,
@@ -134,6 +135,45 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/bounty/eliminate`,
+  tags: ["Tournament Players"],
+  operationId: "recordBountyElimination",
+  summary: "Record bounty elimination",
+  description:
+    "Records who eliminated whom. If type=Rebuy: adds reentry to eliminated player. Always adds bounty to killer. Stores kill record in Redis.",
+  request: {
+    params: TournamentParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: BountyEliminateBodySchema },
+      },
+    },
+  },
+  responses: {
+    204: {
+      description: "Elimination recorded successfully",
+    },
+    400: {
+      description: "Invalid request body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Eliminated or killer player not found in tournament",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
     },
   },
 });

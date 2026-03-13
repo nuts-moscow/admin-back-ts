@@ -1,6 +1,7 @@
-import { InGameUserStateCache } from "../../cache";
+import { BountyKillsCache, InGameUserStateCache } from "../../cache";
 import { logger } from "../../logger";
 import type {
+  BountyEliminationTypeValue,
   EntryPaymentMethod,
   InGameUserState,
   InGamePlayerStatus,
@@ -112,5 +113,53 @@ export class InGameUserStateService {
     tableId: TableId | null
   ): Promise<InGameUserState | null> {
     return InGameUserStateCache.updateTableId(playerId, tournamentId, tableId);
+  }
+
+  /**
+   * Records a bounty elimination: who eliminated whom and type (Rebuy/Out).
+   * 1. If type=Rebuy: increments reentry count for eliminated player
+   * 2. Increments bounty count for killer
+   * 3. Stores kill record in Redis (killer -> eliminated)
+   */
+  async recordBountyElimination(
+    tournamentId: TournamentId,
+    eliminatedPlayerId: PlayerId,
+    killerPlayerId: PlayerId,
+    type: BountyEliminationTypeValue
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (type === "Rebuy") {
+      const reentryState = await InGameUserStateCache.addReentryCount(
+        eliminatedPlayerId,
+        tournamentId,
+        1
+      );
+      if (!reentryState) {
+        return { ok: false, error: "Eliminated player not found in tournament" };
+      }
+    }
+
+    const bountyState = await InGameUserStateCache.updateBountyCount(
+      killerPlayerId,
+      tournamentId,
+      1
+    );
+    if (!bountyState) {
+      return { ok: false, error: "Killer player not found in tournament" };
+    }
+
+    const killStored = await BountyKillsCache.addKill(
+      tournamentId,
+      killerPlayerId,
+      eliminatedPlayerId
+    );
+    if (!killStored) {
+      logger.info(
+        { tournamentId, killerPlayerId, eliminatedPlayerId },
+        "[InGameUserStateService] recordBountyElimination: kill record failed to store"
+      );
+      // Bounty and reentry were updated; kill record failed - partial success
+    }
+
+    return { ok: true };
   }
 }

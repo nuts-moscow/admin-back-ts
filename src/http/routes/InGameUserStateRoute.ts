@@ -1,5 +1,6 @@
 import type { BunRequest } from "bun";
 import {
+  BountyEliminationType,
   EntryPaymentMethod,
   InGamePlayerStatus,
 } from "../../domain/cache/InGameUserState";
@@ -61,6 +62,66 @@ export function inGameUserStateRoutes() {
         }
         const playerName = await playerRepository.getNicknameById(playerId);
         return Response.json(toApiResponse(state, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/bounty/eliminate": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/bounty/eliminate">
+      ) => {
+        const { tournamentId } = req.params;
+        let body: {
+          eliminatedPlayerId: string;
+          killerPlayerId: string;
+          type: string;
+        };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const { eliminatedPlayerId, killerPlayerId, type } = body;
+        if (
+          !eliminatedPlayerId ||
+          !killerPlayerId ||
+          !type ||
+          typeof eliminatedPlayerId !== "string" ||
+          typeof killerPlayerId !== "string" ||
+          typeof type !== "string"
+        ) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "eliminatedPlayerId, killerPlayerId and type are required strings",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const validTypes = new Set<string>(Object.values(BountyEliminationType));
+        if (!validTypes.has(type)) {
+          return new Response(
+            JSON.stringify({
+              error: `type must be one of: ${[...validTypes].join(", ")}`,
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const eliminationType = type as "Rebuy" | "Out";
+        const result = await service.recordBountyElimination(
+          tournamentId,
+          eliminatedPlayerId,
+          killerPlayerId,
+          eliminationType
+        );
+        if (!result.ok) {
+          return new Response(
+            JSON.stringify({ error: result.error ?? "Failed to record elimination" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(null, { status: 204 });
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/bounty/update": {

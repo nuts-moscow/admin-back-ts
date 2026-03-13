@@ -84,6 +84,27 @@ export const RebuyCountResponseSchema = z
   })
   .openapi("RebuyCountResponse");
 
+/** Bounty elimination type enum */
+export const BountyEliminationTypeSchema = z
+  .enum(["Rebuy", "Out"])
+  .openapi("BountyEliminationType");
+
+/** Request body: record bounty elimination */
+export const BountyEliminateBodySchema = z
+  .object({
+    eliminatedPlayerId: z
+      .string()
+      .openapi({ description: "Player who was eliminated", example: "123" }),
+    killerPlayerId: z
+      .string()
+      .openapi({ description: "Player who made the elimination", example: "456" }),
+    type: BountyEliminationTypeSchema.openapi({
+      description: "Rebuy = eliminated gets reentry, Out = no reentry",
+      example: "Rebuy",
+    }),
+  })
+  .openapi("BountyEliminateBody");
+
 /** Request body: add bounty count */
 export const BountyCountBodySchema = z
   .object({
