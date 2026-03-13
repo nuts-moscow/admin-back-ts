@@ -19,6 +19,10 @@ export function generateOpenAPIDocument() {
     servers: [{ url: `http://localhost:${port}` }],
     tags: [
       {
+        name: "Players",
+        description: "Управление игроками: создание",
+      },
+      {
         name: "Tournament Players",
         description: "Управление игроками турнира: добавление, состояние, bounty, re-entry, статус, оплата",
       },

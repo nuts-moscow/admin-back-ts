@@ -118,3 +118,27 @@ export const ReentryPaymentBodySchema = z
       .openapi({ description: "Payment methods for re-entry", example: ["Cache", "CreditCard"] }),
   })
   .openapi("ReentryPaymentBody");
+
+/** Request body: create player */
+export const CreatePlayerBodySchema = z
+  .object({
+    nickname: z.string().min(1).openapi({ description: "Player nickname", example: "john_doe" }),
+    name: z.string().nullable().optional().openapi({ description: "Player name" }),
+    phone: z.string().nullable().optional().openapi({ description: "Phone number" }),
+    tg: z.string().nullable().optional().openapi({ description: "Telegram" }),
+    notes: z.string().nullable().optional().openapi({ description: "Notes" }),
+  })
+  .openapi("CreatePlayerBody");
+
+/** Player response */
+export const PlayerSchema = z
+  .object({
+    id: z.number().openapi({ description: "Player ID", example: 1 }),
+    nickname: z.string().openapi({ description: "Nickname", example: "john_doe" }),
+    name: z.string().nullable().openapi({ description: "Name" }),
+    phone: z.string().nullable().openapi({ description: "Phone" }),
+    tg: z.string().nullable().openapi({ description: "Telegram" }),
+    notes: z.string().nullable().openapi({ description: "Notes" }),
+    createdAt: z.string().openapi({ description: "Created at ISO8601", example: "2026-03-13T12:00:00.000Z" }),
+  })
+  .openapi("Player");

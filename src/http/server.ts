@@ -4,10 +4,12 @@ import { withCors, corsHeaders } from "./cors";
 import { createRouter } from "./router";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
+import { playersRoutes } from "./routes/PlayersRoute";
 
 export function createHttpServer() {
   const routes = {
     ...inGameUserStateRoutes(),
+    ...playersRoutes(),
     ...openApiRoutes(),
   };
 

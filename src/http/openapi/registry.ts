@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
   BountyCountBodySchema,
+  CreatePlayerBodySchema,
   EntryPaymentBodySchema,
   InGameUserStateSchema,
+  PlayerSchema,
   ReentryCountBodySchema,
   ReentryPaymentBodySchema,
   StatusBodySchema,
@@ -15,6 +17,54 @@ import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 export const openApiRegistry = new OpenAPIRegistry();
 
 const basePath = "/api/tournaments/{tournamentId}";
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/api/players/create",
+  tags: ["Players"],
+  operationId: "createPlayer",
+  summary: "Create player",
+  description: "Creates a new player in the players table",
+  request: {
+    body: {
+      content: {
+        "application/json": { schema: CreatePlayerBodySchema },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: "Player created",
+      content: {
+        "application/json": { schema: PlayerSchema },
+      },
+    },
+    400: {
+      description: "Invalid request body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    409: {
+      description: "Player with this nickname already exists",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    500: {
+      description: "Failed to create player",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: "post",
