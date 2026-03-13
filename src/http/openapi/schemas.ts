@@ -30,17 +30,23 @@ export const InGameUserStateSchema = z
     bountyCount: z.number().openapi({ description: "Bounty count", example: 0 }),
     entryPaymentMethod: EntryPaymentMethodSchema.nullable(),
     reentryByPaymentMethod: z
-      .array(z.tuple([EntryPaymentMethodSchema, z.number()]))
+      .array(EntryPaymentMethodSchema)
       .nullable()
-      .openapi({ description: "Re-entry count by payment method: (method, count)" }),
+      .openapi({
+        description: "Re-entry payments as flat list, e.g. [\"Cache\", \"Cache\", \"CreditCard\"]",
+        example: ["Cache", "Cache", "CreditCard"],
+      }),
     totalReentryCount: z.number().openapi({ description: "Total re-entry count", example: 0 }),
     freeEntryCount: z.number().openapi({ description: "Free entry count", example: 0 }),
     freeReentryCount: z.number().openapi({ description: "Free re-entry count", example: 0 }),
     placement: z.number().nullable().openapi({ description: "Placement position" }),
     bonuses: z
-      .array(z.tuple([InGameBonusSchema, z.number()]))
+      .array(InGameBonusSchema)
       .nullable()
-      .openapi({ description: "Bonuses: (bonus, count)" }),
+      .openapi({
+        description: "Bonuses as flat list, e.g. [\"EarlyBird\", \"EarlyBird\", \"Diller\"]",
+        example: ["EarlyBird", "EarlyBird", "Diller"],
+      }),
   })
   .openapi("InGameUserState");
 

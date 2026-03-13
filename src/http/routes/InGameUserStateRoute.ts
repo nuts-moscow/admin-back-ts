@@ -3,6 +3,7 @@ import {
   EntryPaymentMethod,
   InGamePlayerStatus,
 } from "../../domain/cache/InGameUserState";
+import { toApiResponse } from "../serializers/InGameUserStateSerializer";
 import { InGameUserStateService } from "../services/InGameUserStateService";
 
 const VALID_STATUSES = new Set<string>(Object.values(InGamePlayerStatus));
@@ -27,7 +28,13 @@ export function inGameUserStateRoutes() {
           );
         }
         const state = await service.getUser(playerId, tournamentId);
-        return Response.json(state, { status: 201 });
+        if (!state) {
+          return new Response(
+            JSON.stringify({ error: "Failed to get player state" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json(toApiResponse(state), { status: 201 });
       },
       GET: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
@@ -37,7 +44,7 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(state);
+        return Response.json(toApiResponse(state));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/update": {
@@ -76,7 +83,7 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(state);
+        return Response.json(toApiResponse(state));
       },
     },
     "/api/tournaments/:tournamentId/players": {
@@ -85,7 +92,7 @@ export function inGameUserStateRoutes() {
       ) => {
         const { tournamentId } = req.params;
         const states = await service.getAllByTournament(tournamentId);
-        return Response.json(states);
+        return Response.json(states.map(toApiResponse));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/reentry": {
@@ -120,7 +127,7 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(state);
+        return Response.json(toApiResponse(state));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/status": {
@@ -158,7 +165,7 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(state);
+        return Response.json(toApiResponse(state));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/entry-payment": {
@@ -197,7 +204,7 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(state);
+        return Response.json(toApiResponse(state));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/table": {
@@ -227,7 +234,7 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(state);
+        return Response.json(toApiResponse(state));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/reentry-payment": {
@@ -275,7 +282,7 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(state);
+        return Response.json(toApiResponse(state));
       },
     },
   };
