@@ -6,7 +6,7 @@ export async function wireRedis(): Promise<void> {
   try {
     await RedisClient.init();
   } catch (err) {
-    logger.error({ err }, "[Redis] init failed");
+    logger.info({ err }, "[Redis] init failed");
     throw err;
   }
 }
