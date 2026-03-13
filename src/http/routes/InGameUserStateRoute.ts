@@ -47,9 +47,9 @@ export function inGameUserStateRoutes() {
         return Response.json(toApiResponse(state));
       },
     },
-    "/api/tournaments/:tournamentId/players/:playerId/update": {
+    "/api/tournaments/:tournamentId/players/:playerId/bounty/update": {
       POST: async (
-        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/update">
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bounty/update">
       ) => {
         const { tournamentId, playerId } = req.params;
 

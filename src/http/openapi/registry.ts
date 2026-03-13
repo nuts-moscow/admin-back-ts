@@ -69,7 +69,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: "post",
-  path: `${basePath}/players/{playerId}/update`,
+  path: `${basePath}/players/{playerId}/bounty/update`,
   tags: ["Tournament Players"],
   operationId: "updateBountyCount",
   summary: "Update bounty count",
