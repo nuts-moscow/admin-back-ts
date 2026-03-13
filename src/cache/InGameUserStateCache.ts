@@ -260,7 +260,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       logger.info(
         {
           count: states.length,
-          players: states.map((s) => ({ playerId: s.playerId, status: s.status })),
+          players: states.map((s) => `${s.playerId}:${s.status}`),
         },
         `${LOG_PREFIX} InGameUserStateCache.getAllByTournament result`
       );
