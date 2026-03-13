@@ -13,9 +13,16 @@ const SWAGGER_UI_HTML = `<!DOCTYPE html>
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script>
     window.onload = function() {
+      // Поддержка nginx proxy с префиксом (например /v2): /v2/docs -> /v2/openapi.json
+      const basePath = window.location.pathname.replace(/\\/docs\\/?$/, "");
+      const specUrl = (basePath || "") + "/openapi.json";
       window.ui = SwaggerUIBundle({
-        url: "/openapi.json",
+        url: specUrl,
         dom_id: "#swagger-ui",
+        docExpansion: "list",
+        defaultModelsExpandDepth: 2,
+        defaultModelExpandDepth: 2,
+        displayRequestDuration: true,
         presets: [
           SwaggerUIBundle.presets.apis,
           SwaggerUIBundle.SwaggerUIStandalonePreset
@@ -31,7 +38,7 @@ export function openApiRoutes() {
     "/openapi.json": {
       GET: async () => {
         const doc = generateOpenAPIDocument();
-        return Response.json(doc, {
+        return new Response(JSON.stringify(doc, null, 2), {
           headers: { "Content-Type": "application/json" },
         });
       },

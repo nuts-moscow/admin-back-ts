@@ -19,6 +19,8 @@ const basePath = "/api/tournaments/{tournamentId}";
 openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}`,
+  tags: ["Tournament Players"],
+  operationId: "addPlayerToTournament",
   summary: "Add player to tournament",
   description: "Adds a player to a tournament and returns the initial in-game state",
   request: {
@@ -45,6 +47,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "get",
   path: `${basePath}/players/{playerId}`,
+  tags: ["Tournament Players"],
+  operationId: "getPlayerState",
   summary: "Get player state",
   description: "Returns the in-game state for a player in a tournament",
   request: {
@@ -66,6 +70,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}/update`,
+  tags: ["Tournament Players"],
+  operationId: "updateBountyCount",
   summary: "Update bounty count",
   description: "Adds bounty count to a player",
   request: {
@@ -100,6 +106,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "get",
   path: `${basePath}/players`,
+  tags: ["Tournament Players"],
+  operationId: "listPlayers",
   summary: "List players in tournament",
   description: "Returns all in-game player states for a tournament",
   request: {
@@ -120,6 +128,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}/reentry`,
+  tags: ["Tournament Players"],
+  operationId: "addReentryCount",
   summary: "Add re-entry count",
   description: "Adds re-entry count to a player",
   request: {
@@ -154,6 +164,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}/status`,
+  tags: ["Tournament Players"],
+  operationId: "updatePlayerStatus",
   summary: "Update player status",
   description: "Updates the in-game status of a player",
   request: {
@@ -188,6 +200,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}/entry-payment`,
+  tags: ["Tournament Players"],
+  operationId: "updateEntryPaymentMethod",
   summary: "Update entry payment method",
   description: "Sets the entry payment method for a player",
   request: {
@@ -222,6 +236,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}/table`,
+  tags: ["Tournament Players"],
+  operationId: "updatePlayerTable",
   summary: "Update player table",
   description: "Updates the table ID assigned to a player. Pass null or empty string to clear.",
   request: {
@@ -256,6 +272,8 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}/reentry-payment`,
+  tags: ["Tournament Players"],
+  operationId: "addReentryPayments",
   summary: "Add re-entry payments",
   description: "Adds re-entry payment methods for a player",
   request: {

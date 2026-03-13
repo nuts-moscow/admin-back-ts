@@ -17,5 +17,11 @@ export function generateOpenAPIDocument() {
       description: "Admin backend API for tournament and in-game player management",
     },
     servers: [{ url: `http://localhost:${port}` }],
+    tags: [
+      {
+        name: "Tournament Players",
+        description: "Управление игроками турнира: добавление, состояние, bounty, re-entry, статус, оплата",
+      },
+    ],
   });
 }
