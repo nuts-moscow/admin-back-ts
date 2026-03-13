@@ -77,6 +77,17 @@ export interface InGameUserStateCache {
   ): Promise<boolean>;
 
   /**
+   * Removes player from tournament (deletes state from cache).
+   * @param playerId - Player ID
+   * @param tournamentId - Tournament ID
+   * @returns true if removed, false if key did not exist or on error
+   */
+  removePlayerFromTournament(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<boolean>;
+
+  /**
    * Adds count to totalReentryCount.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
@@ -288,6 +299,23 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     const result = await this.set(playerId, tournamentId, state);
     logger.info({ stored: result }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result`);
     return result;
+  }
+
+  async removePlayerFromTournament(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<boolean> {
+    logger.info({ playerId, tournamentId }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament entry`);
+    try {
+      const k = key(tournamentId, playerId);
+      const deleted = await RedisClient.instance.del(k);
+      const ok = deleted > 0;
+      logger.info({ removed: ok }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament result`);
+      return ok;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament failed`);
+      return false;
+    }
   }
 
   async addReentryCount(

@@ -17,6 +17,19 @@ export function inGameUserStateRoutes() {
 
   return {
     "/api/tournaments/:tournamentId/players/:playerId": {
+      DELETE: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        const removed = await service.removePlayerFromTournament(
+          playerId,
+          tournamentId
+        );
+        if (!removed) {
+          return new Response(null, { status: 404 });
+        }
+        return new Response(null, { status: 204 });
+      },
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
       ) => {

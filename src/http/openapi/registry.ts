@@ -96,6 +96,26 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: "delete",
+  path: `${basePath}/players/{playerId}`,
+  tags: ["Tournament Players"],
+  operationId: "removePlayerFromTournament",
+  summary: "Remove player from tournament",
+  description: "Removes a player from a tournament (deletes their in-game state)",
+  request: {
+    params: TournamentPlayerParamsSchema,
+  },
+  responses: {
+    204: {
+      description: "Player removed successfully",
+    },
+    404: {
+      description: "Player not found in tournament",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: "get",
   path: `${basePath}/players/{playerId}`,
   tags: ["Tournament Players"],

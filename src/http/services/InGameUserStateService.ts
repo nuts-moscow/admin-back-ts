@@ -59,6 +59,13 @@ export class InGameUserStateService {
     return InGameUserStateCache.addPlayerToTournament(playerId, tournamentId);
   }
 
+  async removePlayerFromTournament(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<boolean> {
+    return InGameUserStateCache.removePlayerFromTournament(playerId, tournamentId);
+  }
+
   async addReentryCount(
     playerId: PlayerId,
     tournamentId: TournamentId,
