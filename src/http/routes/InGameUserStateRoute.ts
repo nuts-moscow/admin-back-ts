@@ -230,6 +230,17 @@ export function inGameUserStateRoutes() {
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/table": {
+      DELETE: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/table">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        const state = await service.updateTableId(playerId, tournamentId, null);
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/table">
       ) => {

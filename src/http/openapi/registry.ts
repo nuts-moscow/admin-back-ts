@@ -305,6 +305,29 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: "delete",
+  path: `${basePath}/players/{playerId}/table`,
+  tags: ["Tournament Players"],
+  operationId: "removePlayerFromTable",
+  summary: "Remove player from table",
+  description: "Removes a player from their current table (sets tableId to null)",
+  request: {
+    params: TournamentPlayerParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    404: {
+      description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/players/{playerId}/table`,
   tags: ["Tournament Players"],
