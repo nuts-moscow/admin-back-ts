@@ -1,0 +1,15 @@
+---
+description: Apply all project skills on every prompt
+alwaysApply: true
+---
+
+On every user prompt, consult and apply all project skills in `.cursor/skills/` when relevant to the task:
+
+- **working-with-configs** — Configs in `src/configs/`, init at app start, access via `ApplicationConfigs.instance`
+- **using-redis** — Redis in `src/redis/`, singleton, init at start, try-catch with logging and safe results
+- **using-cache** — Cache in `src/cache/`, interface + implementation + singleton in same file, JSDoc on all methods
+- **creating-domain-models** — Domain models in `src/domain/`, file name = model name, interface/type only
+- **http-api** — HTTP server in `src/http/`, routes in routes/, services in services/, init in wiring
+- **skill-creator** — Creating, improving, or evaluating skills
+
+Use each skill whenever the task touches its domain (configs, env vars, Redis, cache, domain entities, skill creation, etc.), even if the user doesn't explicitly mention it.

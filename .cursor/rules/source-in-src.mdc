@@ -1,0 +1,16 @@
+---
+description: All program source files live in src/
+alwaysApply: true
+---
+
+All application source code belongs in the `src/` folder:
+
+- Entry point: `src/index.ts`
+- Configs: `src/configs/`
+- Cache: `src/cache/`
+- Domain models: `src/domain/`
+- Redis: `src/redis/`
+- HTTP: `src/http/`
+- Wiring: `src/wiring/`
+
+Keep config files (package.json, tsconfig, etc.) and tooling at the project root. Do not put source files at the root or outside `src/`.

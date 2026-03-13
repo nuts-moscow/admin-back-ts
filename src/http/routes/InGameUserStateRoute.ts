@@ -1,0 +1,282 @@
+import type { BunRequest } from "bun";
+import {
+  EntryPaymentMethod,
+  InGamePlayerStatus,
+} from "../../domain/cache/InGameUserState";
+import { InGameUserStateService } from "../services/InGameUserStateService";
+
+const VALID_STATUSES = new Set<string>(Object.values(InGamePlayerStatus));
+const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
+  Object.values(EntryPaymentMethod)
+);
+
+export function inGameUserStateRoutes() {
+  const service = new InGameUserStateService();
+
+  return {
+    "/api/tournaments/:tournamentId/players/:playerId": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        const ok = await service.addPlayerToTournament(playerId, tournamentId);
+        if (!ok) {
+          return new Response(
+            JSON.stringify({ error: "Failed to add player to tournament" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.getUser(playerId, tournamentId);
+        return Response.json(state, { status: 201 });
+      },
+      GET: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        const state = await service.getUser(playerId, tournamentId);
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(state);
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/update": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/update">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+
+        let body: { bountyCountToAdd: number };
+        try {
+          body = await req.json() as { bountyCountToAdd: number };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        if (
+          body.bountyCountToAdd === undefined ||
+          body.bountyCountToAdd === null ||
+          typeof body.bountyCountToAdd !== "number"
+        ) {
+          return new Response(
+            JSON.stringify({ error: "bountyCountToAdd is required and must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        const state = await service.updateBountyCount(
+          playerId,
+          tournamentId,
+          body.bountyCountToAdd
+        );
+
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(state);
+      },
+    },
+    "/api/tournaments/:tournamentId/players": {
+      GET: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players">
+      ) => {
+        const { tournamentId } = req.params;
+        const states = await service.getAllByTournament(tournamentId);
+        return Response.json(states);
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/reentry": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/reentry">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { count: number };
+        try {
+          body = (await req.json()) as { count: number };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.count === undefined ||
+          body.count === null ||
+          typeof body.count !== "number"
+        ) {
+          return new Response(
+            JSON.stringify({ error: "count is required and must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.addReentryCount(
+          playerId,
+          tournamentId,
+          body.count
+        );
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(state);
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/status": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/status">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { status: string };
+        try {
+          body = (await req.json()) as { status: string };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.status === undefined ||
+          body.status === null ||
+          typeof body.status !== "string" ||
+          !VALID_STATUSES.has(body.status)
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: "status is required and must be a valid InGamePlayerStatus",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.updateStatus(
+          playerId,
+          tournamentId,
+          body.status as (typeof InGamePlayerStatus)[keyof typeof InGamePlayerStatus]
+        );
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(state);
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/entry-payment": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/entry-payment">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { entryPaymentMethod: string };
+        try {
+          body = (await req.json()) as { entryPaymentMethod: string };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.entryPaymentMethod === undefined ||
+          body.entryPaymentMethod === null ||
+          typeof body.entryPaymentMethod !== "string" ||
+          !VALID_ENTRY_PAYMENT_METHODS.has(body.entryPaymentMethod)
+        ) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "entryPaymentMethod is required and must be a valid EntryPaymentMethod",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.updateEntryPaymentMethod(
+          playerId,
+          tournamentId,
+          body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod]
+        );
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(state);
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/table": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/table">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { tableId: string | null };
+        try {
+          body = (await req.json()) as { tableId: string | null };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (body.tableId !== undefined && body.tableId !== null && typeof body.tableId !== "string") {
+          return new Response(
+            JSON.stringify({ error: "tableId must be a string or null" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const tableId = body.tableId === undefined || body.tableId === null || body.tableId === ""
+          ? null
+          : body.tableId;
+        const state = await service.updateTableId(playerId, tournamentId, tableId);
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(state);
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/reentry-payment": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/reentry-payment">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { payments: string[] };
+        try {
+          body = (await req.json()) as { payments: string[] };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.payments === undefined ||
+          body.payments === null ||
+          !Array.isArray(body.payments)
+        ) {
+          return new Response(
+            JSON.stringify({ error: "payments is required and must be an array" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        for (const p of body.payments) {
+          if (
+            typeof p !== "string" ||
+            !VALID_ENTRY_PAYMENT_METHODS.has(p)
+          ) {
+            return new Response(
+              JSON.stringify({
+                error: `Invalid payment method '${p}'. Must be one of: Cache, CreditCard, Free`,
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
+        const state = await service.addReentryPayment(
+          playerId,
+          tournamentId,
+          body.payments as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod][]
+        );
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        return Response.json(state);
+      },
+    },
+  };
+}
