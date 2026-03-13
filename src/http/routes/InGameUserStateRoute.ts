@@ -252,6 +252,23 @@ export function inGameUserStateRoutes() {
         const tableId = body.tableId === undefined || body.tableId === null || body.tableId === ""
           ? null
           : body.tableId;
+        if (tableId !== null) {
+          const playersAtTable = await service.getPlayerCountAtTable(
+            tournamentId,
+            tableId,
+            playerId
+          );
+          const effectiveCount = playersAtTable + 1;
+          if (effectiveCount > 10) {
+            return new Response(
+              JSON.stringify({
+                error: "Table has too many players",
+                detail: `Cannot add player: table would have ${effectiveCount} players (max 10)`,
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
         const state = await service.updateTableId(playerId, tournamentId, tableId);
         if (!state) {
           return new Response(null, { status: 404 });

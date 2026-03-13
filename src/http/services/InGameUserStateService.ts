@@ -33,6 +33,18 @@ export class InGameUserStateService {
     return InGameUserStateCache.getAllByTournament(tournamentId);
   }
 
+  /** Returns count of players at table (excluding playerId if they're moving to another table) */
+  async getPlayerCountAtTable(
+    tournamentId: TournamentId,
+    tableId: TableId,
+    excludePlayerId?: PlayerId
+  ): Promise<number> {
+    const states = await InGameUserStateCache.getAllByTournament(tournamentId);
+    return states.filter(
+      (s) => s.tableId === tableId && s.playerId !== excludePlayerId
+    ).length;
+  }
+
   async getTotalRebuyCount(tournamentId: TournamentId): Promise<number> {
     const states = await InGameUserStateCache.getAllByTournament(tournamentId);
     const rebuyCount = states.reduce((sum, s) => sum + s.totalReentryCount, 0);

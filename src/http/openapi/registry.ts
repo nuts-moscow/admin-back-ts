@@ -327,10 +327,17 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid request body",
+      description:
+        "Invalid request body, or table has too many players (max 10)",
       content: {
         "application/json": {
-          schema: { type: "object", properties: { error: { type: "string" } } },
+          schema: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              detail: { type: "string" },
+            },
+          },
         },
       },
     },
