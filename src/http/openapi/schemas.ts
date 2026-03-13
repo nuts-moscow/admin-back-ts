@@ -44,6 +44,9 @@ export const InGameUserStateSchema = z
         example: ["Cache", "Cache", "CreditCard"],
       }),
     totalReentryCount: z.number().openapi({ description: "Total re-entry count", example: 0 }),
+    unpaidReentryCount: z
+      .number()
+      .openapi({ description: "Re-entries not yet paid (total minus Cache+CreditCard)", example: 0 }),
     freeEntryCount: z.number().openapi({ description: "Free entry count", example: 0 }),
     freeReentryCount: z.number().openapi({ description: "Free re-entry count", example: 0 }),
     placement: z.number().nullable().openapi({ description: "Placement position" }),
