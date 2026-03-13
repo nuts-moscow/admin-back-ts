@@ -1,11 +1,12 @@
 import { RedisClient } from "../redis";
 import { createHttpServer } from "../http";
+import { logger } from "../logger";
 
 export async function wireRedis(): Promise<void> {
   try {
     await RedisClient.init();
   } catch (err) {
-    console.error("[Redis] init failed:", err);
+    logger.error({ err }, "[Redis] init failed");
     throw err;
   }
 }

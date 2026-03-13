@@ -1,13 +1,20 @@
+import { loadLoggerConfig, LoggerConfig } from "./LoggerConfig";
 import { loadRedisConfig, RedisConfig } from "./RedisConfig";
 import { loadServerConfig, ServerConfig } from "./ServerConfig";
 
 export class ApplicationConfigs {
   private static _instance: ApplicationConfigs | null = null;
 
+  readonly logger: LoggerConfig;
   readonly redis: RedisConfig;
   readonly server: ServerConfig;
 
-  private constructor(redis: RedisConfig, server: ServerConfig) {
+  private constructor(
+    logger: LoggerConfig,
+    redis: RedisConfig,
+    server: ServerConfig
+  ) {
+    this.logger = logger;
     this.redis = redis;
     this.server = server;
   }
@@ -17,6 +24,7 @@ export class ApplicationConfigs {
       return ApplicationConfigs._instance;
     }
     ApplicationConfigs._instance = new ApplicationConfigs(
+      loadLoggerConfig(),
       loadRedisConfig(),
       loadServerConfig()
     );

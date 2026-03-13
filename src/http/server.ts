@@ -1,4 +1,5 @@
 import { ApplicationConfigs } from "../configs";
+import { logger } from "../logger";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
 
@@ -18,5 +19,5 @@ export function createHttpServer() {
     },
   });
 
-  console.log(`[HTTP] Server listening on port ${port}`);
+  logger.info({ port }, "[HTTP] Server listening");
 }

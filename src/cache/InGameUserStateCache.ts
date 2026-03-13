@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 import { RedisClient } from "../redis";
 import {
   EntryPaymentMethod,
@@ -146,26 +147,23 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     playerId: PlayerId,
     tournamentId: TournamentId
   ): Promise<InGameUserState | null> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.get entry:`, { playerId, tournamentId });
+    logger.debug({ playerId, tournamentId }, `${LOG_PREFIX} InGameUserStateCache.get entry`);
 
     try {
       const k = key(tournamentId, playerId);
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.get result: miss (no data)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.get result: miss (no data)`);
         return null;
       }
       const state = parseHashToState(hash, playerId);
-      console.log(
-        `${LOG_PREFIX} InGameUserStateCache.get result`,
-        state
-          ? `hit (playerId=${state.playerId}, bountyCount=${state.bountyCount})`
-          : "miss (parse failed)"
+      logger.debug(
+        { hit: !!state, playerId: state?.playerId, bountyCount: state?.bountyCount },
+        `${LOG_PREFIX} InGameUserStateCache.get result`
       );
       return state;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.get failed:`, err);
-      console.log(`${LOG_PREFIX} InGameUserStateCache.get result: error (returning null)`);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.get failed`);
       return null;
     }
   }
@@ -175,17 +173,13 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     bountyCountToAdd: number
   ): Promise<InGameUserState | null> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount entry:`, {
-      playerId,
-      tournamentId,
-      bountyCountToAdd,
-    });
+    logger.debug({ playerId, tournamentId, bountyCountToAdd }, `${LOG_PREFIX} InGameUserStateCache.updateBountyCount entry`);
 
     try {
       const k = key(tournamentId, playerId);
       const exists = await RedisClient.instance.exists(k);
       if (!exists) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount result: miss (key not found)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount result: miss (key not found)`);
         return null;
       }
       const newBountyCount = await RedisClient.instance.hincrby(
@@ -195,23 +189,20 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       );
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount result: miss (no data after incr)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount result: miss (no data after incr)`);
         return null;
       }
       const state = parseHashToState(
         { ...hash, bountyCount: String(newBountyCount) },
         playerId
       );
-      console.log(
-        `${LOG_PREFIX} InGameUserStateCache.updateBountyCount result`,
-        state
-          ? `updated (playerId=${state.playerId}, bountyCount=${state.bountyCount})`
-          : "miss (parse failed)"
+      logger.debug(
+        { state: !!state, playerId: state?.playerId, bountyCount: state?.bountyCount },
+        `${LOG_PREFIX} InGameUserStateCache.updateBountyCount result`
       );
       return state;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount failed:`, err);
-      console.log(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount result: error (returning null)`);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.updateBountyCount failed`);
       return null;
     }
   }
@@ -221,19 +212,10 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     state: InGameUserState
   ): Promise<boolean> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.set entry:`, {
-      playerId,
-      tournamentId,
-      status: state.status,
-      bountyCount: state.bountyCount,
-      entryPaymentMethod: state.entryPaymentMethod,
-      reentryByPaymentMethod: state.reentryByPaymentMethod,
-      totalReentryCount: state.totalReentryCount,
-      freeEntryCount: state.freeEntryCount,
-      freeReentryCount: state.freeReentryCount,
-      placement: state.placement,
-      bonuses: state.bonuses,
-    });
+    logger.debug(
+      { playerId, tournamentId, status: state.status, bountyCount: state.bountyCount },
+      `${LOG_PREFIX} InGameUserStateCache.set entry`
+    );
 
     try {
       const k = key(tournamentId, playerId);
@@ -250,17 +232,16 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         placement: state.placement === null ? "" : String(state.placement),
         bonuses: state.bonuses === null ? "" : JSON.stringify(state.bonuses),
       });
-      console.log(`${LOG_PREFIX} InGameUserStateCache.set result: stored`);
+      logger.debug(`${LOG_PREFIX} InGameUserStateCache.set result: stored`);
       return true;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.set failed:`, err);
-      console.log(`${LOG_PREFIX} InGameUserStateCache.set result: failed`);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.set failed`);
       return false;
     }
   }
 
   async getAllByTournament(tournamentId: TournamentId): Promise<InGameUserState[]> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.getAllByTournament entry:`, { tournamentId });
+    logger.debug({ tournamentId }, `${LOG_PREFIX} InGameUserStateCache.getAllByTournament entry`);
 
     try {
       const pattern = keyPattern(tournamentId);
@@ -276,11 +257,10 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         }
       }
 
-      console.log(`${LOG_PREFIX} InGameUserStateCache.getAllByTournament result: ${states.length} users`);
+      logger.debug({ count: states.length }, `${LOG_PREFIX} InGameUserStateCache.getAllByTournament result`);
       return states;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.getAllByTournament failed:`, err);
-      console.log(`${LOG_PREFIX} InGameUserStateCache.getAllByTournament result: error (returning [])`);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.getAllByTournament failed`);
       return [];
     }
   }
@@ -289,15 +269,10 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     playerId: PlayerId,
     tournamentId: TournamentId
   ): Promise<boolean> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry:`, {
-      playerId,
-      tournamentId,
-    });
+    logger.debug({ playerId, tournamentId }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`);
     const state = initInGameUserState(playerId, 0, 0);
     const result = await this.set(playerId, tournamentId, state);
-    console.log(
-      `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result: ${result ? "stored" : "failed"}`
-    );
+    logger.debug({ stored: result }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result`);
     return result;
   }
 
@@ -306,16 +281,12 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     count: number
   ): Promise<InGameUserState | null> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.addReentryCount entry:`, {
-      playerId,
-      tournamentId,
-      count,
-    });
+    logger.debug({ playerId, tournamentId, count }, `${LOG_PREFIX} InGameUserStateCache.addReentryCount entry`);
     try {
       const k = key(tournamentId, playerId);
       const exists = await RedisClient.instance.exists(k);
       if (!exists) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.addReentryCount result: miss (key not found)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.addReentryCount result: miss (key not found)`);
         return null;
       }
       const newTotalReentryCount = await RedisClient.instance.hincrby(
@@ -325,20 +296,20 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       );
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.addReentryCount result: miss (no data after incr)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.addReentryCount result: miss (no data after incr)`);
         return null;
       }
       const state = parseHashToState(
         { ...hash, totalReentryCount: String(newTotalReentryCount) },
         playerId
       );
-      console.log(
-        `${LOG_PREFIX} InGameUserStateCache.addReentryCount result`,
-        state ? `updated (totalReentryCount=${state.totalReentryCount})` : "miss (parse failed)"
+      logger.debug(
+        { state: !!state, totalReentryCount: state?.totalReentryCount },
+        `${LOG_PREFIX} InGameUserStateCache.addReentryCount result`
       );
       return state;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.addReentryCount failed:`, err);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.addReentryCount failed`);
       return null;
     }
   }
@@ -348,32 +319,25 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     status: (typeof InGamePlayerStatus)[keyof typeof InGamePlayerStatus]
   ): Promise<InGameUserState | null> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.updateStatus entry:`, {
-      playerId,
-      tournamentId,
-      status,
-    });
+    logger.debug({ playerId, tournamentId, status }, `${LOG_PREFIX} InGameUserStateCache.updateStatus entry`);
     try {
       const k = key(tournamentId, playerId);
       const exists = await RedisClient.instance.exists(k);
       if (!exists) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateStatus result: miss (key not found)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateStatus result: miss (key not found)`);
         return null;
       }
       await RedisClient.instance.hset(k, "status", status);
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateStatus result: miss (no data)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateStatus result: miss (no data)`);
         return null;
       }
       const state = parseHashToState(hash, playerId);
-      console.log(
-        `${LOG_PREFIX} InGameUserStateCache.updateStatus result`,
-        state ? `updated (status=${state.status})` : "miss (parse failed)"
-      );
+      logger.debug({ state: !!state, status: state?.status }, `${LOG_PREFIX} InGameUserStateCache.updateStatus result`);
       return state;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.updateStatus failed:`, err);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.updateStatus failed`);
       return null;
     }
   }
@@ -383,32 +347,28 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     entryPaymentMethod: EntryPaymentMethod
   ): Promise<InGameUserState | null> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod entry:`, {
-      playerId,
-      tournamentId,
-      entryPaymentMethod,
-    });
+    logger.debug({ playerId, tournamentId, entryPaymentMethod }, `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod entry`);
     try {
       const k = key(tournamentId, playerId);
       const exists = await RedisClient.instance.exists(k);
       if (!exists) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (key not found)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (key not found)`);
         return null;
       }
       await RedisClient.instance.hset(k, "entryPaymentMethod", entryPaymentMethod);
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (no data)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (no data)`);
         return null;
       }
       const state = parseHashToState(hash, playerId);
-      console.log(
-        `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result`,
-        state ? `updated (entryPaymentMethod=${state.entryPaymentMethod})` : "miss (parse failed)"
+      logger.debug(
+        { state: !!state, entryPaymentMethod: state?.entryPaymentMethod },
+        `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result`
       );
       return state;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod failed:`, err);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod failed`);
       return null;
     }
   }
@@ -418,15 +378,11 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     payments: EntryPaymentMethod[]
   ): Promise<InGameUserState | null> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment entry:`, {
-      playerId,
-      tournamentId,
-      payments,
-    });
+    logger.debug({ playerId, tournamentId, payments }, `${LOG_PREFIX} InGameUserStateCache.addReentryPayment entry`);
     try {
       const state = await this.get(playerId, tournamentId);
       if (!state) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment result: miss (key not found)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment result: miss (key not found)`);
         return null;
       }
       const current = state.reentryByPaymentMethod ?? [];
@@ -445,13 +401,13 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       };
       const ok = await this.set(playerId, tournamentId, newState);
       if (!ok) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment result: failed to save`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment result: failed to save`);
         return null;
       }
-      console.log(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment result: updated`);
+      logger.debug(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment result: updated`);
       return newState;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment failed:`, err);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.addReentryPayment failed`);
       return null;
     }
   }
@@ -461,32 +417,25 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     tableId: TableId | null
   ): Promise<InGameUserState | null> {
-    console.log(`${LOG_PREFIX} InGameUserStateCache.updateTableId entry:`, {
-      playerId,
-      tournamentId,
-      tableId,
-    });
+    logger.debug({ playerId, tournamentId, tableId }, `${LOG_PREFIX} InGameUserStateCache.updateTableId entry`);
     try {
       const k = key(tournamentId, playerId);
       const exists = await RedisClient.instance.exists(k);
       if (!exists) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateTableId result: miss (key not found)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateTableId result: miss (key not found)`);
         return null;
       }
       await RedisClient.instance.hset(k, "tableId", tableId ?? "");
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
-        console.log(`${LOG_PREFIX} InGameUserStateCache.updateTableId result: miss (no data)`);
+        logger.debug(`${LOG_PREFIX} InGameUserStateCache.updateTableId result: miss (no data)`);
         return null;
       }
       const state = parseHashToState(hash, playerId);
-      console.log(
-        `${LOG_PREFIX} InGameUserStateCache.updateTableId result`,
-        state ? `updated (tableId=${state.tableId})` : "miss (parse failed)"
-      );
+      logger.debug({ state: !!state, tableId: state?.tableId }, `${LOG_PREFIX} InGameUserStateCache.updateTableId result`);
       return state;
     } catch (err) {
-      console.error(`${LOG_PREFIX} InGameUserStateCache.updateTableId failed:`, err);
+      logger.error({ err }, `${LOG_PREFIX} InGameUserStateCache.updateTableId failed`);
       return null;
     }
   }
@@ -500,26 +449,26 @@ function parseHashToState(
   playerId: PlayerId
 ): InGameUserState | null {
   if (hash.status === undefined || hash.status === null) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: missing required field 'status'`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: missing required field 'status'`);
     return null;
   }
   if (!VALID_STATUSES.has(hash.status)) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: invalid status '${hash.status}'`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid status '${hash.status}'`);
     return null;
   }
   if (hash.bountyCount === undefined || hash.bountyCount === null) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: missing required field 'bountyCount'`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: missing required field 'bountyCount'`);
     return null;
   }
   const bountyCount = parseInt(hash.bountyCount, 10);
   if (Number.isNaN(bountyCount)) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: invalid bountyCount`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid bountyCount`);
     return null;
   }
   let entryPaymentMethod: EntryPaymentMethod | null = null;
   if (hash.entryPaymentMethod !== undefined && hash.entryPaymentMethod !== null && hash.entryPaymentMethod !== "") {
     if (!VALID_ENTRY_PAYMENT_METHODS.has(hash.entryPaymentMethod)) {
-      console.error(`${LOG_PREFIX} parseHashToState failed: invalid entryPaymentMethod '${hash.entryPaymentMethod}'`, { hash });
+      logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid entryPaymentMethod '${hash.entryPaymentMethod}'`);
       return null;
     }
     entryPaymentMethod = hash.entryPaymentMethod as EntryPaymentMethod;
@@ -531,29 +480,29 @@ function parseHashToState(
     return null;
   }
   if (hash.totalReentryCount === undefined || hash.totalReentryCount === null) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: missing required field 'totalReentryCount'`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: missing required field 'totalReentryCount'`);
     return null;
   }
   const totalReentryCount = parseInt(hash.totalReentryCount, 10);
   if (Number.isNaN(totalReentryCount) || totalReentryCount < 0) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: invalid totalReentryCount`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid totalReentryCount`);
     return null;
   }
   const freeEntryCount = parseInt(hash.freeEntryCount ?? "0", 10);
   if (Number.isNaN(freeEntryCount) || freeEntryCount < 0) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: invalid freeEntryCount`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid freeEntryCount`);
     return null;
   }
   const freeReentryCount = parseInt(hash.freeReentryCount ?? "0", 10);
   if (Number.isNaN(freeReentryCount) || freeReentryCount < 0) {
-    console.error(`${LOG_PREFIX} parseHashToState failed: invalid freeReentryCount`, { hash });
+    logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid freeReentryCount`);
     return null;
   }
   let placement: number | null = null;
   if (hash.placement !== undefined && hash.placement !== null && hash.placement !== "") {
     const p = parseInt(hash.placement, 10);
     if (Number.isNaN(p) || p < 0) {
-      console.error(`${LOG_PREFIX} parseHashToState failed: invalid placement`, { hash });
+      logger.error({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid placement`);
       return null;
     }
     placement = p;
@@ -587,28 +536,28 @@ function parseReentryByPaymentMethod(
   try {
     arr = JSON.parse(raw);
   } catch {
-    console.error(`${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid JSON`, { raw });
+    logger.error({ raw }, `${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid JSON`);
     return undefined;
   }
   if (!Array.isArray(arr)) {
-    console.error(`${LOG_PREFIX} parseReentryByPaymentMethod failed: expected array`, { raw });
+    logger.error({ raw }, `${LOG_PREFIX} parseReentryByPaymentMethod failed: expected array`);
     return undefined;
   }
   const result: ReentryByPaymentMethod = [];
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     if (!Array.isArray(item) || item.length !== 2) {
-      console.error(`${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid pair at index ${i}`, { item });
+      logger.error({ item, index: i }, `${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid pair at index ${i}`);
       return undefined;
     }
     const [method, count] = item;
     if (typeof method !== "string" || !VALID_ENTRY_PAYMENT_METHODS.has(method)) {
-      console.error(`${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid method at index ${i}`, { method });
+      logger.error({ method, index: i }, `${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid method at index ${i}`);
       return undefined;
     }
     const num = typeof count === "number" ? count : parseInt(String(count), 10);
     if (Number.isNaN(num) || num < 0) {
-      console.error(`${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid count at index ${i}`, { count });
+      logger.error({ count, index: i }, `${LOG_PREFIX} parseReentryByPaymentMethod failed: invalid count at index ${i}`);
       return undefined;
     }
     result.push([method as EntryPaymentMethod, num]);
@@ -626,28 +575,28 @@ function parseBonuses(
   try {
     arr = JSON.parse(raw);
   } catch {
-    console.error(`${LOG_PREFIX} parseBonuses failed: invalid JSON`, { raw });
+    logger.error({ raw }, `${LOG_PREFIX} parseBonuses failed: invalid JSON`);
     return undefined;
   }
   if (!Array.isArray(arr)) {
-    console.error(`${LOG_PREFIX} parseBonuses failed: expected array`, { raw });
+    logger.error({ raw }, `${LOG_PREFIX} parseBonuses failed: expected array`);
     return undefined;
   }
   const result: BonusesByType = [];
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     if (!Array.isArray(item) || item.length !== 2) {
-      console.error(`${LOG_PREFIX} parseBonuses failed: invalid pair at index ${i}`, { item });
+      logger.error({ item, index: i }, `${LOG_PREFIX} parseBonuses failed: invalid pair at index ${i}`);
       return undefined;
     }
     const [bonus, count] = item;
     if (typeof bonus !== "string" || !VALID_BONUSES.has(bonus)) {
-      console.error(`${LOG_PREFIX} parseBonuses failed: invalid bonus at index ${i}`, { bonus });
+      logger.error({ bonus, index: i }, `${LOG_PREFIX} parseBonuses failed: invalid bonus at index ${i}`);
       return undefined;
     }
     const num = typeof count === "number" ? count : parseInt(String(count), 10);
     if (Number.isNaN(num) || num < 0) {
-      console.error(`${LOG_PREFIX} parseBonuses failed: invalid count at index ${i}`, { count });
+      logger.error({ count, index: i }, `${LOG_PREFIX} parseBonuses failed: invalid count at index ${i}`);
       return undefined;
     }
     result.push([bonus as InGameBonus, num]);
