@@ -28,6 +28,10 @@ export const InGameUserStateSchema = z
       .number()
       .openapi({ description: "Player ID within tournament, starts at 1", example: 1 }),
     playerId: z.string().openapi({ description: "Player ID", example: "player-123" }),
+    nickname: z
+      .string()
+      .nullable()
+      .openapi({ description: "Player nickname from Postgres players table", example: "john_doe" }),
     status: InGamePlayerStatusSchema,
     tableId: z.string().nullable().openapi({ description: "Table ID", example: "table-1" }),
     bountyCount: z.number().openapi({ description: "Bounty count", example: 0 }),

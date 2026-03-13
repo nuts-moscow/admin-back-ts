@@ -6,6 +6,7 @@ alwaysApply: true
 On every user prompt, consult and apply all project skills in `.cursor/skills/` when relevant to the task:
 
 - **working-with-configs** — Configs in `src/configs/`, init at app start, access via `ApplicationConfigs.instance`
+- **using-postgres** — Postgres in `src/postgres/`, singleton pool, init in wiring, all repositories use PostgresClient.instance
 - **using-redis** — Redis in `src/redis/`, singleton, init at start, try-catch with logging and safe results
 - **using-cache** — Cache in `src/cache/`, interface + implementation + singleton in same file, JSDoc on all methods
 - **creating-domain-models** — Domain models in `src/domain/`, file name = model name, interface/type only

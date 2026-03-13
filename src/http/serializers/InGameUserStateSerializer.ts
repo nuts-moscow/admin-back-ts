@@ -21,12 +21,15 @@ function flattenPairs<T extends string>(
  * Converts InGameUserState to API response format.
  * reentryByPaymentMethod: [["Cache", 2], ["CreditCard", 1]] -> ["Cache", "Cache", "CreditCard"]
  * bonuses: [["EarlyBird", 2], ["Diller", 1]] -> ["EarlyBird", "EarlyBird", "Diller"]
+ * nickname: from Postgres players table (pass from caller)
  */
 export function toApiResponse(
-  state: InGameUserState
+  state: InGameUserState,
+  nickname: string | null = null
 ): Omit<InGameUserState, "reentryByPaymentMethod" | "bonuses"> & {
   reentryByPaymentMethod: string[] | null;
   bonuses: string[] | null;
+  nickname: string | null;
 } {
   return {
     ...state,
@@ -34,5 +37,6 @@ export function toApiResponse(
       state.reentryByPaymentMethod as ReentryByPaymentMethod | null
     ),
     bonuses: flattenPairs(state.bonuses as BonusesByType | null),
+    nickname,
   };
 }

@@ -1,11 +1,12 @@
 import "./http/openapi/zod-extend";
 import { ApplicationConfigs } from "./configs";
 import { initLogger, logger } from "./logger";
-import { wireHttp, wireRedis } from "./wiring";
+import { wireHttp, wirePostgres, wireRedis } from "./wiring";
 
 async function main() {
   ApplicationConfigs.init();
   await initLogger();
+  await wirePostgres();
   await wireRedis();
   wireHttp();
 

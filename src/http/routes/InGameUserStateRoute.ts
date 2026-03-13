@@ -3,6 +3,7 @@ import {
   EntryPaymentMethod,
   InGamePlayerStatus,
 } from "../../domain/cache/InGameUserState";
+import { playerRepository } from "../../postgres";
 import { toApiResponse } from "../serializers/InGameUserStateSerializer";
 import { InGameUserStateService } from "../services/InGameUserStateService";
 
@@ -34,7 +35,8 @@ export function inGameUserStateRoutes() {
             { status: 500, headers: { "Content-Type": "application/json" } }
           );
         }
-        return Response.json(toApiResponse(state), { status: 201 });
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname), { status: 201 });
       },
       GET: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
@@ -44,7 +46,8 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(toApiResponse(state));
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/bounty/update": {
@@ -83,7 +86,8 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(toApiResponse(state));
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname));
       },
     },
     "/api/tournaments/:tournamentId/players": {
@@ -92,7 +96,13 @@ export function inGameUserStateRoutes() {
       ) => {
         const { tournamentId } = req.params;
         const states = await service.getAllByTournament(tournamentId);
-        return Response.json(states.map(toApiResponse));
+        const enriched = await Promise.all(
+          states.map(async (s) => {
+            const nickname = await playerRepository.getNicknameById(s.playerId);
+            return toApiResponse(s, nickname);
+          })
+        );
+        return Response.json(enriched);
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/reentry": {
@@ -127,7 +137,8 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(toApiResponse(state));
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/status": {
@@ -165,7 +176,8 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(toApiResponse(state));
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/entry-payment": {
@@ -204,7 +216,8 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(toApiResponse(state));
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/table": {
@@ -234,7 +247,8 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(toApiResponse(state));
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/reentry-payment": {
@@ -282,7 +296,8 @@ export function inGameUserStateRoutes() {
         if (!state) {
           return new Response(null, { status: 404 });
         }
-        return Response.json(toApiResponse(state));
+        const nickname = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, nickname));
       },
     },
   };
