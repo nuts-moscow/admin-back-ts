@@ -1,5 +1,7 @@
 export interface PostgresConfig {
   url: string;
+  ssl: boolean;
+  sslRejectUnauthorized: boolean;
 }
 
 export function loadPostgresConfig(): PostgresConfig {
@@ -11,5 +13,7 @@ export function loadPostgresConfig(): PostgresConfig {
   const url =
     process.env.POSTGRES_URL ??
     `postgres://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
-  return { url };
+  const ssl = process.env.POSTGRES_SSL !== "false" && process.env.POSTGRES_SSL !== "0";
+  const sslRejectUnauthorized = process.env.POSTGRES_SSL_REJECT_UNAUTHORIZED !== "false";
+  return { url, ssl, sslRejectUnauthorized };
 }

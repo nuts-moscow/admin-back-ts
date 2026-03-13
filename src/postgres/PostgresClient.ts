@@ -8,8 +8,11 @@ export class PostgresClient {
     if (PostgresClient._instance) {
       return PostgresClient._instance;
     }
-    const { url } = ApplicationConfigs.instance.postgres;
-    PostgresClient._instance = new Pool({ connectionString: url });
+    const { url, ssl, sslRejectUnauthorized } = ApplicationConfigs.instance.postgres;
+    PostgresClient._instance = new Pool({
+      connectionString: url,
+      ssl: ssl ? { rejectUnauthorized: sslRejectUnauthorized } : false,
+    });
     const client = await PostgresClient._instance.connect();
     await client.query("SELECT 1");
     client.release();
