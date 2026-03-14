@@ -221,13 +221,14 @@ export function inGameUserStateRoutes() {
         const states = await service.getAllByTournament(tournamentId);
         const enriched = await Promise.all(
           states.map(async (s) => {
-            const [playerName, bountyKills, eliminatedBy] = await Promise.all([
-              playerRepository.getNicknameById(s.playerId),
+            const [player, bountyKills, eliminatedBy] = await Promise.all([
+              playerRepository.findById(s.playerId),
               service.getKillsByKiller(tournamentId, s.playerId),
               service.getEliminatedBy(tournamentId, s.playerId),
             ]);
             return {
-              ...toApiResponse(s, playerName),
+              ...toApiResponse(s, player?.nickname ?? null),
+              signAgreement: player?.signAgreement ?? false,
               bountyKills,
               eliminatedBy,
             };

@@ -70,6 +70,13 @@ export const InGameUserStateSchema = z
         description: "List of player IDs who eliminated this player (only in list endpoint)",
         example: ["456"],
       }),
+    signAgreement: z
+      .boolean()
+      .optional()
+      .openapi({
+        description: "Whether player signed agreement (only in list endpoint)",
+        example: true,
+      }),
   })
   .openapi("InGameUserState");
 
