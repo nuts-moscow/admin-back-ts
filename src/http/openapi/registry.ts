@@ -24,6 +24,7 @@ import {
   TournamentPlayerParamsSchema,
   TournamentResponseSchema,
   TournamentStructureResponseSchema,
+  TournamentWithStructureResponseSchema,
   UpdatePlayerBodySchema,
   UpdateTournamentBodySchema,
 } from "./schemas";
@@ -233,6 +234,27 @@ openApiRegistry.registerPath({
     },
     400: { description: "Invalid request body" },
     500: { description: "Failed to create tournament" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/tournaments/{id}",
+  tags: ["Tournaments"],
+  operationId: "getTournament",
+  summary: "Get tournament by ID",
+  description: "Returns tournament with its structure from cache (structure may be null if not set)",
+  request: {
+    params: TournamentIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Tournament with structure",
+      content: {
+        "application/json": { schema: TournamentWithStructureResponseSchema },
+      },
+    },
+    404: { description: "Tournament not found" },
   },
 });
 

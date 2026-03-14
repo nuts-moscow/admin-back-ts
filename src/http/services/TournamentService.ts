@@ -110,6 +110,19 @@ export class TournamentService {
     return tournamentRepository.list({ offset, limit });
   }
 
+  async getTournament(id: number) {
+    const tournament = await tournamentRepository.findById(id);
+    if (!tournament) return null;
+    const structure = await tournamentStructureCache.get(String(id));
+    return {
+      id: tournament.id,
+      name: tournament.name,
+      status: tournament.status,
+      date: tournament.date,
+      structure: structure ?? null,
+    };
+  }
+
   async updateTournament(
     id: number,
     input: { name: string; date: number; status: string }

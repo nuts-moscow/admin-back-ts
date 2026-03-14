@@ -311,6 +311,28 @@ export const TournamentResponseSchema = z
   })
   .openapi("TournamentResponse");
 
+/** Structure without id (from cache) */
+const TournamentStructureDataSchema = z
+  .object({
+    name: z.string(),
+    playersLimit: z.number(),
+    stackSize: z.number(),
+    freezeOutEnabled: z.boolean(),
+    blindsStructure: z.array(BlindTypeSchema),
+  })
+  .openapi("TournamentStructureData");
+
+/** Response: tournament with structure (get by id) */
+export const TournamentWithStructureResponseSchema = z
+  .object({
+    id: z.number(),
+    name: z.string(),
+    status: z.string(),
+    date: z.number(),
+    structure: TournamentStructureDataSchema.nullable(),
+  })
+  .openapi("TournamentWithStructureResponse");
+
 /** List structures query params */
 export const ListTournamentStructuresQuerySchema = z
   .object({

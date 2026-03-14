@@ -280,6 +280,32 @@ export function tournamentRoutes() {
       },
     },
     "/api/tournaments/:id": {
+      GET: async (
+        req: BunRequest<"/api/tournaments/:id"> & { params: { id: string } }
+      ) => {
+        const idStr = req.params?.id;
+        if (!idStr) {
+          return new Response(
+            JSON.stringify({ error: "id is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const id = parseInt(idStr, 10);
+        if (Number.isNaN(id)) {
+          return new Response(
+            JSON.stringify({ error: "id must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const tournament = await service.getTournament(id);
+        if (!tournament) {
+          return new Response(
+            JSON.stringify({ error: "Tournament not found" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json(tournament);
+      },
       PATCH: async (
         req: BunRequest<"/api/tournaments/:id"> & { params: { id: string } }
       ) => {
