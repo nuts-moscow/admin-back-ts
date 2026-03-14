@@ -340,3 +340,17 @@ export const ListTournamentsResponseSchema = z
     tournaments: z.array(TournamentResponseSchema),
   })
   .openapi("ListTournamentsResponse");
+
+/** Tournament status enum */
+export const TournamentStatusSchema = z
+  .enum(["registration_open", "in_progress", "completed"])
+  .openapi("TournamentStatus");
+
+/** Request body: update tournament */
+export const UpdateTournamentBodySchema = z
+  .object({
+    name: z.string().min(1).openapi({ description: "Tournament name" }),
+    date: z.number().min(0).openapi({ description: "Unix timestamp" }),
+    status: TournamentStatusSchema.openapi({ description: "Tournament status" }),
+  })
+  .openapi("UpdateTournamentBody");

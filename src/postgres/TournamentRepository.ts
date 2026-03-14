@@ -31,10 +31,17 @@ export interface ListTournamentsOptions {
   limit?: number;
 }
 
+export interface UpdateTournamentInput {
+  name: string;
+  date: number;
+  status: string;
+}
+
 export interface TournamentRepository {
   create(input: MakeTournamentInput): Promise<TournamentRow | null>;
   findById(id: number): Promise<TournamentRow | null>;
   list(options?: ListTournamentsOptions): Promise<TournamentRow[]>;
+  update(id: number, input: UpdateTournamentInput): Promise<TournamentRow | null>;
 }
 
 class TournamentRepositoryImpl implements TournamentRepository {
@@ -89,6 +96,22 @@ class TournamentRepositoryImpl implements TournamentRepository {
     } catch (err) {
       logger.info({ err }, "[Postgres] TournamentRepository.list failed");
       return [];
+    }
+  }
+
+  async update(id: number, input: UpdateTournamentInput): Promise<TournamentRow | null> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `UPDATE tournaments SET name = $1, date = $2, status = $3 WHERE id = $4
+         RETURNING id, name, status, date, entry_price, reentry_price`,
+        [input.name, input.date, input.status, id]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return rowToTournament(row as Record<string, unknown>);
+    } catch (err) {
+      logger.info({ err }, "[Postgres] TournamentRepository.update failed");
+      return null;
     }
   }
 }

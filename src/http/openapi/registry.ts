@@ -25,6 +25,7 @@ import {
   TournamentResponseSchema,
   TournamentStructureResponseSchema,
   UpdatePlayerBodySchema,
+  UpdateTournamentBodySchema,
 } from "./schemas";
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 
@@ -232,6 +233,34 @@ openApiRegistry.registerPath({
     },
     400: { description: "Invalid request body" },
     500: { description: "Failed to create tournament" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/tournaments/{id}",
+  tags: ["Tournaments"],
+  operationId: "updateTournament",
+  summary: "Update tournament",
+  description: "Updates tournament name, date, and status",
+  request: {
+    params: TournamentIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: UpdateTournamentBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Tournament updated",
+      content: {
+        "application/json": { schema: TournamentResponseSchema },
+      },
+    },
+    400: { description: "Invalid request body or status" },
+    404: { description: "Tournament not found" },
+    500: { description: "Failed to update tournament" },
   },
 });
 

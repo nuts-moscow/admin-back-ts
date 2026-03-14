@@ -279,6 +279,85 @@ export function tournamentRoutes() {
         return Response.json(result.tournament, { status: 201 });
       },
     },
+    "/api/tournaments/:id": {
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:id"> & { params: { id: string } }
+      ) => {
+        const idStr = req.params?.id;
+        if (!idStr) {
+          return new Response(
+            JSON.stringify({ error: "id is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const id = parseInt(idStr, 10);
+        if (Number.isNaN(id)) {
+          return new Response(
+            JSON.stringify({ error: "id must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        let body: unknown;
+        try {
+          body = await req.json();
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (typeof body !== "object" || body === null) {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const o = body as Record<string, unknown>;
+        if (typeof o.name !== "string" || o.name.trim() === "") {
+          return new Response(
+            JSON.stringify({ error: "name is required and must be a non-empty string" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (typeof o.date !== "number" || o.date < 0) {
+          return new Response(
+            JSON.stringify({ error: "date must be a non-negative number (Unix timestamp)" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const validStatuses = ["registration_open", "in_progress", "completed"];
+        if (typeof o.status !== "string" || !validStatuses.includes(o.status)) {
+          return new Response(
+            JSON.stringify({ error: "status must be one of: registration_open, in_progress, completed" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.updateTournament(id, {
+          name: o.name.trim(),
+          date: o.date,
+          status: o.status,
+        });
+        if (!result.ok) {
+          if (result.error === "not_found") {
+            return new Response(
+              JSON.stringify({ error: "Tournament not found" }),
+              { status: 404, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (result.error === "invalid_status") {
+            return new Response(
+              JSON.stringify({ error: "Invalid status" }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: "Failed to update tournament" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json(result.tournament);
+      },
+    },
     "/api/tournaments/:id/structure": {
       PATCH: async (
         req: BunRequest<"/api/tournaments/:id/structure"> & { params: { id: string } }

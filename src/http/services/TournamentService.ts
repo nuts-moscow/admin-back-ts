@@ -36,6 +36,10 @@ export type UpdateTournamentStructureResult =
   | { ok: true }
   | { ok: false; error: "not_found" | "failed" };
 
+export type UpdateTournamentResult =
+  | { ok: true; tournament: { id: number; name: string; status: string; date: number } }
+  | { ok: false; error: "not_found" | "failed" | "invalid_status" };
+
 export class TournamentService {
   async createStructure(
     input: MakeTournamentStructureBody
@@ -104,6 +108,27 @@ export class TournamentService {
 
   async listTournaments(offset?: number, limit?: number) {
     return tournamentRepository.list({ offset, limit });
+  }
+
+  async updateTournament(
+    id: number,
+    input: { name: string; date: number; status: string }
+  ): Promise<UpdateTournamentResult> {
+    const validStatuses = ["registration_open", "in_progress", "completed"];
+    if (!validStatuses.includes(input.status)) {
+      return { ok: false, error: "invalid_status" };
+    }
+    const tournament = await tournamentRepository.update(id, input);
+    if (!tournament) return { ok: false, error: "not_found" };
+    return {
+      ok: true,
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+        status: tournament.status,
+        date: tournament.date,
+      },
+    };
   }
 
   async updateTournamentStructure(
