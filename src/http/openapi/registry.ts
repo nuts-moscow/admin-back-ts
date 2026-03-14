@@ -10,7 +10,6 @@ import {
   RebuyCountResponseSchema,
   ReentryCountBodySchema,
   ReentryPaymentBodySchema,
-  StatusBodySchema,
   TableIdBodySchema,
   TournamentParamsSchema,
   TournamentPlayerParamsSchema,
@@ -281,42 +280,6 @@ openApiRegistry.registerPath({
     },
     400: {
       description: "Invalid request body",
-      content: {
-        "application/json": {
-          schema: { type: "object", properties: { error: { type: "string" } } },
-        },
-      },
-    },
-    404: {
-      description: "Player not found",
-    },
-  },
-});
-
-openApiRegistry.registerPath({
-  method: "post",
-  path: `${basePath}/players/{playerId}/status`,
-  tags: ["Tournament Players"],
-  operationId: "updatePlayerStatus",
-  summary: "Update player status",
-  description: "Updates the in-game status of a player",
-  request: {
-    params: TournamentPlayerParamsSchema,
-    body: {
-      content: {
-        "application/json": { schema: StatusBodySchema },
-      },
-    },
-  },
-  responses: {
-    200: {
-      description: "Updated player state",
-      content: {
-        "application/json": { schema: InGameUserStateSchema },
-      },
-    },
-    400: {
-      description: "Invalid status",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

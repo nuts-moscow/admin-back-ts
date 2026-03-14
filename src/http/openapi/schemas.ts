@@ -119,13 +119,6 @@ export const ReentryCountBodySchema = z
   })
   .openapi("ReentryCountBody");
 
-/** Request body: player status */
-export const StatusBodySchema = z
-  .object({
-    status: InGamePlayerStatusSchema,
-  })
-  .openapi("StatusBody");
-
 /** Request body: entry payment method */
 export const EntryPaymentBodySchema = z
   .object({

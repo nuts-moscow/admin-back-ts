@@ -2,13 +2,11 @@ import type { BunRequest } from "bun";
 import {
   BountyEliminationType,
   EntryPaymentMethod,
-  InGamePlayerStatus,
 } from "../../domain/cache/InGameUserState";
 import { playerRepository } from "../../postgres";
 import { toApiResponse } from "../serializers/InGameUserStateSerializer";
 import { InGameUserStateService } from "../services/InGameUserStateService";
 
-const VALID_STATUSES = new Set<string>(Object.values(InGamePlayerStatus));
 const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
   Object.values(EntryPaymentMethod)
 );
@@ -216,45 +214,6 @@ export function inGameUserStateRoutes() {
           playerId,
           tournamentId,
           body.count
-        );
-        if (!state) {
-          return new Response(null, { status: 404 });
-        }
-        const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
-      },
-    },
-    "/api/tournaments/:tournamentId/players/:playerId/status": {
-      POST: async (
-        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/status">
-      ) => {
-        const { tournamentId, playerId } = req.params;
-        let body: { status: string };
-        try {
-          body = (await req.json()) as { status: string };
-        } catch {
-          return new Response(
-            JSON.stringify({ error: "Invalid JSON body" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
-        }
-        if (
-          body.status === undefined ||
-          body.status === null ||
-          typeof body.status !== "string" ||
-          !VALID_STATUSES.has(body.status)
-        ) {
-          return new Response(
-            JSON.stringify({
-              error: "status is required and must be a valid InGamePlayerStatus",
-            }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
-        }
-        const state = await service.updateStatus(
-          playerId,
-          tournamentId,
-          body.status as (typeof InGamePlayerStatus)[keyof typeof InGamePlayerStatus]
         );
         if (!state) {
           return new Response(null, { status: 404 });
