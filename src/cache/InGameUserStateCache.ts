@@ -127,7 +127,8 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
-   * Adds reentry payments (increments count for each payment method in list).
+   * Records reentry payment methods for existing reentries. Does NOT add to totalReentryCount
+   * (reentries are added via addReentryCount / bounty eliminate). Only updates reentryByPaymentMethod.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
    * @param payments - List of payment methods (each adds 1 to that method's count)
@@ -444,7 +445,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       const newState: InGameUserState = {
         ...state,
         reentryByPaymentMethod: updated,
-        totalReentryCount: state.totalReentryCount + payments.length,
+        totalReentryCount: state.totalReentryCount,
       };
       const ok = await this.set(playerId, tournamentId, newState);
       if (!ok) {
