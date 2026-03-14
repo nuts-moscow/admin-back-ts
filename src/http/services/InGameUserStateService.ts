@@ -427,7 +427,7 @@ export class InGameUserStateService {
         return { ok: false, error: "Eliminated player not found in tournament" };
       }
     } else {
-      // type === "Out": set status to Out
+      // type === "Out": set status to Out and placement (elimination order)
       const eliminatedState = await InGameUserStateCache.get(
         eliminatedPlayerId,
         tournamentId
@@ -435,10 +435,14 @@ export class InGameUserStateService {
       if (!eliminatedState) {
         return { ok: false, error: "Eliminated player not found in tournament" };
       }
-      const statusState = await InGameUserStateCache.updateStatus(
+      const allStates = await InGameUserStateCache.getAllByTournament(tournamentId);
+      const outCount = allStates.filter((s) => s.status === InGamePlayerStatus.Out).length;
+      const nextPlacement = outCount + 1;
+      const statusState = await InGameUserStateCache.updateStatusAndPlacement(
         eliminatedPlayerId,
         tournamentId,
-        InGamePlayerStatus.Out
+        InGamePlayerStatus.Out,
+        nextPlacement
       );
       if (!statusState) {
         return { ok: false, error: "Failed to update eliminated player status" };

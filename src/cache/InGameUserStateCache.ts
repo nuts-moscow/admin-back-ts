@@ -114,6 +114,21 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
+   * Updates player status and placement (e.g. when setting status to Out).
+   * @param playerId - Player ID
+   * @param tournamentId - Tournament ID
+   * @param status - New status
+   * @param placement - Placement (elimination order, 1 = first out)
+   * @returns Updated state or null if state does not exist or on error
+   */
+  updateStatusAndPlacement(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    status: InGamePlayerStatus,
+    placement: number | null
+  ): Promise<InGameUserState | null>;
+
+  /**
    * Updates entry payment method in tournament.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
@@ -386,6 +401,44 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       return state;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.updateStatus failed`);
+      return null;
+    }
+  }
+
+  async updateStatusAndPlacement(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    status: (typeof InGamePlayerStatus)[keyof typeof InGamePlayerStatus],
+    placement: number | null
+  ): Promise<InGameUserState | null> {
+    logger.info(
+      { playerId, tournamentId, status, placement },
+      `${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement entry`
+    );
+    try {
+      const k = key(tournamentId, playerId);
+      const exists = await RedisClient.instance.exists(k);
+      if (!exists) {
+        logger.info(`${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement result: miss (key not found)`);
+        return null;
+      }
+      await RedisClient.instance.hset(k, {
+        status,
+        placement: placement === null ? "" : String(placement),
+      });
+      const hash = await RedisClient.instance.hgetall(k);
+      if (!hash || Object.keys(hash).length === 0) {
+        logger.info(`${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement result: miss (no data)`);
+        return null;
+      }
+      const state = parseHashToState(hash, playerId);
+      logger.info(
+        { state: !!state, status: state?.status, placement: state?.placement },
+        `${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement result`
+      );
+      return state;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement failed`);
       return null;
     }
   }
