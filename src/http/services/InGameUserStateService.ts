@@ -125,9 +125,20 @@ export class InGameUserStateService {
   ): Promise<
     { state: InGameUserState } | { error: "not_found" | "invalid_status" }
   > {
+    logger.info(
+      { tournamentId, playerId, entryPaymentMethod, tableId },
+      "[InGameUserStateService] playerGameStart entry"
+    );
     const state = await InGameUserStateCache.get(playerId, tournamentId);
-    if (!state) return { error: "not_found" };
+    if (!state) {
+      logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found");
+      return { error: "not_found" };
+    }
     if (state.status !== InGamePlayerStatus.Registered) {
+      logger.info(
+        { tournamentId, playerId, currentStatus: state.status },
+        "[InGameUserStateService] playerGameStart result: invalid_status"
+      );
       return { error: "invalid_status" };
     }
     const newStatus =
@@ -141,7 +152,10 @@ export class InGameUserStateService {
         tournamentId,
         entryPaymentMethod
       );
-      if (!afterPayment) return { error: "not_found" };
+      if (!afterPayment) {
+        logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found after payment update");
+        return { error: "not_found" };
+      }
       currentState = await InGameUserStateCache.updateStatus(
         playerId,
         tournamentId,
@@ -154,15 +168,30 @@ export class InGameUserStateService {
         newStatus
       );
     }
-    if (!currentState) return { error: "not_found" };
+    if (!currentState) {
+      logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found");
+      return { error: "not_found" };
+    }
     if (tableId != null && tableId !== "") {
       const tableState = await InGameUserStateCache.updateTableId(
         playerId,
         tournamentId,
         tableId
       );
-      return tableState ? { state: tableState } : { error: "not_found" };
+      if (!tableState) {
+        logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found after table update");
+        return { error: "not_found" };
+      }
+      logger.info(
+        { tournamentId, playerId, status: tableState.status, tableId: tableState.tableId },
+        "[InGameUserStateService] playerGameStart result"
+      );
+      return { state: tableState };
     }
+    logger.info(
+      { tournamentId, playerId, status: currentState.status },
+      "[InGameUserStateService] playerGameStart result"
+    );
     return { state: currentState };
   }
 
