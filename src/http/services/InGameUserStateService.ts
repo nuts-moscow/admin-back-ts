@@ -41,6 +41,44 @@ export class InGameUserStateService {
     return BountyKillsCache.getKillsByKiller(tournamentId, killerPlayerId);
   }
 
+  /**
+   * Removes a bounty: undoes one elimination.
+   * 1. Removes victim from killer's kill list
+   * 2. Decreases killer's bountyCount by 1
+   * 3. Decreases victim's totalReentryCount by 1
+   */
+  async removeBounty(
+    tournamentId: TournamentId,
+    killerPlayerId: PlayerId,
+    victimPlayerId: PlayerId
+  ): Promise<{ ok: boolean; error?: string }> {
+    const killRemoved = await BountyKillsCache.removeKill(
+      tournamentId,
+      killerPlayerId,
+      victimPlayerId
+    );
+    if (!killRemoved) {
+      return { ok: false, error: "Kill record not found" };
+    }
+    const killerState = await InGameUserStateCache.updateBountyCount(
+      killerPlayerId,
+      tournamentId,
+      -1
+    );
+    if (!killerState) {
+      return { ok: false, error: "Killer player not found" };
+    }
+    const victimState = await InGameUserStateCache.addReentryCount(
+      victimPlayerId,
+      tournamentId,
+      -1
+    );
+    if (!victimState) {
+      return { ok: false, error: "Victim player not found" };
+    }
+    return { ok: true };
+  }
+
   /** Returns count of players at table (excluding playerId if they're moving to another table) */
   async getPlayerCountAtTable(
     tournamentId: TournamentId,

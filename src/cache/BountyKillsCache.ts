@@ -35,6 +35,16 @@ export interface BountyKillsCache {
     tournamentId: TournamentId,
     killerPlayerId: PlayerId
   ): Promise<PlayerId[]>;
+
+  /**
+   * Removes one occurrence of eliminatedPlayerId from killer's kill list.
+   * @returns true if removed, false if not found or on error
+   */
+  removeKill(
+    tournamentId: TournamentId,
+    killerPlayerId: PlayerId,
+    eliminatedPlayerId: PlayerId
+  ): Promise<boolean>;
 }
 
 class BountyKillsCacheImpl implements BountyKillsCache {
@@ -77,6 +87,27 @@ class BountyKillsCacheImpl implements BountyKillsCache {
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} getKillsByKiller failed`);
       return [];
+    }
+  }
+
+  async removeKill(
+    tournamentId: TournamentId,
+    killerPlayerId: PlayerId,
+    eliminatedPlayerId: PlayerId
+  ): Promise<boolean> {
+    logger.info(
+      { tournamentId, killerPlayerId, eliminatedPlayerId },
+      `${LOG_PREFIX} removeKill entry`
+    );
+    try {
+      const k = key(tournamentId, killerPlayerId);
+      const removed = await RedisClient.instance.lrem(k, 1, eliminatedPlayerId);
+      const ok = removed > 0;
+      logger.info({ removed: ok }, `${LOG_PREFIX} removeKill result`);
+      return ok;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} removeKill failed`);
+      return false;
     }
   }
 }

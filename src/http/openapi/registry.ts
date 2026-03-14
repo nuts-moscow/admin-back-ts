@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   BountyCountBodySchema,
   BountyEliminateBodySchema,
+  BountyRemoveBodySchema,
   CreatePlayerBodySchema,
   EntryPaymentBodySchema,
   InGameUserStateSchema,
@@ -169,6 +170,45 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Eliminated or killer player not found in tournament",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/bounty/remove`,
+  tags: ["Tournament Players"],
+  operationId: "removeBounty",
+  summary: "Remove bounty",
+  description:
+    "Undoes an elimination: removes victim from killer's list, decreases killer's bountyCount by 1, decreases victim's totalReentryCount by 1",
+  request: {
+    params: TournamentParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: BountyRemoveBodySchema },
+      },
+    },
+  },
+  responses: {
+    204: {
+      description: "Bounty removed successfully",
+    },
+    400: {
+      description: "Invalid request body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Kill record or player not found",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

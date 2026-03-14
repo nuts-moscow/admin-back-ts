@@ -95,6 +95,18 @@ export const BountyEliminationTypeSchema = z
   .enum(["Rebuy", "Out"])
   .openapi("BountyEliminationType");
 
+/** Request body: remove bounty */
+export const BountyRemoveBodySchema = z
+  .object({
+    killerPlayerId: z
+      .string()
+      .openapi({ description: "Player from whom we take the bounty", example: "456" }),
+    victimPlayerId: z
+      .string()
+      .openapi({ description: "Player to remove from killer's list (eliminated player)", example: "123" }),
+  })
+  .openapi("BountyRemoveBody");
+
 /** Request body: record bounty elimination */
 export const BountyEliminateBodySchema = z
   .object({

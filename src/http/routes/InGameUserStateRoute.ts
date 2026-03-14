@@ -122,6 +122,48 @@ export function inGameUserStateRoutes() {
         return new Response(null, { status: 204 });
       },
     },
+    "/api/tournaments/:tournamentId/bounty/remove": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/bounty/remove">
+      ) => {
+        const { tournamentId } = req.params;
+        let body: { killerPlayerId: string; victimPlayerId: string };
+        try {
+          body = (await req.json()) as { killerPlayerId: string; victimPlayerId: string };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const { killerPlayerId, victimPlayerId } = body;
+        if (
+          !killerPlayerId ||
+          !victimPlayerId ||
+          typeof killerPlayerId !== "string" ||
+          typeof victimPlayerId !== "string"
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: "killerPlayerId and victimPlayerId are required strings",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.removeBounty(
+          tournamentId,
+          killerPlayerId,
+          victimPlayerId
+        );
+        if (!result.ok) {
+          return new Response(
+            JSON.stringify({ error: result.error ?? "Failed to remove bounty" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(null, { status: 204 });
+      },
+    },
     "/api/tournaments/:tournamentId/players/:playerId/bounty/update": {
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bounty/update">
