@@ -89,7 +89,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
       const limit = options?.limit != null ? Math.max(1, Math.min(1000, options.limit)) : 100;
       const result = await PostgresClient.instance.query(
         `SELECT id, name, status, date, entry_price, reentry_price
-         FROM tournaments ORDER BY id ASC OFFSET $1 LIMIT $2`,
+         FROM tournaments ORDER BY date ASC OFFSET $1 LIMIT $2`,
         [offset, limit]
       );
       return result.rows.map((row) => rowToTournament(row as Record<string, unknown>));
