@@ -117,13 +117,13 @@ export interface InGameUserStateCache {
    * Updates entry payment method in tournament.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
-   * @param entryPaymentMethod - New entry payment method
+   * @param entryPaymentMethod - New entry payment method, or null to clear
    * @returns Updated state or null if state does not exist or on error
    */
   updateEntryPaymentMethod(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    entryPaymentMethod: EntryPaymentMethod
+    entryPaymentMethod: EntryPaymentMethod | null
   ): Promise<InGameUserState | null>;
 
   /**
@@ -392,7 +392,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   async updateEntryPaymentMethod(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    entryPaymentMethod: EntryPaymentMethod
+    entryPaymentMethod: EntryPaymentMethod | null
   ): Promise<InGameUserState | null> {
     logger.info({ playerId, tournamentId, entryPaymentMethod }, `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod entry`);
     try {
@@ -402,7 +402,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (key not found)`);
         return null;
       }
-      await RedisClient.instance.hset(k, "entryPaymentMethod", entryPaymentMethod);
+      await RedisClient.instance.hset(k, "entryPaymentMethod", entryPaymentMethod ?? "");
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (no data)`);

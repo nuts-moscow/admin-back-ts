@@ -112,6 +112,59 @@ export class InGameUserStateService {
   }
 
   /**
+   * Rollback game start: reverts player to Registered, clears entry payment and table.
+   */
+  async rollbackGameStart(
+    tournamentId: TournamentId,
+    playerId: PlayerId
+  ): Promise<InGameUserState | null> {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) return null;
+    const afterStatus = await InGameUserStateCache.updateStatus(
+      playerId,
+      tournamentId,
+      InGamePlayerStatus.Registered
+    );
+    if (!afterStatus) return null;
+    const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
+      playerId,
+      tournamentId,
+      null
+    );
+    if (!afterPayment) return null;
+    return InGameUserStateCache.updateTableId(playerId, tournamentId, null);
+  }
+
+  /**
+   * In-game payment: updates entry payment method and transitions InGameNotPaid -> InGamePaid.
+   */
+  async inGamePayment(
+    tournamentId: TournamentId,
+    playerId: PlayerId,
+    entryPaymentMethod: EntryPaymentMethod
+  ): Promise<
+    { state: InGameUserState } | { error: "not_found" | "invalid_status" }
+  > {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) return { error: "not_found" };
+    if (state.status !== InGamePlayerStatus.InGameNotPaid) {
+      return { error: "invalid_status" };
+    }
+    const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
+      playerId,
+      tournamentId,
+      entryPaymentMethod
+    );
+    if (!afterPayment) return { error: "not_found" };
+    const finalState = await InGameUserStateCache.updateStatus(
+      playerId,
+      tournamentId,
+      InGamePlayerStatus.InGamePaid
+    );
+    return finalState ? { state: finalState } : { error: "not_found" };
+  }
+
+  /**
    * Player game start: transitions from Registered to InGamePaid or InGameNotPaid.
    * Updates entry payment method if provided. Updates table if tableId provided.
    * @param entryPaymentMethod - If provided: update it and set status InGamePaid. If not: set status InGameNotPaid.

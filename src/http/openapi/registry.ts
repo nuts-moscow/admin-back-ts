@@ -375,6 +375,67 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: "post",
+  path: `${basePath}/players/{playerId}/rollback-game-start`,
+  tags: ["Tournament Players"],
+  operationId: "rollbackGameStart",
+  summary: "Rollback game start",
+  description:
+    "Reverts player to Registered status, clears entry payment method and table",
+  request: {
+    params: TournamentPlayerParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    404: {
+      description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/players/{playerId}/in-game-payment`,
+  tags: ["Tournament Players"],
+  operationId: "inGamePayment",
+  summary: "In-game payment",
+  description:
+    "Updates entry payment method and transitions player from InGameNotPaid to InGamePaid",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: EntryPaymentBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid body or player must be in InGameNotPaid status",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
   path: `${basePath}/players/{playerId}/entry-payment`,
   tags: ["Tournament Players"],
   operationId: "updateEntryPaymentMethod",

@@ -323,6 +323,66 @@ export function inGameUserStateRoutes() {
         return Response.json(toApiResponse(result.state, playerName));
       },
     },
+    "/api/tournaments/:tournamentId/players/:playerId/rollback-game-start": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/rollback-game-start">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        const state = await service.rollbackGameStart(tournamentId, playerId);
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/in-game-payment": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/in-game-payment">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { entryPaymentMethod: string };
+        try {
+          body = (await req.json()) as { entryPaymentMethod: string };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.entryPaymentMethod == null ||
+          typeof body.entryPaymentMethod !== "string" ||
+          !VALID_ENTRY_PAYMENT_METHODS.has(body.entryPaymentMethod)
+        ) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "entryPaymentMethod is required and must be Cache, CreditCard, or Free",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.inGamePayment(
+          tournamentId,
+          playerId,
+          body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod]
+        );
+        if ("error" in result) {
+          if (result.error === "invalid_status") {
+            return new Response(
+              JSON.stringify({
+                error: "Player must be in InGameNotPaid status for in-game payment",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(result.state, playerName));
+      },
+    },
     "/api/tournaments/:tournamentId/players/:playerId/entry-payment": {
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/entry-payment">
