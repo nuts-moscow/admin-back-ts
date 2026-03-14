@@ -10,22 +10,6 @@ import {
   type TournamentId,
 } from "../../domain/cache/InGameUserState";
 
-function paidReentryCount(
-  pairs: [EntryPaymentMethod, number][] | null
-): number {
-  if (!pairs || pairs.length === 0) return 0;
-  let sum = 0;
-  for (const [method, count] of pairs) {
-    if (
-      method === EntryPaymentMethod.Cache ||
-      method === EntryPaymentMethod.CreditCard
-    ) {
-      sum += count;
-    }
-  }
-  return sum;
-}
-
 export class InGameUserStateService {
   async getUser(
     playerId: PlayerId,
@@ -271,7 +255,7 @@ export class InGameUserStateService {
   /**
    * Records a bounty elimination: who eliminated whom and type (Rebuy/Out).
    * 1. If type=Rebuy: increments reentry count for eliminated player
-   * 2. If type=Out: sets eliminated player status to Out or OutNotPaid (if unpaid reentries)
+   * 2. If type=Out: sets eliminated player status to Out
    * 3. Increments bounty count for killer
    * 4. Stores kill record in Redis (killer -> eliminated)
    */
@@ -291,7 +275,7 @@ export class InGameUserStateService {
         return { ok: false, error: "Eliminated player not found in tournament" };
       }
     } else {
-      // type === "Out": set status to Out or OutNotPaid
+      // type === "Out": set status to Out
       const eliminatedState = await InGameUserStateCache.get(
         eliminatedPlayerId,
         tournamentId
@@ -299,19 +283,10 @@ export class InGameUserStateService {
       if (!eliminatedState) {
         return { ok: false, error: "Eliminated player not found in tournament" };
       }
-      const paid = paidReentryCount(eliminatedState.reentryByPaymentMethod);
-      const unpaidReentryCount = Math.max(
-        0,
-        eliminatedState.totalReentryCount - paid
-      );
-      const newStatus: InGamePlayerStatus =
-        unpaidReentryCount > 0
-          ? InGamePlayerStatus.OutNotPaid
-          : InGamePlayerStatus.Out;
       const statusState = await InGameUserStateCache.updateStatus(
         eliminatedPlayerId,
         tournamentId,
-        newStatus
+        InGamePlayerStatus.Out
       );
       if (!statusState) {
         return { ok: false, error: "Failed to update eliminated player status" };

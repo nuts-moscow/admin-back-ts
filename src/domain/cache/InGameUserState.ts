@@ -12,7 +12,6 @@ export const InGamePlayerStatus = {
   Registered: "Registered",
   InGamePaid: "InGamePaid",
   InGameNotPaid: "InGameNotPaid",
-  OutNotPaid: "OutNotPaid",
   Out: "Out",
 } as const;
 

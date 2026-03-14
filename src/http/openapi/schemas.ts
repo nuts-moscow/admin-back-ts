@@ -6,7 +6,6 @@ export const InGamePlayerStatusSchema = z
     "Registered",
     "InGamePaid",
     "InGameNotPaid",
-    "OutNotPaid",
     "Out",
   ])
   .openapi("InGamePlayerStatus");
