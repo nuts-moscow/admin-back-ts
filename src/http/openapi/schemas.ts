@@ -56,6 +56,13 @@ export const InGameUserStateSchema = z
         description: "Bonuses as flat list, e.g. [\"EarlyBird\", \"EarlyBird\", \"Diller\"]",
         example: ["EarlyBird", "EarlyBird", "Diller"],
       }),
+    bountyKills: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        description: "List of player IDs this player eliminated (only in list endpoint)",
+        example: ["123", "456"],
+      }),
   })
   .openapi("InGameUserState");
 

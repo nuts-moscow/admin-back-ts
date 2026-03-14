@@ -34,6 +34,13 @@ export class InGameUserStateService {
     return InGameUserStateCache.getAllByTournament(tournamentId);
   }
 
+  async getKillsByKiller(
+    tournamentId: TournamentId,
+    killerPlayerId: PlayerId
+  ): Promise<PlayerId[]> {
+    return BountyKillsCache.getKillsByKiller(tournamentId, killerPlayerId);
+  }
+
   /** Returns count of players at table (excluding playerId if they're moving to another table) */
   async getPlayerCountAtTable(
     tournamentId: TournamentId,
