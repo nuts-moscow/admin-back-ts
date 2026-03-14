@@ -3,10 +3,18 @@ import { RedisClient } from "../redis";
 import type { PlayerId, TournamentId } from "../domain/cache/InGameUserState";
 
 const BOUNTY_KILLS_BASE = "nuts.api.data.tournament.bounty.kills";
+const ELIMINATED_BY_BASE = "nuts.api.data.tournament.bounty.eliminated_by";
 const LOG_PREFIX = "[BountyKillsCache]";
 
-function key(tournamentId: TournamentId, killerPlayerId: PlayerId): string {
+function killKey(tournamentId: TournamentId, killerPlayerId: PlayerId): string {
   return `${BOUNTY_KILLS_BASE}.${tournamentId}.${killerPlayerId}`;
+}
+
+function eliminatedByKey(
+  tournamentId: TournamentId,
+  victimPlayerId: PlayerId
+): string {
+  return `${ELIMINATED_BY_BASE}.${tournamentId}.${victimPlayerId}`;
 }
 
 /** Cache for bounty kill records: killer -> list of eliminated player IDs */
@@ -45,6 +53,32 @@ export interface BountyKillsCache {
     killerPlayerId: PlayerId,
     eliminatedPlayerId: PlayerId
   ): Promise<boolean>;
+
+  /**
+   * Adds killerPlayerId to victim's "eliminated by" list.
+   */
+  addEliminatedBy(
+    tournamentId: TournamentId,
+    victimPlayerId: PlayerId,
+    killerPlayerId: PlayerId
+  ): Promise<boolean>;
+
+  /**
+   * Gets list of killer IDs who eliminated victimPlayerId.
+   */
+  getEliminatedBy(
+    tournamentId: TournamentId,
+    victimPlayerId: PlayerId
+  ): Promise<PlayerId[]>;
+
+  /**
+   * Removes one occurrence of killerPlayerId from victim's eliminated-by list.
+   */
+  removeEliminatedBy(
+    tournamentId: TournamentId,
+    victimPlayerId: PlayerId,
+    killerPlayerId: PlayerId
+  ): Promise<boolean>;
 }
 
 class BountyKillsCacheImpl implements BountyKillsCache {
@@ -58,7 +92,7 @@ class BountyKillsCacheImpl implements BountyKillsCache {
       `${LOG_PREFIX} addKill entry`
     );
     try {
-      const k = key(tournamentId, killerPlayerId);
+      const k = killKey(tournamentId, killerPlayerId);
       await RedisClient.instance.rpush(k, eliminatedPlayerId);
       logger.info({ key: k }, `${LOG_PREFIX} addKill result`);
       return true;
@@ -77,7 +111,7 @@ class BountyKillsCacheImpl implements BountyKillsCache {
       `${LOG_PREFIX} getKillsByKiller entry`
     );
     try {
-      const k = key(tournamentId, killerPlayerId);
+      const k = killKey(tournamentId, killerPlayerId);
       const list = await RedisClient.instance.lrange(k, 0, -1);
       logger.info(
         { count: list.length },
@@ -100,13 +134,73 @@ class BountyKillsCacheImpl implements BountyKillsCache {
       `${LOG_PREFIX} removeKill entry`
     );
     try {
-      const k = key(tournamentId, killerPlayerId);
+      const k = killKey(tournamentId, killerPlayerId);
       const removed = await RedisClient.instance.lrem(k, 1, eliminatedPlayerId);
       const ok = removed > 0;
       logger.info({ removed: ok }, `${LOG_PREFIX} removeKill result`);
       return ok;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} removeKill failed`);
+      return false;
+    }
+  }
+
+  async addEliminatedBy(
+    tournamentId: TournamentId,
+    victimPlayerId: PlayerId,
+    killerPlayerId: PlayerId
+  ): Promise<boolean> {
+    logger.info(
+      { tournamentId, victimPlayerId, killerPlayerId },
+      `${LOG_PREFIX} addEliminatedBy entry`
+    );
+    try {
+      const k = eliminatedByKey(tournamentId, victimPlayerId);
+      await RedisClient.instance.rpush(k, killerPlayerId);
+      logger.info({ key: k }, `${LOG_PREFIX} addEliminatedBy result`);
+      return true;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} addEliminatedBy failed`);
+      return false;
+    }
+  }
+
+  async getEliminatedBy(
+    tournamentId: TournamentId,
+    victimPlayerId: PlayerId
+  ): Promise<PlayerId[]> {
+    logger.info(
+      { tournamentId, victimPlayerId },
+      `${LOG_PREFIX} getEliminatedBy entry`
+    );
+    try {
+      const k = eliminatedByKey(tournamentId, victimPlayerId);
+      const list = await RedisClient.instance.lrange(k, 0, -1);
+      logger.info({ count: list.length }, `${LOG_PREFIX} getEliminatedBy result`);
+      return list;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} getEliminatedBy failed`);
+      return [];
+    }
+  }
+
+  async removeEliminatedBy(
+    tournamentId: TournamentId,
+    victimPlayerId: PlayerId,
+    killerPlayerId: PlayerId
+  ): Promise<boolean> {
+    logger.info(
+      { tournamentId, victimPlayerId, killerPlayerId },
+      `${LOG_PREFIX} removeEliminatedBy entry`
+    );
+    try {
+      const k = eliminatedByKey(tournamentId, victimPlayerId);
+      const removed = await RedisClient.instance.lrem(k, 1, killerPlayerId);
+      const ok = removed > 0;
+      logger.info({ removed: ok }, `${LOG_PREFIX} removeEliminatedBy result`);
+      return ok;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} removeEliminatedBy failed`);
       return false;
     }
   }

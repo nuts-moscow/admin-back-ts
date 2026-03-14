@@ -41,6 +41,13 @@ export class InGameUserStateService {
     return BountyKillsCache.getKillsByKiller(tournamentId, killerPlayerId);
   }
 
+  async getEliminatedBy(
+    tournamentId: TournamentId,
+    victimPlayerId: PlayerId
+  ): Promise<PlayerId[]> {
+    return BountyKillsCache.getEliminatedBy(tournamentId, victimPlayerId);
+  }
+
   /**
    * Removes a bounty: undoes one elimination.
    * 1. Removes victim from killer's kill list
@@ -60,6 +67,11 @@ export class InGameUserStateService {
     if (!killRemoved) {
       return { ok: false, error: "Kill record not found" };
     }
+    await BountyKillsCache.removeEliminatedBy(
+      tournamentId,
+      victimPlayerId,
+      killerPlayerId
+    );
     const killerState = await InGameUserStateCache.updateBountyCount(
       killerPlayerId,
       tournamentId,
@@ -362,8 +374,12 @@ export class InGameUserStateService {
         { tournamentId, killerPlayerId, eliminatedPlayerId },
         "[InGameUserStateService] recordBountyElimination: kill record failed to store"
       );
-      // Bounty and reentry were updated; kill record failed - partial success
     }
+    await BountyKillsCache.addEliminatedBy(
+      tournamentId,
+      eliminatedPlayerId,
+      killerPlayerId
+    );
 
     return { ok: true };
   }

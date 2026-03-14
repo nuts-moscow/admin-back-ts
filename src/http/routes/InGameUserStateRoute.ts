@@ -221,11 +221,16 @@ export function inGameUserStateRoutes() {
         const states = await service.getAllByTournament(tournamentId);
         const enriched = await Promise.all(
           states.map(async (s) => {
-            const [playerName, bountyKills] = await Promise.all([
+            const [playerName, bountyKills, eliminatedBy] = await Promise.all([
               playerRepository.getNicknameById(s.playerId),
               service.getKillsByKiller(tournamentId, s.playerId),
+              service.getEliminatedBy(tournamentId, s.playerId),
             ]);
-            return { ...toApiResponse(s, playerName), bountyKills };
+            return {
+              ...toApiResponse(s, playerName),
+              bountyKills,
+              eliminatedBy,
+            };
           })
         );
         return Response.json(enriched);
@@ -281,8 +286,8 @@ export function inGameUserStateRoutes() {
         }
         const entryPaymentMethod =
           body.entryPaymentMethod != null &&
-          typeof body.entryPaymentMethod === "string" &&
-          VALID_ENTRY_PAYMENT_METHODS.has(body.entryPaymentMethod)
+            typeof body.entryPaymentMethod === "string" &&
+            VALID_ENTRY_PAYMENT_METHODS.has(body.entryPaymentMethod)
             ? (body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod])
             : undefined;
         const tableId =

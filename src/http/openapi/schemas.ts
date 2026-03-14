@@ -63,6 +63,13 @@ export const InGameUserStateSchema = z
         description: "List of player IDs this player eliminated (only in list endpoint)",
         example: ["123", "456"],
       }),
+    eliminatedBy: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        description: "List of player IDs who eliminated this player (only in list endpoint)",
+        example: ["456"],
+      }),
   })
   .openapi("InGameUserState");
 
