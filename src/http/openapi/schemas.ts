@@ -95,6 +95,13 @@ export const TournamentParamsSchema = z
   })
   .openapi("TournamentParams");
 
+/** Request body: add player to tournament */
+export const AddPlayerToTournamentBodySchema = z
+  .object({
+    earlyBird: z.boolean().optional().openapi({ description: "If true, adds EarlyBird bonus to player", example: true }),
+  })
+  .openapi("AddPlayerToTournamentBody");
+
 /** Response: total rebuy count for tournament */
 export const RebuyCountResponseSchema = z
   .object({

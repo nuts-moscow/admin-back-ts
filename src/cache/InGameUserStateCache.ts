@@ -69,11 +69,13 @@ export interface InGameUserStateCache {
    * Adds player to tournament with init state (freeEntryCount=0, freeReentryCount=0).
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
+   * @param earlyBird - If true, adds EarlyBird bonus to player
    * @returns true if stored, false on error
    */
   addPlayerToTournament(
     playerId: PlayerId,
-    tournamentId: TournamentId
+    tournamentId: TournamentId,
+    earlyBird?: boolean
   ): Promise<boolean>;
 
   /**
@@ -303,15 +305,19 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
 
   async addPlayerToTournament(
     playerId: PlayerId,
-    tournamentId: TournamentId
+    tournamentId: TournamentId,
+    earlyBird?: boolean
   ): Promise<boolean> {
-    logger.info({ playerId, tournamentId }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`);
+    logger.info({ playerId, tournamentId, earlyBird }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`);
     const existing = await this.getAllByTournament(tournamentId);
     const nextId =
       existing.length === 0
         ? 1
         : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
     const state = initInGameUserState(playerId, nextId, 0, 0);
+    if (earlyBird) {
+      state.bonuses = [[InGameBonus.EarlyBird, 1]];
+    }
     const result = await this.set(playerId, tournamentId, state);
     logger.info({ stored: result }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result`);
     return result;

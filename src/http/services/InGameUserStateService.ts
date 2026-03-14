@@ -207,9 +207,10 @@ export class InGameUserStateService {
 
   async addPlayerToTournament(
     playerId: PlayerId,
-    tournamentId: TournamentId
+    tournamentId: TournamentId,
+    earlyBird?: boolean
   ): Promise<boolean> {
-    return InGameUserStateCache.addPlayerToTournament(playerId, tournamentId);
+    return InGameUserStateCache.addPlayerToTournament(playerId, tournamentId, earlyBird);
   }
 
   async removePlayerFromTournament(

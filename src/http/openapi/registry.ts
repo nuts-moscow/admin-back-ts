@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AddPlayerToTournamentBodySchema,
   BountyCountBodySchema,
   BountyEliminateBodySchema,
   CashDeskResponseSchema,
@@ -394,9 +395,14 @@ openApiRegistry.registerPath({
   tags: ["Tournament Players"],
   operationId: "addPlayerToTournament",
   summary: "Add player to tournament",
-  description: "Adds a player to a tournament and returns the initial in-game state",
+  description: "Adds a player to a tournament and returns the initial in-game state. Optional earlyBird adds EarlyBird bonus.",
   request: {
     params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: AddPlayerToTournamentBodySchema },
+      },
+    },
   },
   responses: {
     201: {
