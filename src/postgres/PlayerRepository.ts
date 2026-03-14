@@ -1,4 +1,4 @@
-import type { CreatePlayerInput, Player } from "../domain/Player";
+import type { CreatePlayerInput, Player, UpdatePlayerInput } from "../domain/Player";
 import { logger } from "../logger";
 import { PostgresClient } from "./PostgresClient";
 
@@ -14,10 +14,12 @@ export interface PlayerRepository {
   findByNickname(nickname: string): Promise<Player | null>;
   /** Lists players with optional offset/limit. Returns empty array on error */
   list(options?: ListPlayersOptions): Promise<Player[]>;
+  /** Returns player by id, or null if not found */
+  findById(playerId: string): Promise<Player | null>;
   /** Creates a new player and returns it, or null on error */
   create(input: CreatePlayerInput): Promise<Player | null>;
-  /** Updates sign_agreement for player by id. Returns updated player or null */
-  updateSignAgreement(playerId: string, signAgreement: boolean): Promise<Player | null>;
+  /** Updates player fields by id. Only provided fields are updated. Returns updated player or null */
+  update(playerId: string, input: UpdatePlayerInput): Promise<Player | null>;
 }
 
 function rowToPlayer(row: Record<string, unknown>): Player {
@@ -83,6 +85,23 @@ class PlayerRepositoryImpl implements PlayerRepository {
     }
   }
 
+  async findById(playerId: string): Promise<Player | null> {
+    try {
+      const id = parseInt(playerId, 10);
+      if (Number.isNaN(id)) return null;
+      const result = await PostgresClient.instance.query(
+        "SELECT id, nickname, name, phone, tg, notes, sing_agreement, created_at FROM players WHERE id = $1",
+        [id]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return rowToPlayer(row as Record<string, unknown>);
+    } catch (err) {
+      logger.info({ err }, "[Postgres] PlayerRepository.findById failed");
+      return null;
+    }
+  }
+
   async create(input: CreatePlayerInput): Promise<Player | null> {
     try {
       const signAgreement = input.signAgreement ?? false;
@@ -108,23 +127,55 @@ class PlayerRepositoryImpl implements PlayerRepository {
     }
   }
 
-  async updateSignAgreement(
-    playerId: string,
-    signAgreement: boolean
-  ): Promise<Player | null> {
+  async update(playerId: string, input: UpdatePlayerInput): Promise<Player | null> {
     try {
       const id = parseInt(playerId, 10);
       if (Number.isNaN(id)) return null;
+
+      const updates: string[] = [];
+      const values: unknown[] = [];
+      let paramIndex = 1;
+
+      if (input.nickname !== undefined) {
+        updates.push(`nickname = $${paramIndex++}`);
+        values.push(input.nickname.trim());
+      }
+      if (input.name !== undefined) {
+        updates.push(`name = $${paramIndex++}`);
+        values.push(input.name);
+      }
+      if (input.phone !== undefined) {
+        updates.push(`phone = $${paramIndex++}`);
+        values.push(input.phone);
+      }
+      if (input.tg !== undefined) {
+        updates.push(`tg = $${paramIndex++}`);
+        values.push(input.tg);
+      }
+      if (input.notes !== undefined) {
+        updates.push(`notes = $${paramIndex++}`);
+        values.push(input.notes);
+      }
+      if (input.signAgreement !== undefined) {
+        updates.push(`sing_agreement = $${paramIndex++}`);
+        values.push(input.signAgreement);
+      }
+
+      if (updates.length === 0) {
+        return this.findById(playerId);
+      }
+
+      values.push(id);
       const result = await PostgresClient.instance.query(
-        `UPDATE players SET sing_agreement = $1 WHERE id = $2
+        `UPDATE players SET ${updates.join(", ")} WHERE id = $${paramIndex}
          RETURNING id, nickname, name, phone, tg, notes, sing_agreement, created_at`,
-        [signAgreement, id]
+        values
       );
       const row = result.rows[0];
       if (!row) return null;
       return rowToPlayer(row as Record<string, unknown>);
     } catch (err) {
-      logger.info({ err }, "[Postgres] PlayerRepository.updateSignAgreement failed");
+      logger.info({ err }, "[Postgres] PlayerRepository.update failed");
       return null;
     }
   }

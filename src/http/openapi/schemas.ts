@@ -196,12 +196,17 @@ export const CreatePlayerBodySchema = z
   })
   .openapi("CreatePlayerBody");
 
-/** Request body: update sign agreement */
-export const UpdateSignAgreementBodySchema = z
+/** Request body: update player (all fields optional) */
+export const UpdatePlayerBodySchema = z
   .object({
-    sign_agreement: z.boolean().openapi({ description: "Whether player signed agreement" }),
+    nickname: z.string().min(1).optional().openapi({ description: "Player nickname" }),
+    name: z.string().nullable().optional().openapi({ description: "Player name" }),
+    phone: z.string().nullable().optional().openapi({ description: "Phone number" }),
+    tg: z.string().nullable().optional().openapi({ description: "Telegram" }),
+    notes: z.string().nullable().optional().openapi({ description: "Notes" }),
+    sign_agreement: z.boolean().optional().openapi({ description: "Whether player signed agreement" }),
   })
-  .openapi("UpdateSignAgreementBody");
+  .openapi("UpdatePlayerBody");
 
 /** Player response */
 export const PlayerSchema = z

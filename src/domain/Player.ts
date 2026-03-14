@@ -19,3 +19,13 @@ export interface CreatePlayerInput {
   notes?: string | null;
   signAgreement?: boolean;
 }
+
+/** Input for updating a player (all fields optional) */
+export interface UpdatePlayerInput {
+  nickname?: string;
+  name?: string | null;
+  phone?: string | null;
+  tg?: string | null;
+  notes?: string | null;
+  signAgreement?: boolean;
+}

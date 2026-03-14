@@ -16,7 +16,7 @@ import {
   TableIdBodySchema,
   TournamentParamsSchema,
   TournamentPlayerParamsSchema,
-  UpdateSignAgreementBodySchema,
+  UpdatePlayerBodySchema,
 } from "./schemas";
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 
@@ -104,16 +104,16 @@ const PlayerIdParamSchema = z.object({ playerId: z.string().openapi({ descriptio
 
 openApiRegistry.registerPath({
   method: "patch",
-  path: "/api/players/{playerId}/sign-agreement",
+  path: "/api/players/{playerId}",
   tags: ["Players"],
-  operationId: "updatePlayerSignAgreement",
-  summary: "Update sign agreement",
-  description: "Updates sign_agreement for a player",
+  operationId: "updatePlayer",
+  summary: "Update player",
+  description: "Updates player fields by id. Only provided fields are updated. At least one field required.",
   request: {
     params: PlayerIdParamSchema,
     body: {
       content: {
-        "application/json": { schema: UpdateSignAgreementBodySchema },
+        "application/json": { schema: UpdatePlayerBodySchema },
       },
     },
   },
@@ -125,7 +125,7 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid request body",
+      description: "Invalid request body or empty nickname",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
@@ -134,6 +134,14 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Player not found",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    409: {
+      description: "Player with this nickname already exists",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

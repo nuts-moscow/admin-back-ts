@@ -34,17 +34,23 @@ export function playersRoutes() {
         const limitRaw = url.searchParams.get("limit");
         const offset = offsetRaw != null ? parseInt(offsetRaw, 10) : undefined;
         const limit = limitRaw != null ? parseInt(limitRaw, 10) : undefined;
-        if (offsetRaw != null && (Number.isNaN(offset) || offset < 0)) {
-          return new Response(
-            JSON.stringify({ error: "offset must be a non-negative integer" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
+        if (offsetRaw != null) {
+          const o = offset ?? NaN;
+          if (Number.isNaN(o) || o < 0) {
+            return new Response(
+              JSON.stringify({ error: "offset must be a non-negative integer" }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
         }
-        if (limitRaw != null && (Number.isNaN(limit) || limit < 1 || limit > 1000)) {
-          return new Response(
-            JSON.stringify({ error: "limit must be an integer between 1 and 1000" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
+        if (limitRaw != null) {
+          const l = limit ?? NaN;
+          if (Number.isNaN(l) || l < 1 || l > 1000) {
+            return new Response(
+              JSON.stringify({ error: "limit must be an integer between 1 and 1000" }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
         }
         const players = await service.listPlayers(offset, limit);
         return Response.json({ players: players.map(playerToJson) });
@@ -96,9 +102,9 @@ export function playersRoutes() {
         return Response.json(playerToJson(player), { status: 201 });
       },
     },
-    "/api/players/:playerId/sign-agreement": {
+    "/api/players/:playerId": {
       PATCH: async (
-        req: BunRequest<"/api/players/:playerId/sign-agreement"> & { params: { playerId: string } }
+        req: BunRequest<"/api/players/:playerId"> & { params: { playerId: string } }
       ) => {
         const playerId = req.params?.playerId;
         if (!playerId) {
@@ -107,7 +113,14 @@ export function playersRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        let body: { sign_agreement?: boolean };
+        let body: {
+          nickname?: string;
+          name?: string | null;
+          phone?: string | null;
+          tg?: string | null;
+          notes?: string | null;
+          sign_agreement?: boolean;
+        };
         try {
           body = (await req.json()) as typeof body;
         } catch {
@@ -116,17 +129,38 @@ export function playersRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        if (typeof body.sign_agreement !== "boolean") {
+        const input = {
+          nickname: body.nickname,
+          name: body.name,
+          phone: body.phone,
+          tg: body.tg,
+          notes: body.notes,
+          signAgreement: body.sign_agreement,
+        };
+        const hasAnyField = Object.values(input).some((v) => v !== undefined);
+        if (!hasAnyField) {
           return new Response(
-            JSON.stringify({ error: "sign_agreement must be a boolean" }),
+            JSON.stringify({ error: "At least one field to update is required" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        const result = await service.updateSignAgreement(playerId, body.sign_agreement);
+        const result = await service.updatePlayer(playerId, input);
         if (!result.ok) {
+          if (result.error === "not_found") {
+            return new Response(
+              JSON.stringify({ error: "Player not found" }),
+              { status: 404, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (result.error === "duplicate_nickname") {
+            return new Response(
+              JSON.stringify({ error: "Player with this nickname already exists" }),
+              { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+          }
           return new Response(
-            JSON.stringify({ error: "Player not found" }),
-            { status: 404, headers: { "Content-Type": "application/json" } }
+            JSON.stringify({ error: "nickname cannot be empty" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
         const player = result.player;

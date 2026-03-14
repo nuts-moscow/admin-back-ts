@@ -1,13 +1,13 @@
-import type { CreatePlayerInput, Player } from "../../domain/Player";
+import type { CreatePlayerInput, Player, UpdatePlayerInput } from "../../domain/Player";
 import { playerRepository } from "../../postgres";
 
 export type CreatePlayerResult =
   | { ok: true; player: Player }
   | { ok: false; error: "duplicate_nickname" | "failed" };
 
-export type UpdateSignAgreementResult =
+export type UpdatePlayerResult =
   | { ok: true; player: Player }
-  | { ok: false; error: "not_found" };
+  | { ok: false; error: "not_found" | "duplicate_nickname" | "invalid_nickname" };
 
 export class PlayersService {
   async listPlayers(offset?: number, limit?: number) {
@@ -26,11 +26,20 @@ export class PlayersService {
     return { ok: true, player };
   }
 
-  async updateSignAgreement(
+  async updatePlayer(
     playerId: string,
-    signAgreement: boolean
-  ): Promise<UpdateSignAgreementResult> {
-    const player = await playerRepository.updateSignAgreement(playerId, signAgreement);
+    input: UpdatePlayerInput
+  ): Promise<UpdatePlayerResult> {
+    if (input.nickname !== undefined && input.nickname.trim() === "") {
+      return { ok: false, error: "invalid_nickname" };
+    }
+    if (input.nickname !== undefined) {
+      const existing = await playerRepository.findByNickname(input.nickname.trim());
+      if (existing && String(existing.id) !== playerId) {
+        return { ok: false, error: "duplicate_nickname" };
+      }
+    }
+    const player = await playerRepository.update(playerId, input);
     if (!player) {
       return { ok: false, error: "not_found" };
     }
