@@ -268,10 +268,10 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/game-start">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let body: { entryPaymentMethod?: string } = {};
+        let body: { entryPaymentMethod?: string; tableId?: string | null } = {};
         try {
           const raw = await req.json();
-          body = (raw ?? {}) as { entryPaymentMethod?: string };
+          body = (raw ?? {}) as typeof body;
         } catch {
           // No body or invalid JSON - treat as no payment method
         }
@@ -281,10 +281,32 @@ export function inGameUserStateRoutes() {
           VALID_ENTRY_PAYMENT_METHODS.has(body.entryPaymentMethod)
             ? (body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod])
             : undefined;
+        const tableId =
+          body.tableId != null && typeof body.tableId === "string" && body.tableId !== ""
+            ? body.tableId
+            : undefined;
+        if (tableId != null) {
+          const playersAtTable = await service.getPlayerCountAtTable(
+            tournamentId,
+            tableId,
+            playerId
+          );
+          const effectiveCount = playersAtTable + 1;
+          if (effectiveCount > 10) {
+            return new Response(
+              JSON.stringify({
+                error: "Table has too many players",
+                detail: `Cannot add player: table would have ${effectiveCount} players (max 10)`,
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
         const result = await service.playerGameStart(
           tournamentId,
           playerId,
-          entryPaymentMethod
+          entryPaymentMethod,
+          tableId
         );
         if ("error" in result) {
           if (result.error === "invalid_status") {

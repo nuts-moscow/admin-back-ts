@@ -133,13 +133,17 @@ export const EntryPaymentBodySchema = z
   })
   .openapi("EntryPaymentBody");
 
-/** Request body: player game start (optional entry payment) */
+/** Request body: player game start (optional entry payment, optional table) */
 export const PlayerGameStartBodySchema = z
   .object({
     entryPaymentMethod: EntryPaymentMethodSchema.optional().openapi({
       description: "If provided: sets payment method and status InGamePaid. If omitted: status InGameNotPaid",
       example: "Cache",
     }),
+    tableId: z
+      .string()
+      .optional()
+      .openapi({ description: "If provided: assigns player to this table", example: "table-1" }),
   })
   .openapi("PlayerGameStartBody");
 

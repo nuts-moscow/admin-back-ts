@@ -336,7 +336,7 @@ openApiRegistry.registerPath({
   operationId: "playerGameStart",
   summary: "Player game start",
   description:
-    "Transitions player from Registered to InGamePaid (if entry payment provided) or InGameNotPaid (if not). Updates entry payment method if provided.",
+    "Transitions player from Registered to InGamePaid (if entry payment provided) or InGameNotPaid (if not). Updates entry payment method and table if provided.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -353,10 +353,17 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Player must be in Registered status to start game",
+      description:
+        "Player must be in Registered status, or table has too many players (max 10)",
       content: {
         "application/json": {
-          schema: { type: "object", properties: { error: { type: "string" } } },
+          schema: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              detail: { type: "string" },
+            },
+          },
         },
       },
     },

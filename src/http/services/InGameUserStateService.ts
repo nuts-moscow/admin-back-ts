@@ -113,13 +113,15 @@ export class InGameUserStateService {
 
   /**
    * Player game start: transitions from Registered to InGamePaid or InGameNotPaid.
-   * Updates entry payment method if provided.
+   * Updates entry payment method if provided. Updates table if tableId provided.
    * @param entryPaymentMethod - If provided: update it and set status InGamePaid. If not: set status InGameNotPaid.
+   * @param tableId - If provided: assign player to this table.
    */
   async playerGameStart(
     tournamentId: TournamentId,
     playerId: PlayerId,
-    entryPaymentMethod?: EntryPaymentMethod
+    entryPaymentMethod?: EntryPaymentMethod,
+    tableId?: TableId | null
   ): Promise<
     { state: InGameUserState } | { error: "not_found" | "invalid_status" }
   > {
@@ -132,6 +134,7 @@ export class InGameUserStateService {
       entryPaymentMethod != null
         ? InGamePlayerStatus.InGamePaid
         : InGamePlayerStatus.InGameNotPaid;
+    let currentState: InGameUserState | null;
     if (entryPaymentMethod != null) {
       const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
         playerId,
@@ -139,19 +142,28 @@ export class InGameUserStateService {
         entryPaymentMethod
       );
       if (!afterPayment) return { error: "not_found" };
-      const finalState = await InGameUserStateCache.updateStatus(
+      currentState = await InGameUserStateCache.updateStatus(
         playerId,
         tournamentId,
         newStatus
       );
-      return finalState ? { state: finalState } : { error: "not_found" };
+    } else {
+      currentState = await InGameUserStateCache.updateStatus(
+        playerId,
+        tournamentId,
+        newStatus
+      );
     }
-    const finalState = await InGameUserStateCache.updateStatus(
-      playerId,
-      tournamentId,
-      newStatus
-    );
-    return finalState ? { state: finalState } : { error: "not_found" };
+    if (!currentState) return { error: "not_found" };
+    if (tableId != null && tableId !== "") {
+      const tableState = await InGameUserStateCache.updateTableId(
+        playerId,
+        tournamentId,
+        tableId
+      );
+      return tableState ? { state: tableState } : { error: "not_found" };
+    }
+    return { state: currentState };
   }
 
   async addReentryPayment(
