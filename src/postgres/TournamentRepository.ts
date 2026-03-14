@@ -11,6 +11,8 @@ export interface TournamentRow {
   name: string;
   status: string;
   date: number;
+  entryPrice: number;
+  reentryPrice: number;
 }
 
 const DEFAULT_STATUS = "registration_open";
@@ -23,6 +25,8 @@ function rowToTournament(row: Record<string, unknown>): TournamentRow {
     name: String(row.name ?? ""),
     status: String(row.status ?? DEFAULT_STATUS),
     date: Number(row.date ?? 0),
+    entryPrice: Number(row.entry_price ?? DEFAULT_ENTRY_PRICE),
+    reentryPrice: Number(row.reentry_price ?? DEFAULT_REENTRY_PRICE),
   };
 }
 

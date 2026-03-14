@@ -213,6 +213,21 @@ export function inGameUserStateRoutes() {
         return Response.json({ rebuyCount });
       },
     },
+    "/api/tournaments/:tournamentId/cash-desk": {
+      GET: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/cash-desk">
+      ) => {
+        const { tournamentId } = req.params;
+        const cashDesk = await service.getCashDesk(tournamentId);
+        if (!cashDesk) {
+          return new Response(
+            JSON.stringify({ error: "Tournament not found" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json(cashDesk);
+      },
+    },
     "/api/tournaments/:tournamentId/players": {
       GET: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players">

@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   BountyCountBodySchema,
   BountyEliminateBodySchema,
+  CashDeskResponseSchema,
   BountyRemoveBodySchema,
   CreatePlayerBodySchema,
   EntryPaymentBodySchema,
@@ -589,6 +590,27 @@ openApiRegistry.registerPath({
         "application/json": { schema: RebuyCountResponseSchema },
       },
     },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: `${basePath}/cash-desk`,
+  tags: ["Tournament Players"],
+  operationId: "getCashDesk",
+  summary: "Get cash desk",
+  description: "Returns cash desk summary for tournament: cash, card, free, grand total with entries and rebuys",
+  request: {
+    params: TournamentParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Cash desk summary",
+      content: {
+        "application/json": { schema: CashDeskResponseSchema },
+      },
+    },
+    404: { description: "Tournament not found" },
   },
 });
 

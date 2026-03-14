@@ -104,6 +104,33 @@ export const RebuyCountResponseSchema = z
   })
   .openapi("RebuyCountResponse");
 
+/** Cash desk line: quantity and amount */
+const CashDeskLineSchema = z
+  .object({
+    quantity: z.number().openapi({ description: "Кол-во" }),
+    amount: z.number().openapi({ description: "Сумма" }),
+  })
+  .openapi("CashDeskLine");
+
+/** Cash desk category: total, entries, rebuys */
+const CashDeskCategorySchema = z
+  .object({
+    total: CashDeskLineSchema.openapi({ description: "Всего" }),
+    entries: CashDeskLineSchema.openapi({ description: "Входы" }),
+    rebuys: CashDeskLineSchema.openapi({ description: "Ребаи" }),
+  })
+  .openapi("CashDeskCategory");
+
+/** Response: cash desk for tournament */
+export const CashDeskResponseSchema = z
+  .object({
+    cash: CashDeskCategorySchema.openapi({ description: "Наличными" }),
+    card: CashDeskCategorySchema.openapi({ description: "По карте" }),
+    free: CashDeskCategorySchema.openapi({ description: "Бесплатно" }),
+    grandTotal: CashDeskCategorySchema.openapi({ description: "Итого" }),
+  })
+  .openapi("CashDeskResponse");
+
 /** Bounty elimination type enum */
 export const BountyEliminationTypeSchema = z
   .enum(["Rebuy", "Out"])

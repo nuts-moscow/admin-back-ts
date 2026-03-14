@@ -1,4 +1,5 @@
 import { BountyKillsCache, InGameUserStateCache } from "../../cache";
+import { tournamentRepository } from "../../postgres";
 import { logger } from "../../logger";
 import {
   EntryPaymentMethod,
@@ -6,9 +7,28 @@ import {
   type BountyEliminationTypeValue,
   type InGameUserState,
   type PlayerId,
+  type ReentryByPaymentMethod,
   type TableId,
   type TournamentId,
 } from "../../domain/cache/InGameUserState";
+
+export interface CashDeskLine {
+  quantity: number;
+  amount: number;
+}
+
+export interface CashDeskCategory {
+  total: CashDeskLine;
+  entries: CashDeskLine;
+  rebuys: CashDeskLine;
+}
+
+export interface CashDeskResponse {
+  cash: CashDeskCategory;
+  card: CashDeskCategory;
+  free: CashDeskCategory;
+  grandTotal: CashDeskCategory;
+}
 
 export class InGameUserStateService {
   async getUser(
@@ -108,6 +128,81 @@ export class InGameUserStateService {
     const rebuyCount = states.reduce((sum, s) => sum + s.totalReentryCount, 0);
     logger.info({ tournamentId, rebuyCount }, "[InGameUserStateService] getTotalRebuyCount result");
     return rebuyCount;
+  }
+
+  async getCashDesk(tournamentId: TournamentId): Promise<CashDeskResponse | null> {
+    const tournament = await tournamentRepository.findById(parseInt(tournamentId, 10));
+    if (!tournament) return null;
+
+    const states = await InGameUserStateCache.getAllByTournament(tournamentId);
+    const entryPrice = tournament.entryPrice;
+    const reentryPrice = tournament.reentryPrice;
+
+    const emptyLine = (): CashDeskLine => ({ quantity: 0, amount: 0 });
+    const emptyCategory = (): CashDeskCategory => ({
+      total: emptyLine(),
+      entries: emptyLine(),
+      rebuys: emptyLine(),
+    });
+
+    const cash = emptyCategory();
+    const card = emptyCategory();
+    const free = emptyCategory();
+
+    for (const state of states) {
+      if (state.entryPaymentMethod) {
+        const method = state.entryPaymentMethod;
+        const amount = method === EntryPaymentMethod.Free ? 0 : entryPrice;
+        if (method === EntryPaymentMethod.Cache) {
+          cash.entries.quantity += 1;
+          cash.entries.amount += amount;
+        } else if (method === EntryPaymentMethod.CreditCard) {
+          card.entries.quantity += 1;
+          card.entries.amount += amount;
+        } else {
+          free.entries.quantity += 1;
+          free.entries.amount += 0;
+        }
+      }
+
+      const reentryPairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
+      if (reentryPairs) {
+        for (const [method, count] of reentryPairs) {
+          const amount = method === EntryPaymentMethod.Free ? 0 : count * reentryPrice;
+          if (method === EntryPaymentMethod.Cache) {
+            cash.rebuys.quantity += count;
+            cash.rebuys.amount += amount;
+          } else if (method === EntryPaymentMethod.CreditCard) {
+            card.rebuys.quantity += count;
+            card.rebuys.amount += amount;
+          } else {
+            free.rebuys.quantity += count;
+            free.rebuys.amount += 0;
+          }
+        }
+      }
+    }
+
+    for (const cat of [cash, card, free]) {
+      cat.total.quantity = cat.entries.quantity + cat.rebuys.quantity;
+      cat.total.amount = cat.entries.amount + cat.rebuys.amount;
+    }
+
+    const grandTotal: CashDeskCategory = {
+      total: { quantity: 0, amount: 0 },
+      entries: { quantity: 0, amount: 0 },
+      rebuys: { quantity: 0, amount: 0 },
+    };
+    for (const cat of [cash, card, free]) {
+      grandTotal.entries.quantity += cat.entries.quantity;
+      grandTotal.entries.amount += cat.entries.amount;
+      grandTotal.rebuys.quantity += cat.rebuys.quantity;
+      grandTotal.rebuys.amount += cat.rebuys.amount;
+    }
+    grandTotal.total.quantity = grandTotal.entries.quantity + grandTotal.rebuys.quantity;
+    grandTotal.total.amount = grandTotal.entries.amount + grandTotal.rebuys.amount;
+
+    return { cash, card, free, grandTotal };
   }
 
   async addPlayerToTournament(
