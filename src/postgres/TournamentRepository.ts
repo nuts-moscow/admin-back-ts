@@ -42,6 +42,7 @@ export interface TournamentRepository {
   findById(id: number): Promise<TournamentRow | null>;
   list(options?: ListTournamentsOptions): Promise<TournamentRow[]>;
   update(id: number, input: UpdateTournamentInput): Promise<TournamentRow | null>;
+  updateStatus(id: number, status: string): Promise<TournamentRow | null>;
 }
 
 class TournamentRepositoryImpl implements TournamentRepository {
@@ -111,6 +112,22 @@ class TournamentRepositoryImpl implements TournamentRepository {
       return rowToTournament(row as Record<string, unknown>);
     } catch (err) {
       logger.info({ err }, "[Postgres] TournamentRepository.update failed");
+      return null;
+    }
+  }
+
+  async updateStatus(id: number, status: string): Promise<TournamentRow | null> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `UPDATE tournaments SET status = $1 WHERE id = $2
+         RETURNING id, name, status, date, entry_price, reentry_price`,
+        [status, id]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return rowToTournament(row as Record<string, unknown>);
+    } catch (err) {
+      logger.info({ err }, "[Postgres] TournamentRepository.updateStatus failed");
       return null;
     }
   }

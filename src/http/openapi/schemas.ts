@@ -376,3 +376,10 @@ export const UpdateTournamentBodySchema = z
     status: TournamentStatusSchema.openapi({ description: "Tournament status" }),
   })
   .openapi("UpdateTournamentBody");
+
+/** Request body: update tournament status only */
+export const UpdateTournamentStatusBodySchema = z
+  .object({
+    status: TournamentStatusSchema.openapi({ description: "Tournament status" }),
+  })
+  .openapi("UpdateTournamentStatusBody");

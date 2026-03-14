@@ -123,6 +123,27 @@ export class TournamentService {
     };
   }
 
+  async updateTournamentStatus(
+    id: number,
+    status: string
+  ): Promise<UpdateTournamentResult> {
+    const validStatuses = ["registration_open", "in_progress", "completed"];
+    if (!validStatuses.includes(status)) {
+      return { ok: false, error: "invalid_status" };
+    }
+    const tournament = await tournamentRepository.updateStatus(id, status);
+    if (!tournament) return { ok: false, error: "not_found" };
+    return {
+      ok: true,
+      tournament: {
+        id: tournament.id,
+        name: tournament.name,
+        status: tournament.status,
+        date: tournament.date,
+      },
+    };
+  }
+
   async updateTournament(
     id: number,
     input: { name: string; date: number; status: string }
