@@ -5,6 +5,7 @@ import {
   CreatePlayerBodySchema,
   EntryPaymentBodySchema,
   InGameUserStateSchema,
+  PlayerGameStartBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
   ReentryCountBodySchema,
@@ -316,6 +317,43 @@ openApiRegistry.registerPath({
     },
     400: {
       description: "Invalid status",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/players/{playerId}/game-start`,
+  tags: ["Tournament Players"],
+  operationId: "playerGameStart",
+  summary: "Player game start",
+  description:
+    "Transitions player from Registered to InGamePaid (if entry payment provided) or InGameNotPaid (if not). Updates entry payment method if provided.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: PlayerGameStartBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Player must be in Registered status to start game",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

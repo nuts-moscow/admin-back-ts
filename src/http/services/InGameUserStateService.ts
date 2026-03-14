@@ -111,6 +111,49 @@ export class InGameUserStateService {
     );
   }
 
+  /**
+   * Player game start: transitions from Registered to InGamePaid or InGameNotPaid.
+   * Updates entry payment method if provided.
+   * @param entryPaymentMethod - If provided: update it and set status InGamePaid. If not: set status InGameNotPaid.
+   */
+  async playerGameStart(
+    tournamentId: TournamentId,
+    playerId: PlayerId,
+    entryPaymentMethod?: EntryPaymentMethod
+  ): Promise<
+    { state: InGameUserState } | { error: "not_found" | "invalid_status" }
+  > {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) return { error: "not_found" };
+    if (state.status !== InGamePlayerStatus.Registered) {
+      return { error: "invalid_status" };
+    }
+    const newStatus =
+      entryPaymentMethod != null
+        ? InGamePlayerStatus.InGamePaid
+        : InGamePlayerStatus.InGameNotPaid;
+    if (entryPaymentMethod != null) {
+      const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
+        playerId,
+        tournamentId,
+        entryPaymentMethod
+      );
+      if (!afterPayment) return { error: "not_found" };
+      const finalState = await InGameUserStateCache.updateStatus(
+        playerId,
+        tournamentId,
+        newStatus
+      );
+      return finalState ? { state: finalState } : { error: "not_found" };
+    }
+    const finalState = await InGameUserStateCache.updateStatus(
+      playerId,
+      tournamentId,
+      newStatus
+    );
+    return finalState ? { state: finalState } : { error: "not_found" };
+  }
+
   async addReentryPayment(
     playerId: PlayerId,
     tournamentId: TournamentId,

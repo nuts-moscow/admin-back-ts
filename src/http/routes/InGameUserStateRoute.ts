@@ -263,6 +263,44 @@ export function inGameUserStateRoutes() {
         return Response.json(toApiResponse(state, playerName));
       },
     },
+    "/api/tournaments/:tournamentId/players/:playerId/game-start": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/game-start">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { entryPaymentMethod?: string } = {};
+        try {
+          const raw = await req.json();
+          body = (raw ?? {}) as { entryPaymentMethod?: string };
+        } catch {
+          // No body or invalid JSON - treat as no payment method
+        }
+        const entryPaymentMethod =
+          body.entryPaymentMethod != null &&
+          typeof body.entryPaymentMethod === "string" &&
+          VALID_ENTRY_PAYMENT_METHODS.has(body.entryPaymentMethod)
+            ? (body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod])
+            : undefined;
+        const result = await service.playerGameStart(
+          tournamentId,
+          playerId,
+          entryPaymentMethod
+        );
+        if ("error" in result) {
+          if (result.error === "invalid_status") {
+            return new Response(
+              JSON.stringify({
+                error: "Player must be in Registered status to start game",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(result.state, playerName));
+      },
+    },
     "/api/tournaments/:tournamentId/players/:playerId/entry-payment": {
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/entry-payment">
