@@ -34,6 +34,7 @@ export type ReentryByPaymentMethod = [EntryPaymentMethod, number][];
 /** In-game bonus */
 export const InGameBonus = {
   EarlyBird: "EarlyBird",
+  First20: "First20",
   Hookah: "Hookah",
   Diller: "Diller",
 } as const;

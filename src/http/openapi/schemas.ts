@@ -17,7 +17,7 @@ export const EntryPaymentMethodSchema = z
 
 /** In-game bonus enum */
 export const InGameBonusSchema = z
-  .enum(["EarlyBird", "Hookah", "Diller"])
+  .enum(["EarlyBird", "First20", "Hookah", "Diller"])
   .openapi("InGameBonus");
 
 /** In-game user state */

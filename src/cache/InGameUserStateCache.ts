@@ -315,8 +315,15 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         ? 1
         : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
     const state = initInGameUserState(playerId, nextId, 0, 0);
+    const bonuses: BonusesByType = [];
     if (earlyBird) {
-      state.bonuses = [[InGameBonus.EarlyBird, 1]];
+      bonuses.push([InGameBonus.EarlyBird, 1]);
+    }
+    if (nextId <= 20) {
+      bonuses.push([InGameBonus.First20, 1]);
+    }
+    if (bonuses.length > 0) {
+      state.bonuses = bonuses;
     }
     const result = await this.set(playerId, tournamentId, state);
     logger.info({ stored: result }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result`);
