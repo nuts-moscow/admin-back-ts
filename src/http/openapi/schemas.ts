@@ -243,3 +243,100 @@ export const ListPlayersQuerySchema = z
     limit: z.string().optional().openapi({ description: "Max players to return, 1-1000 (default 100)", example: "20" }),
   })
   .openapi("ListPlayersQuery");
+
+/** Blind level in structure */
+export const BlindSchema = z
+  .object({
+    type: z.literal("Blind"),
+    level: z.number(),
+    id: z.number(),
+    smallBlind: z.number(),
+    bigBlind: z.number(),
+    ante: z.boolean(),
+    duration: z.number(),
+  })
+  .openapi("Blind");
+
+/** Break between blind levels */
+export const BreakSchema = z
+  .object({
+    type: z.literal("Break"),
+    id: z.number(),
+    duration: z.number(),
+  })
+  .openapi("Break");
+
+/** Blind or Break */
+export const BlindTypeSchema = z.union([BlindSchema, BreakSchema]).openapi("BlindType");
+
+/** Request body: create/update tournament structure */
+export const MakeTournamentStructureBodySchema = z
+  .object({
+    name: z.string().min(1).openapi({ description: "Structure name" }),
+    playersLimit: z.number().min(1).openapi({ description: "Max players" }),
+    stackSize: z.number().min(1).openapi({ description: "Starting stack in chips" }),
+    freezeOutEnabled: z.boolean().openapi({ description: "Freeze-out mode" }),
+    blinds: z.array(BlindTypeSchema).openapi({ description: "Blinds and breaks" }),
+  })
+  .openapi("MakeTournamentStructureBody");
+
+/** Request body: create tournament */
+export const MakeTournamentBodySchema = z
+  .object({
+    name: z.string().min(1).openapi({ description: "Tournament name" }),
+    date: z.number().min(0).openapi({ description: "Unix timestamp" }),
+    structure: MakeTournamentStructureBodySchema,
+  })
+  .openapi("MakeTournamentBody");
+
+/** Response: tournament structure */
+export const TournamentStructureResponseSchema = z
+  .object({
+    id: z.number(),
+    name: z.string(),
+    playersLimit: z.number(),
+    stackSize: z.number(),
+    freezeOutEnabled: z.boolean(),
+    blindsStructure: z.array(BlindTypeSchema),
+  })
+  .openapi("TournamentStructureResponse");
+
+/** Response: tournament (created) */
+export const TournamentResponseSchema = z
+  .object({
+    id: z.number(),
+    name: z.string(),
+    status: z.string(),
+    date: z.number(),
+  })
+  .openapi("TournamentResponse");
+
+/** List structures query params */
+export const ListTournamentStructuresQuerySchema = z
+  .object({
+    offset: z.string().optional().openapi({ description: "Skip N structures", example: "0" }),
+    limit: z.string().optional().openapi({ description: "Max structures to return (1-1000)", example: "20" }),
+  })
+  .openapi("ListTournamentStructuresQuery");
+
+/** List structures response */
+export const ListTournamentStructuresResponseSchema = z
+  .object({
+    structures: z.array(TournamentStructureResponseSchema),
+  })
+  .openapi("ListTournamentStructuresResponse");
+
+/** List tournaments query params */
+export const ListTournamentsQuerySchema = z
+  .object({
+    offset: z.string().optional().openapi({ description: "Skip N tournaments", example: "0" }),
+    limit: z.string().optional().openapi({ description: "Max tournaments to return (1-1000)", example: "20" }),
+  })
+  .openapi("ListTournamentsQuery");
+
+/** List tournaments response */
+export const ListTournamentsResponseSchema = z
+  .object({
+    tournaments: z.array(TournamentResponseSchema),
+  })
+  .openapi("ListTournamentsResponse");

@@ -5,11 +5,13 @@ import { createRouter } from "./router";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
+import { tournamentRoutes } from "./routes/TournamentRoute";
 
 export function createHttpServer() {
   const routes = {
     ...inGameUserStateRoutes(),
     ...playersRoutes(),
+    ...tournamentRoutes(),
     ...openApiRoutes(),
   };
 

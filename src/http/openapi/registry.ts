@@ -8,6 +8,12 @@ import {
   InGameUserStateSchema,
   ListPlayersQuerySchema,
   ListPlayersResponseSchema,
+  ListTournamentStructuresQuerySchema,
+  ListTournamentStructuresResponseSchema,
+  ListTournamentsQuerySchema,
+  ListTournamentsResponseSchema,
+  MakeTournamentBodySchema,
+  MakeTournamentStructureBodySchema,
   PlayerGameStartBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
@@ -16,6 +22,8 @@ import {
   TableIdBodySchema,
   TournamentParamsSchema,
   TournamentPlayerParamsSchema,
+  TournamentResponseSchema,
+  TournamentStructureResponseSchema,
   UpdatePlayerBodySchema,
 } from "./schemas";
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
@@ -101,6 +109,154 @@ openApiRegistry.registerPath({
 });
 
 const PlayerIdParamSchema = z.object({ playerId: z.string().openapi({ description: "Player ID" }) }).openapi("PlayerIdParam");
+
+const TournamentStructureIdParamSchema = z.object({ id: z.string().openapi({ description: "Structure ID" }) }).openapi("TournamentStructureIdParam");
+const TournamentIdParamSchema = z.object({ id: z.string().openapi({ description: "Tournament ID" }) }).openapi("TournamentIdParam");
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/tournament-structures",
+  tags: ["Tournament Structures"],
+  operationId: "listTournamentStructures",
+  summary: "List structure templates",
+  description: "Returns all saved tournament structure templates with optional offset/limit",
+  request: {
+    query: ListTournamentStructuresQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "List of structures",
+      content: {
+        "application/json": { schema: ListTournamentStructuresResponseSchema },
+      },
+    },
+    400: { description: "Invalid query params" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/api/tournament-structures",
+  tags: ["Tournament Structures"],
+  operationId: "createTournamentStructure",
+  summary: "Create structure template",
+  description: "Creates a tournament structure template in the database",
+  request: {
+    body: {
+      content: {
+        "application/json": { schema: MakeTournamentStructureBodySchema },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: "Structure created",
+      content: {
+        "application/json": { schema: TournamentStructureResponseSchema },
+      },
+    },
+    400: { description: "Invalid request body" },
+    500: { description: "Failed to create structure" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/tournament-structures/{id}",
+  tags: ["Tournament Structures"],
+  operationId: "updateTournamentStructure",
+  summary: "Update structure template",
+  description: "Updates a tournament structure template in the database",
+  request: {
+    params: TournamentStructureIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: MakeTournamentStructureBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Structure updated",
+      content: {
+        "application/json": { schema: TournamentStructureResponseSchema },
+      },
+    },
+    400: { description: "Invalid request body" },
+    404: { description: "Structure not found" },
+    500: { description: "Failed to update structure" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/tournaments",
+  tags: ["Tournaments"],
+  operationId: "listTournaments",
+  summary: "List tournaments",
+  description: "Returns all created tournaments with optional offset/limit",
+  request: {
+    query: ListTournamentsQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "List of tournaments",
+      content: {
+        "application/json": { schema: ListTournamentsResponseSchema },
+      },
+    },
+    400: { description: "Invalid query params" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/api/tournaments",
+  tags: ["Tournaments"],
+  operationId: "createTournament",
+  summary: "Create tournament",
+  description: "Creates a tournament in the database and stores its structure in Redis cache",
+  request: {
+    body: {
+      content: {
+        "application/json": { schema: MakeTournamentBodySchema },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: "Tournament created",
+      content: {
+        "application/json": { schema: TournamentResponseSchema },
+      },
+    },
+    400: { description: "Invalid request body" },
+    500: { description: "Failed to create tournament" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/tournaments/{id}/structure",
+  tags: ["Tournaments"],
+  operationId: "updateTournamentStructureCache",
+  summary: "Update tournament structure",
+  description: "Updates the linked structure for a tournament in Redis cache only",
+  request: {
+    params: TournamentIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: MakeTournamentStructureBodySchema },
+      },
+    },
+  },
+  responses: {
+    204: { description: "Structure updated" },
+    400: { description: "Invalid request body" },
+    404: { description: "Tournament not found" },
+    500: { description: "Failed to update structure" },
+  },
+});
 
 openApiRegistry.registerPath({
   method: "patch",

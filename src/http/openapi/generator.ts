@@ -23,6 +23,14 @@ export function generateOpenAPIDocument() {
         description: "Управление игроками: создание",
       },
       {
+        name: "Tournament Structures",
+        description: "Шаблоны структур турниров: создание, редактирование",
+      },
+      {
+        name: "Tournaments",
+        description: "Турниры: создание, обновление структуры",
+      },
+      {
         name: "Tournament Players",
         description: "Управление игроками турнира: добавление, состояние, bounty, re-entry, статус, оплата",
       },
