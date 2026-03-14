@@ -192,8 +192,16 @@ export const CreatePlayerBodySchema = z
     phone: z.string().nullable().optional().openapi({ description: "Phone number" }),
     tg: z.string().nullable().optional().openapi({ description: "Telegram" }),
     notes: z.string().nullable().optional().openapi({ description: "Notes" }),
+    sign_agreement: z.boolean().optional().openapi({ description: "Whether player signed agreement" }),
   })
   .openapi("CreatePlayerBody");
+
+/** Request body: update sign agreement */
+export const UpdateSignAgreementBodySchema = z
+  .object({
+    sign_agreement: z.boolean().openapi({ description: "Whether player signed agreement" }),
+  })
+  .openapi("UpdateSignAgreementBody");
 
 /** Player response */
 export const PlayerSchema = z
@@ -204,6 +212,22 @@ export const PlayerSchema = z
     phone: z.string().nullable().openapi({ description: "Phone" }),
     tg: z.string().nullable().openapi({ description: "Telegram" }),
     notes: z.string().nullable().openapi({ description: "Notes" }),
+    signAgreement: z.boolean().openapi({ description: "Whether player signed agreement" }),
     createdAt: z.string().openapi({ description: "Created at ISO8601", example: "2026-03-13T12:00:00.000Z" }),
   })
   .openapi("Player");
+
+/** List players response */
+export const ListPlayersResponseSchema = z
+  .object({
+    players: z.array(PlayerSchema).openapi({ description: "List of players" }),
+  })
+  .openapi("ListPlayersResponse");
+
+/** List players query params */
+export const ListPlayersQuerySchema = z
+  .object({
+    offset: z.string().optional().openapi({ description: "Number of players to skip (non-negative integer)", example: "0" }),
+    limit: z.string().optional().openapi({ description: "Max players to return, 1-1000 (default 100)", example: "20" }),
+  })
+  .openapi("ListPlayersQuery");

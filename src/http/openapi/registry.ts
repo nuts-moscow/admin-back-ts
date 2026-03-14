@@ -6,6 +6,8 @@ import {
   CreatePlayerBodySchema,
   EntryPaymentBodySchema,
   InGameUserStateSchema,
+  ListPlayersQuerySchema,
+  ListPlayersResponseSchema,
   PlayerGameStartBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
@@ -14,12 +16,41 @@ import {
   TableIdBodySchema,
   TournamentParamsSchema,
   TournamentPlayerParamsSchema,
+  UpdateSignAgreementBodySchema,
 } from "./schemas";
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 
 export const openApiRegistry = new OpenAPIRegistry();
 
 const basePath = "/api/tournaments/{tournamentId}";
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/players",
+  tags: ["Players"],
+  operationId: "listPlayers",
+  summary: "List players",
+  description: "Returns all players from the players table with optional offset/limit pagination",
+  request: {
+    query: ListPlayersQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "List of players",
+      content: {
+        "application/json": { schema: ListPlayersResponseSchema },
+      },
+    },
+    400: {
+      description: "Invalid query params",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: "post",
@@ -60,6 +91,49 @@ openApiRegistry.registerPath({
     },
     500: {
       description: "Failed to create player",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+const PlayerIdParamSchema = z.object({ playerId: z.string().openapi({ description: "Player ID" }) }).openapi("PlayerIdParam");
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/players/{playerId}/sign-agreement",
+  tags: ["Players"],
+  operationId: "updatePlayerSignAgreement",
+  summary: "Update sign agreement",
+  description: "Updates sign_agreement for a player",
+  request: {
+    params: PlayerIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: UpdateSignAgreementBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Player updated",
+      content: {
+        "application/json": { schema: PlayerSchema },
+      },
+    },
+    400: {
+      description: "Invalid request body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not found",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

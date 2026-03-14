@@ -6,6 +6,7 @@ export interface Player {
   phone: string | null;
   tg: string | null;
   notes: string | null;
+  signAgreement: boolean;
   createdAt: Date;
 }
 
@@ -16,4 +17,5 @@ export interface CreatePlayerInput {
   phone?: string | null;
   tg?: string | null;
   notes?: string | null;
+  signAgreement?: boolean;
 }
