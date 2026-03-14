@@ -163,11 +163,23 @@ export const BountyEliminateBodySchema = z
       .openapi({ description: "Player who was eliminated", example: "123" }),
     killerPlayerId: z
       .string()
-      .openapi({ description: "Player who made the elimination", example: "456" }),
+      .optional()
+      .openapi({
+        description: "Player who made the elimination. Required when burnedStack is false.",
+        example: "456",
+      }),
     type: BountyEliminationTypeSchema.openapi({
       description: "Rebuy = eliminated gets reentry, Out = no reentry",
       example: "Rebuy",
     }),
+    burnedStack: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "If true: victim burned stack, bounty not recorded for killer, only rebuy/Out. killerPlayerId optional.",
+        default: false,
+      }),
   })
   .openapi("BountyEliminateBody");
 

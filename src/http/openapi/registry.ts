@@ -472,7 +472,7 @@ openApiRegistry.registerPath({
   operationId: "recordBountyElimination",
   summary: "Record bounty elimination",
   description:
-    "Records who eliminated whom. If type=Rebuy: adds reentry to eliminated player. Always adds bounty to killer. Stores kill record in Redis.",
+    "Records who eliminated whom. If type=Rebuy: adds reentry to eliminated player. If type=Out: sets status Out. If burnedStack=false (default): killerPlayerId required, adds bounty to killer, stores kill record. If burnedStack=true: killerPlayerId optional, only rebuy/Out, no bounty recorded.",
   request: {
     params: TournamentParamsSchema,
     body: {
@@ -753,7 +753,7 @@ openApiRegistry.registerPath({
   operationId: "inGamePayment",
   summary: "In-game payment",
   description:
-    "Updates entry payment method and transitions player from InGameNotPaid to InGamePaid",
+    "Updates entry payment method. Allowed when player is InGameNotPaid (then transitions to InGamePaid) or Out (e.g. eliminated but unpaid; only updates payment, status stays Out).",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -770,7 +770,7 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid body or player must be in InGameNotPaid status",
+      description: "Invalid body or player must be in InGameNotPaid or Out status",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

@@ -273,7 +273,9 @@ export class InGameUserStateService {
   }
 
   /**
-   * In-game payment: updates entry payment method and transitions InGameNotPaid -> InGamePaid.
+   * In-game payment: updates entry payment method.
+   * If InGameNotPaid: also transitions to InGamePaid.
+   * If Out (e.g. eliminated but never paid): only updates entry payment method, status stays Out.
    */
   async inGamePayment(
     tournamentId: TournamentId,
@@ -284,7 +286,11 @@ export class InGameUserStateService {
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) return { error: "not_found" };
-    if (state.status !== InGamePlayerStatus.InGameNotPaid) {
+    const allowedForPayment = new Set<InGamePlayerStatus>([
+      InGamePlayerStatus.InGameNotPaid,
+      InGamePlayerStatus.Out,
+    ]);
+    if (!allowedForPayment.has(state.status)) {
       return { error: "invalid_status" };
     }
     const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
@@ -293,12 +299,15 @@ export class InGameUserStateService {
       entryPaymentMethod
     );
     if (!afterPayment) return { error: "not_found" };
-    const finalState = await InGameUserStateCache.updateStatus(
-      playerId,
-      tournamentId,
-      InGamePlayerStatus.InGamePaid
-    );
-    return finalState ? { state: finalState } : { error: "not_found" };
+    if (state.status === InGamePlayerStatus.InGameNotPaid) {
+      const finalState = await InGameUserStateCache.updateStatus(
+        playerId,
+        tournamentId,
+        InGamePlayerStatus.InGamePaid
+      );
+      return finalState ? { state: finalState } : { error: "not_found" };
+    }
+    return { state: afterPayment };
   }
 
   /**
@@ -409,14 +418,14 @@ export class InGameUserStateService {
    * Records a bounty elimination: who eliminated whom and type (Rebuy/Out).
    * 1. If type=Rebuy: increments reentry count for eliminated player
    * 2. If type=Out: sets eliminated player status to Out
-   * 3. Increments bounty count for killer
-   * 4. Stores kill record in Redis (killer -> eliminated)
+   * 3. If !burnedStack && killerPlayerId: increments bounty count for killer, stores kill record
    */
   async recordBountyElimination(
     tournamentId: TournamentId,
     eliminatedPlayerId: PlayerId,
-    killerPlayerId: PlayerId,
-    type: BountyEliminationTypeValue
+    killerPlayerId: PlayerId | undefined,
+    type: BountyEliminationTypeValue,
+    burnedStack: boolean
   ): Promise<{ ok: boolean; error?: string }> {
     if (type === "Rebuy") {
       const reentryState = await InGameUserStateCache.addReentryCount(
@@ -455,31 +464,33 @@ export class InGameUserStateService {
       );
     }
 
-    const bountyState = await InGameUserStateCache.updateBountyCount(
-      killerPlayerId,
-      tournamentId,
-      1
-    );
-    if (!bountyState) {
-      return { ok: false, error: "Killer player not found in tournament" };
-    }
+    if (!burnedStack && killerPlayerId) {
+      const bountyState = await InGameUserStateCache.updateBountyCount(
+        killerPlayerId,
+        tournamentId,
+        1
+      );
+      if (!bountyState) {
+        return { ok: false, error: "Killer player not found in tournament" };
+      }
 
-    const killStored = await BountyKillsCache.addKill(
-      tournamentId,
-      killerPlayerId,
-      eliminatedPlayerId
-    );
-    if (!killStored) {
-      logger.info(
-        { tournamentId, killerPlayerId, eliminatedPlayerId },
-        "[InGameUserStateService] recordBountyElimination: kill record failed to store"
+      const killStored = await BountyKillsCache.addKill(
+        tournamentId,
+        killerPlayerId,
+        eliminatedPlayerId
+      );
+      if (!killStored) {
+        logger.info(
+          { tournamentId, killerPlayerId, eliminatedPlayerId },
+          "[InGameUserStateService] recordBountyElimination: kill record failed to store"
+        );
+      }
+      await BountyKillsCache.addEliminatedBy(
+        tournamentId,
+        eliminatedPlayerId,
+        killerPlayerId
       );
     }
-    await BountyKillsCache.addEliminatedBy(
-      tournamentId,
-      eliminatedPlayerId,
-      killerPlayerId
-    );
 
     return { ok: true };
   }

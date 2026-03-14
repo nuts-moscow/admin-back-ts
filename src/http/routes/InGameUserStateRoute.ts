@@ -78,8 +78,9 @@ export function inGameUserStateRoutes() {
         const { tournamentId } = req.params;
         let body: {
           eliminatedPlayerId: string;
-          killerPlayerId: string;
+          killerPlayerId?: string;
           type: string;
+          burnedStack?: boolean;
         };
         try {
           body = (await req.json()) as typeof body;
@@ -89,19 +90,25 @@ export function inGameUserStateRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        const { eliminatedPlayerId, killerPlayerId, type } = body;
+        const { eliminatedPlayerId, killerPlayerId, type, burnedStack } = body;
         if (
           !eliminatedPlayerId ||
-          !killerPlayerId ||
           !type ||
           typeof eliminatedPlayerId !== "string" ||
-          typeof killerPlayerId !== "string" ||
           typeof type !== "string"
         ) {
           return new Response(
             JSON.stringify({
-              error:
-                "eliminatedPlayerId, killerPlayerId and type are required strings",
+              error: "eliminatedPlayerId and type are required strings",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const isBurnedStack = burnedStack === true;
+        if (!isBurnedStack && (!killerPlayerId || typeof killerPlayerId !== "string")) {
+          return new Response(
+            JSON.stringify({
+              error: "killerPlayerId is required when burnedStack is false",
             }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
@@ -120,7 +127,8 @@ export function inGameUserStateRoutes() {
           tournamentId,
           eliminatedPlayerId,
           killerPlayerId,
-          eliminationType
+          eliminationType,
+          isBurnedStack
         );
         if (!result.ok) {
           return new Response(
@@ -406,7 +414,8 @@ export function inGameUserStateRoutes() {
           if (result.error === "invalid_status") {
             return new Response(
               JSON.stringify({
-                error: "Player must be in InGameNotPaid status for in-game payment",
+                error:
+                  "Player must be in InGameNotPaid or Out status for in-game payment",
               }),
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
