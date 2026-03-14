@@ -316,6 +316,11 @@ export class InGameUserStateService {
       if (!statusState) {
         return { ok: false, error: "Failed to update eliminated player status" };
       }
+      await InGameUserStateCache.updateTableId(
+        eliminatedPlayerId,
+        tournamentId,
+        null
+      );
     }
 
     const bountyState = await InGameUserStateCache.updateBountyCount(
