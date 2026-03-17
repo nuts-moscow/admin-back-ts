@@ -79,6 +79,19 @@ export interface BountyKillsCache {
     victimPlayerId: PlayerId,
     killerPlayerId: PlayerId
   ): Promise<boolean>;
+
+  /**
+   * Deletes all bounty kill and eliminated_by keys for the tournament.
+   */
+  deleteAllForTournament(tournamentId: TournamentId): Promise<void>;
+}
+
+function killsPattern(tournamentId: TournamentId): string {
+  return `${BOUNTY_KILLS_BASE}.${tournamentId}.*`;
+}
+
+function eliminatedByPattern(tournamentId: TournamentId): string {
+  return `${ELIMINATED_BY_BASE}.${tournamentId}.*`;
 }
 
 class BountyKillsCacheImpl implements BountyKillsCache {
@@ -202,6 +215,23 @@ class BountyKillsCacheImpl implements BountyKillsCache {
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} removeEliminatedBy failed`);
       return false;
+    }
+  }
+
+  async deleteAllForTournament(tournamentId: TournamentId): Promise<void> {
+    try {
+      const killKeys = await RedisClient.instance.keys(killsPattern(tournamentId));
+      const eliminatedKeys = await RedisClient.instance.keys(
+        eliminatedByPattern(tournamentId)
+      );
+      if (killKeys.length > 0) await RedisClient.instance.del(...killKeys);
+      if (eliminatedKeys.length > 0) await RedisClient.instance.del(...eliminatedKeys);
+      logger.info(
+        { tournamentId, killKeys: killKeys.length, eliminatedKeys: eliminatedKeys.length },
+        `${LOG_PREFIX} deleteAllForTournament done`
+      );
+    } catch (err) {
+      logger.info({ err, tournamentId }, `${LOG_PREFIX} deleteAllForTournament failed`);
     }
   }
 }

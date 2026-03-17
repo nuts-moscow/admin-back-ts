@@ -1,5 +1,10 @@
 import { BountyKillsCache, InGameUserStateCache } from "../../cache";
-import { playerRepository, tournamentRepository } from "../../postgres";
+import {
+  playerRepository,
+  tournamentCashSnapshotRepository,
+  tournamentRepository,
+  tournamentResultRepository,
+} from "../../postgres";
 import { logger } from "../../logger";
 import {
   EntryPaymentMethod,
@@ -21,6 +26,17 @@ function countFreeInReentryByPaymentMethod(
     if (method === EntryPaymentMethod.Free) n += count;
   }
   return n;
+}
+
+function parseJsonStringArray(json: string | null): string[] | null {
+  if (json == null || json === "") return null;
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((x): x is string => typeof x === "string");
+  } catch {
+    return null;
+  }
 }
 
 export interface CashDeskLine {
@@ -145,6 +161,14 @@ export class InGameUserStateService {
     const tournament = await tournamentRepository.findById(parseInt(tournamentId, 10));
     if (!tournament) return null;
 
+    if (tournament.status === "completed") {
+      const snapshot = await tournamentCashSnapshotRepository.findByTournamentId(
+        parseInt(tournamentId, 10)
+      );
+      if (snapshot) return snapshot as unknown as CashDeskResponse;
+      return null;
+    }
+
     const states = await InGameUserStateCache.getAllByTournament(tournamentId);
     const entryPrice = tournament.entryPrice;
     const reentryPrice = tournament.reentryPrice;
@@ -214,6 +238,84 @@ export class InGameUserStateService {
     grandTotal.total.amount = grandTotal.entries.amount + grandTotal.rebuys.amount;
 
     return { cash, card, free, grandTotal };
+  }
+
+  /**
+   * Returns list of players for a completed tournament from tournament_result_players.
+   * Same response shape as GET /api/tournaments/:tournamentId/players (cache path).
+   * Returns null if tournament is not completed or not found.
+   */
+  async getTournamentResultPlayers(
+    tournamentId: TournamentId
+  ): Promise<
+    Array<{
+      tournamentPlayerId: number;
+      playerId: string;
+      status: string;
+      tableId: string | null;
+      bountyCount: number;
+      entryPaymentMethod: string | null;
+      reentryByPaymentMethod: string[] | null;
+      totalReentryCount: number;
+      freeEntryCount: number;
+      freeReentryCount: number;
+      tournamentFreeEntryCount: number;
+      tournamentFreeReentryCount: number;
+      placement: number | null;
+      bonuses: string[] | null;
+      playerName: string | null;
+      unpaidReentryCount: number;
+      signAgreement: boolean;
+      bountyKills: string[];
+      eliminatedBy: string[];
+    }> | null
+  > {
+    const id = parseInt(tournamentId, 10);
+    if (Number.isNaN(id)) return null;
+    const tournament = await tournamentRepository.findById(id);
+    if (!tournament || tournament.status !== "completed") return null;
+
+    const rows = await tournamentResultRepository.findByTournamentId(id);
+    const result = await Promise.all(
+      rows.map(async (row) => {
+        const player = await playerRepository.findById(row.playerId);
+        const bountyKills = parseJsonStringArray(row.bountyKills);
+        const eliminatedBy = parseJsonStringArray(row.eliminatedBy);
+        const reentryByPaymentMethod = parseJsonStringArray(row.reentryByPaymentMethod);
+        const bonuses = parseJsonStringArray(row.bonuses);
+        const paidReentry = reentryByPaymentMethod
+          ? reentryByPaymentMethod.filter(
+              (m) => m === EntryPaymentMethod.Cache || m === EntryPaymentMethod.CreditCard
+            ).length
+          : 0;
+        const unpaidReentryCount = Math.max(
+          0,
+          row.totalReentryCount - paidReentry
+        );
+        return {
+          tournamentPlayerId: row.tournamentPlayerId,
+          playerId: row.playerId,
+          status: row.status,
+          tableId: null,
+          bountyCount: row.bountyCount,
+          entryPaymentMethod: row.entryPaymentMethod,
+          reentryByPaymentMethod,
+          totalReentryCount: row.totalReentryCount,
+          freeEntryCount: 0,
+          freeReentryCount: 0,
+          tournamentFreeEntryCount: 0,
+          tournamentFreeReentryCount: 0,
+          placement: row.placement,
+          bonuses,
+          playerName: player?.nickname ?? null,
+          unpaidReentryCount,
+          signAgreement: player?.signAgreement ?? false,
+          bountyKills: bountyKills ?? [],
+          eliminatedBy: eliminatedBy ?? [],
+        };
+      })
+    );
+    return result;
   }
 
   async addPlayerToTournament(

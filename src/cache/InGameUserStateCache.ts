@@ -227,6 +227,11 @@ export interface InGameUserStateCache {
     playerId: PlayerId,
     tournamentId: TournamentId
   ): Promise<InGameUserState | null>;
+
+  /**
+   * Deletes all player state keys for the tournament and removes tournamentId from each player's tournaments set.
+   */
+  deleteAllForTournament(tournamentId: TournamentId): Promise<void>;
 }
 
 class InGameUserStateCacheImpl implements InGameUserStateCache {
@@ -727,6 +732,26 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     const newState: InGameUserState = { ...state, freeEntryCount: state.freeEntryCount + 1 };
     const ok = await this.set(playerId, tournamentId, newState);
     return ok ? newState : null;
+  }
+
+  async deleteAllForTournament(tournamentId: TournamentId): Promise<void> {
+    const states = await this.getAllByTournament(tournamentId);
+    for (const state of states) {
+      const k = key(tournamentId, state.playerId);
+      try {
+        await RedisClient.instance.del(k);
+        await RedisClient.instance.srem(playerTournamentsKey(state.playerId), tournamentId);
+      } catch (err) {
+        logger.info(
+          { err, tournamentId, playerId: state.playerId },
+          `${LOG_PREFIX} deleteAllForTournament: failed for player`
+        );
+      }
+    }
+    logger.info(
+      { tournamentId, playerCount: states.length },
+      `${LOG_PREFIX} deleteAllForTournament done`
+    );
   }
 }
 

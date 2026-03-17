@@ -1,5 +1,6 @@
 import type { BunRequest } from "bun";
 import type { BlindType } from "../../domain/BlindType";
+import { InGameUserStateService } from "../services/InGameUserStateService";
 import { TournamentService } from "../services/TournamentService";
 
 function isValidBlind(x: unknown): x is Extract<BlindType, { type: "Blind" }> {
@@ -70,7 +71,8 @@ function validateStructureBody(body: unknown): {
 }
 
 export function tournamentRoutes() {
-  const service = new TournamentService();
+  const inGameUserStateService = new InGameUserStateService();
+  const service = new TournamentService(inGameUserStateService);
 
   return {
     "/api/tournament-structures": {

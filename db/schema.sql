@@ -29,3 +29,26 @@ create table if not exists tournament_structures (
     freeze_out_enabled  boolean  not null,
     blinds              text     not null
 );
+
+-- Snapshot of cash desk when tournament is completed
+create table if not exists tournament_cash_snapshots (
+    tournament_id  integer  not null primary key references tournaments(id) on delete cascade,
+    cash_desk      jsonb    not null
+);
+
+-- Final results per player when tournament is completed (placement: 1 = winner)
+create table if not exists tournament_result_players (
+    tournament_id             integer  not null references tournaments(id) on delete cascade,
+    player_id                 text     not null,
+    tournament_player_id      integer  not null,
+    placement                 integer,
+    status                    text     not null,
+    entry_payment_method      text,
+    reentry_by_payment_method text,
+    total_reentry_count       integer  not null default 0,
+    bounty_count              integer  not null default 0,
+    bonuses                   text,
+    bounty_kills              text,
+    eliminated_by             text,
+    primary key (tournament_id, player_id)
+);

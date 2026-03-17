@@ -1,0 +1,144 @@
+import {
+  BountyKillsCache,
+  InGameUserStateCache,
+  tournamentStructureCache,
+} from "../../cache";
+import type { InGameUserState } from "../../domain/cache/InGameUserState";
+import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
+import { logger } from "../../logger";
+import {
+  playerRepository,
+  tournamentCashSnapshotRepository,
+  tournamentResultRepository,
+  tournamentRepository,
+} from "../../postgres";
+import type { CashDeskResponse } from "./InGameUserStateService";
+import type { TournamentResultPlayerRow } from "../../postgres/TournamentResultRepository";
+
+/**
+ * Runs tournament completion: save cash snapshot, save results, update players' free counts, delete cache.
+ * Call before updating tournament status to "completed".
+ */
+export async function runTournamentCompletion(
+  tournamentId: number,
+  inGameUserStateService: {
+    getCashDesk(tournamentId: string): Promise<CashDeskResponse | null>;
+    getAllByTournament(tournamentId: string): Promise<InGameUserState[]>;
+    getKillsByKiller(tournamentId: string, killerPlayerId: string): Promise<string[]>;
+    getEliminatedBy(tournamentId: string, victimPlayerId: string): Promise<string[]>;
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  const tournamentIdStr = String(tournamentId);
+  const tournament = await tournamentRepository.findById(tournamentId);
+  if (!tournament) {
+    return { ok: false, error: "tournament_not_found" };
+  }
+
+  const states = await InGameUserStateCache.getAllByTournament(tournamentIdStr);
+  if (states.length === 0) {
+    logger.info(
+      { tournamentId },
+      "[TournamentCompletion] No players in tournament, skipping snapshot"
+    );
+    await InGameUserStateCache.deleteAllForTournament(tournamentIdStr);
+    await BountyKillsCache.deleteAllForTournament(tournamentIdStr);
+    await tournamentStructureCache.delete(tournamentIdStr);
+    return { ok: true };
+  }
+
+  // Step 1: Save cash desk snapshot
+  const cashDesk = await inGameUserStateService.getCashDesk(tournamentIdStr);
+  if (!cashDesk) {
+    return { ok: false, error: "cash_desk_compute_failed" };
+  }
+  const saved = await tournamentCashSnapshotRepository.save(
+    tournamentId,
+    cashDesk as Record<string, unknown>
+  );
+  if (!saved) {
+    return { ok: false, error: "cash_snapshot_save_failed" };
+  }
+
+  // Step 2: Save results (with placement: 1 = winner, 2+ by elimination order)
+  const N = states.length;
+  const resultRows: TournamentResultPlayerRow[] = [];
+
+  for (const state of states) {
+    const [bountyKills, eliminatedBy] = await Promise.all([
+      inGameUserStateService.getKillsByKiller(tournamentIdStr, state.playerId),
+      inGameUserStateService.getEliminatedBy(tournamentIdStr, state.playerId),
+    ]);
+
+    const placement =
+      state.status !== InGamePlayerStatus.Out
+        ? 1
+        : state.placement != null
+          ? N - state.placement + 1
+          : null;
+
+    resultRows.push({
+      tournamentId,
+      playerId: state.playerId,
+      tournamentPlayerId: state.tournamentPlayerId,
+      placement,
+      status: state.status,
+      entryPaymentMethod: state.entryPaymentMethod,
+      reentryByPaymentMethod:
+        state.reentryByPaymentMethod != null
+          ? JSON.stringify(state.reentryByPaymentMethod)
+          : null,
+      totalReentryCount: state.totalReentryCount,
+      bountyCount: state.bountyCount,
+      bonuses:
+        state.bonuses != null ? JSON.stringify(state.bonuses) : null,
+      bountyKills: JSON.stringify(bountyKills),
+      eliminatedBy: JSON.stringify(eliminatedBy),
+    });
+  }
+
+  const resultsSaved = await tournamentResultRepository.insertResults(
+    tournamentId,
+    resultRows
+  );
+  if (!resultsSaved) {
+    return { ok: false, error: "results_save_failed" };
+  }
+
+  // Step 3: Update players' free entry/reentry counts (deduct used)
+  for (const state of states) {
+    const usedFreeEntry =
+      state.entryPaymentMethod === "Free" ? 1 : 0;
+    const usedFreeReentry = countFreeInReentry(state.reentryByPaymentMethod);
+    if (usedFreeEntry > 0) {
+      await playerRepository.updateFreeEntryCountByDelta(
+        state.playerId,
+        -usedFreeEntry
+      );
+    }
+    if (usedFreeReentry > 0) {
+      await playerRepository.updateFreeReentryCountByDelta(
+        state.playerId,
+        -usedFreeReentry
+      );
+    }
+  }
+
+  // Step 4: Delete all cache for tournament
+  await InGameUserStateCache.deleteAllForTournament(tournamentIdStr);
+  await BountyKillsCache.deleteAllForTournament(tournamentIdStr);
+  await tournamentStructureCache.delete(tournamentIdStr);
+
+  logger.info({ tournamentId, playerCount: states.length }, "[TournamentCompletion] done");
+  return { ok: true };
+}
+
+function countFreeInReentry(
+  pairs: InGameUserState["reentryByPaymentMethod"]
+): number {
+  if (!pairs || pairs.length === 0) return 0;
+  let n = 0;
+  for (const [method, count] of pairs) {
+    if (method === "Free") n += count;
+  }
+  return n;
+}

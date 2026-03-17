@@ -5,6 +5,8 @@ import {
   tournamentStructureRepository,
   tournamentRepository,
 } from "../../postgres";
+import { runTournamentCompletion } from "./TournamentCompletionService";
+import type { InGameUserStateService } from "./InGameUserStateService";
 
 export interface MakeTournamentStructureBody {
   name: string;
@@ -41,6 +43,10 @@ export type UpdateTournamentResult =
   | { ok: false; error: "not_found" | "failed" | "invalid_status" };
 
 export class TournamentService {
+  constructor(
+    private inGameUserStateService?: InGameUserStateService
+  ) {}
+
   async createStructure(
     input: MakeTournamentStructureBody
   ): Promise<CreateStructureResult> {
@@ -131,6 +137,24 @@ export class TournamentService {
     if (!validStatuses.includes(status)) {
       return { ok: false, error: "invalid_status" };
     }
+    const current = await tournamentRepository.findById(id);
+    if (!current) return { ok: false, error: "not_found" };
+    if (
+      status === "completed" &&
+      current.status !== "completed" &&
+      this.inGameUserStateService
+    ) {
+      const completion = await runTournamentCompletion(
+        id,
+        this.inGameUserStateService
+      );
+      if (!completion.ok) {
+        return {
+          ok: false,
+          error: "invalid_status",
+        };
+      }
+    }
     const tournament = await tournamentRepository.updateStatus(id, status);
     if (!tournament) return { ok: false, error: "not_found" };
     return {
@@ -151,6 +175,24 @@ export class TournamentService {
     const validStatuses = ["registration_open", "in_progress", "completed"];
     if (!validStatuses.includes(input.status)) {
       return { ok: false, error: "invalid_status" };
+    }
+    const current = await tournamentRepository.findById(id);
+    if (!current) return { ok: false, error: "not_found" };
+    if (
+      input.status === "completed" &&
+      current.status !== "completed" &&
+      this.inGameUserStateService
+    ) {
+      const completion = await runTournamentCompletion(
+        id,
+        this.inGameUserStateService
+      );
+      if (!completion.ok) {
+        return {
+          ok: false,
+          error: "invalid_status",
+        };
+      }
     }
     const tournament = await tournamentRepository.update(id, input);
     if (!tournament) return { ok: false, error: "not_found" };

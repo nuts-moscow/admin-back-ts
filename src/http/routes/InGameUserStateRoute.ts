@@ -250,6 +250,10 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players">
       ) => {
         const { tournamentId } = req.params;
+        const resultPlayers = await service.getTournamentResultPlayers(tournamentId);
+        if (resultPlayers !== null) {
+          return Response.json(resultPlayers);
+        }
         const states = await service.getAllByTournament(tournamentId);
         const enriched = await Promise.all(
           states.map(async (s) => {

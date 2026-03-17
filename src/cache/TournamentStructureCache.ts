@@ -61,6 +61,11 @@ export interface TournamentStructureCache {
    * @returns true if stored, false on error
    */
   set(tournamentId: string, structure: TournamentStructureData): Promise<boolean>;
+
+  /**
+   * Deletes structure for a tournament (e.g. when tournament is completed).
+   */
+  delete(tournamentId: string): Promise<void>;
 }
 
 class TournamentStructureCacheImpl implements TournamentStructureCache {
@@ -98,6 +103,15 @@ class TournamentStructureCacheImpl implements TournamentStructureCache {
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} set failed`);
       return false;
+    }
+  }
+
+  async delete(tournamentId: string): Promise<void> {
+    try {
+      await RedisClient.instance.del(key(tournamentId));
+      logger.info({ tournamentId }, `${LOG_PREFIX} delete done`);
+    } catch (err) {
+      logger.info({ err, tournamentId }, `${LOG_PREFIX} delete failed`);
     }
   }
 }
