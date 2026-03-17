@@ -7,6 +7,8 @@ export interface Player {
   tg: string | null;
   notes: string | null;
   signAgreement: boolean;
+  freeEntryCount: number;
+  freeReentryCount: number;
   createdAt: Date;
 }
 

@@ -48,6 +48,12 @@ export const InGameUserStateSchema = z
       .openapi({ description: "Re-entries not yet paid (total minus Cache+CreditCard)", example: 0 }),
     freeEntryCount: z.number().openapi({ description: "Free entry count", example: 0 }),
     freeReentryCount: z.number().openapi({ description: "Free re-entry count", example: 0 }),
+    tournamentFreeEntryCount: z
+      .number()
+      .openapi({ description: "Tournament-only free entry count", example: 0 }),
+    tournamentFreeReentryCount: z
+      .number()
+      .openapi({ description: "Tournament-only free re-entry count", example: 0 }),
     placement: z.number().nullable().openapi({ description: "Placement position" }),
     bonuses: z
       .array(InGameBonusSchema)

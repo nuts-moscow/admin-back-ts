@@ -45,4 +45,29 @@ export class PlayersService {
     }
     return { ok: true, player };
   }
+
+  /**
+   * Applies delta to player's free entry count (clamp to >= 0). Returns new count or null if player not found.
+   */
+  async updateFreeEntryCountByDelta(
+    playerId: string,
+    delta: number
+  ): Promise<{ ok: true; freeEntryCount: number } | { ok: false; error: "not_found" }> {
+    const newCount = await playerRepository.updateFreeEntryCountByDelta(playerId, delta);
+    if (newCount === null) return { ok: false, error: "not_found" };
+    return { ok: true, freeEntryCount: newCount };
+  }
+
+  /**
+   * Applies delta to player's free reentry count (clamp to >= 0). Returns new count or null if player not found.
+   * Caller should sync to tournament state after this.
+   */
+  async updateFreeReentryCountByDelta(
+    playerId: string,
+    delta: number
+  ): Promise<{ ok: true; freeReentryCount: number } | { ok: false; error: "not_found" }> {
+    const newCount = await playerRepository.updateFreeReentryCountByDelta(playerId, delta);
+    if (newCount === null) return { ok: false, error: "not_found" };
+    return { ok: true, freeReentryCount: newCount };
+  }
 }

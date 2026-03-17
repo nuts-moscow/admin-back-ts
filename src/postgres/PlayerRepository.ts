@@ -20,6 +20,10 @@ export interface PlayerRepository {
   create(input: CreatePlayerInput): Promise<Player | null>;
   /** Updates player fields by id. Only provided fields are updated. Returns updated player or null */
   update(playerId: string, input: UpdatePlayerInput): Promise<Player | null>;
+  /** Applies delta to free_entry_count (clamp to >= 0). Returns new count or null. */
+  updateFreeEntryCountByDelta(playerId: string, delta: number): Promise<number | null>;
+  /** Applies delta to free_reentry_count (clamp to >= 0). Returns new count or null. */
+  updateFreeReentryCountByDelta(playerId: string, delta: number): Promise<number | null>;
 }
 
 function rowToPlayer(row: Record<string, unknown>): Player {
@@ -31,6 +35,8 @@ function rowToPlayer(row: Record<string, unknown>): Player {
     tg: row.tg != null ? String(row.tg) : null,
     notes: row.notes != null ? String(row.notes) : null,
     signAgreement: row.sing_agreement === true,
+    freeEntryCount: Math.max(0, Number(row.free_entry_count ?? 0)),
+    freeReentryCount: Math.max(0, Number(row.free_reentry_count ?? 0)),
     createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
   };
 }
@@ -57,7 +63,7 @@ class PlayerRepositoryImpl implements PlayerRepository {
   async findByNickname(nickname: string): Promise<Player | null> {
     try {
       const result = await PostgresClient.instance.query(
-        "SELECT id, nickname, name, phone, tg, notes, sing_agreement, created_at FROM players WHERE LOWER(nickname) = LOWER($1)",
+        "SELECT id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at FROM players WHERE LOWER(nickname) = LOWER($1)",
         [nickname]
       );
       const row = result.rows[0];
@@ -74,7 +80,7 @@ class PlayerRepositoryImpl implements PlayerRepository {
       const offset = Math.max(0, options?.offset ?? 0);
       const limit = options?.limit != null ? Math.max(1, Math.min(1000, options.limit)) : 1000;
       const result = await PostgresClient.instance.query(
-        `SELECT id, nickname, name, phone, tg, notes, sing_agreement, created_at
+        `SELECT id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at
          FROM players ORDER BY id ASC OFFSET $1 LIMIT $2`,
         [offset, limit]
       );
@@ -90,7 +96,7 @@ class PlayerRepositoryImpl implements PlayerRepository {
       const id = parseInt(playerId, 10);
       if (Number.isNaN(id)) return null;
       const result = await PostgresClient.instance.query(
-        "SELECT id, nickname, name, phone, tg, notes, sing_agreement, created_at FROM players WHERE id = $1",
+        "SELECT id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at FROM players WHERE id = $1",
         [id]
       );
       const row = result.rows[0];
@@ -106,9 +112,9 @@ class PlayerRepositoryImpl implements PlayerRepository {
     try {
       const signAgreement = input.signAgreement ?? false;
       const result = await PostgresClient.instance.query(
-        `INSERT INTO players (nickname, name, phone, tg, notes, sing_agreement)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, nickname, name, phone, tg, notes, sing_agreement, created_at`,
+        `INSERT INTO players (nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count)
+         VALUES ($1, $2, $3, $4, $5, $6, 0, 0)
+         RETURNING id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at`,
         [
           input.nickname,
           input.name ?? null,
@@ -168,7 +174,7 @@ class PlayerRepositoryImpl implements PlayerRepository {
       values.push(id);
       const result = await PostgresClient.instance.query(
         `UPDATE players SET ${updates.join(", ")} WHERE id = $${paramIndex}
-         RETURNING id, nickname, name, phone, tg, notes, sing_agreement, created_at`,
+         RETURNING id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at`,
         values
       );
       const row = result.rows[0];
@@ -176,6 +182,50 @@ class PlayerRepositoryImpl implements PlayerRepository {
       return rowToPlayer(row as Record<string, unknown>);
     } catch (err) {
       logger.info({ err }, "[Postgres] PlayerRepository.update failed");
+      return null;
+    }
+  }
+
+  async updateFreeEntryCountByDelta(playerId: string, delta: number): Promise<number | null> {
+    try {
+      const id = parseInt(playerId, 10);
+      if (Number.isNaN(id)) return null;
+      const current = await PostgresClient.instance.query(
+        "SELECT free_entry_count FROM players WHERE id = $1",
+        [id]
+      );
+      const row = current.rows[0] as { free_entry_count: number } | undefined;
+      if (!row) return null;
+      const newCount = Math.max(0, Number(row.free_entry_count ?? 0) + delta);
+      await PostgresClient.instance.query(
+        "UPDATE players SET free_entry_count = $1 WHERE id = $2",
+        [newCount, id]
+      );
+      return newCount;
+    } catch (err) {
+      logger.info({ err }, "[Postgres] PlayerRepository.updateFreeEntryCountByDelta failed");
+      return null;
+    }
+  }
+
+  async updateFreeReentryCountByDelta(playerId: string, delta: number): Promise<number | null> {
+    try {
+      const id = parseInt(playerId, 10);
+      if (Number.isNaN(id)) return null;
+      const current = await PostgresClient.instance.query(
+        "SELECT free_reentry_count FROM players WHERE id = $1",
+        [id]
+      );
+      const row = current.rows[0] as { free_reentry_count: number } | undefined;
+      if (!row) return null;
+      const newCount = Math.max(0, Number(row.free_reentry_count ?? 0) + delta);
+      await PostgresClient.instance.query(
+        "UPDATE players SET free_reentry_count = $1 WHERE id = $2",
+        [newCount, id]
+      );
+      return newCount;
+    } catch (err) {
+      logger.info({ err }, "[Postgres] PlayerRepository.updateFreeReentryCountByDelta failed");
       return null;
     }
   }

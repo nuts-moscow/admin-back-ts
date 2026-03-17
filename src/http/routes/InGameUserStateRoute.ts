@@ -420,6 +420,14 @@ export function inGameUserStateRoutes() {
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
+          if (result.error === "insufficient_free_entries") {
+            return new Response(
+              JSON.stringify({
+                error: "Insufficient free entries to pay entry with Free",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
@@ -459,6 +467,14 @@ export function inGameUserStateRoutes() {
           tournamentId,
           body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod]
         );
+        if (state && "error" in state) {
+          return new Response(
+            JSON.stringify({
+              error: "Insufficient free entries to pay entry with Free",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
         if (!state) {
           return new Response(null, { status: 404 });
         }
@@ -567,6 +583,136 @@ export function inGameUserStateRoutes() {
           tournamentId,
           body.payments as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod][]
         );
+        if (state && "error" in state) {
+          return new Response(
+            JSON.stringify({
+              error: "Insufficient free re-entries to add reentry payment with Free",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
+      PUT: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/reentry-payment">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { payments: string[] };
+        try {
+          body = (await req.json()) as { payments: string[] };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.payments === undefined ||
+          body.payments === null ||
+          !Array.isArray(body.payments)
+        ) {
+          return new Response(
+            JSON.stringify({ error: "payments is required and must be an array" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        for (const p of body.payments) {
+          if (
+            typeof p !== "string" ||
+            !VALID_ENTRY_PAYMENT_METHODS.has(p)
+          ) {
+            return new Response(
+              JSON.stringify({
+                error: `Invalid payment method '${p}'. Must be one of: Cache, CreditCard, Free`,
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
+        const putState = await service.setReentryPaymentMethods(
+          playerId,
+          tournamentId,
+          body.payments as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod][]
+        );
+        if (putState && "error" in putState) {
+          if (putState.error === "invalid_length") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "payments length must equal player totalReentryCount",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(
+            JSON.stringify({
+              error: "Insufficient free re-entries for the number of Free in payments",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (!putState) {
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(putState, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/free-entries": {
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/free-entries">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { delta?: number };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const delta = body.delta;
+        if (delta === undefined || delta === null || typeof delta !== "number") {
+          return new Response(
+            JSON.stringify({ error: "delta is required and must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.addTournamentFreeEntries(playerId, tournamentId, delta);
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/free-reentries": {
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/free-reentries">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { delta?: number };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const delta = body.delta;
+        if (delta === undefined || delta === null || typeof delta !== "number") {
+          return new Response(
+            JSON.stringify({ error: "delta is required and must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.addTournamentFreeReentries(playerId, tournamentId, delta);
         if (!state) {
           return new Response(null, { status: 404 });
         }

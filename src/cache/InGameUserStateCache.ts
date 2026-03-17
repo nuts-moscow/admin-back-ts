@@ -22,10 +22,15 @@ const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
 const VALID_BONUSES = new Set<string>(Object.values(InGameBonus));
 
 const TOURNAMENT_PLAYERS_BASE = "nuts.api.data.tournament.players.state";
+const PLAYER_TOURNAMENTS_BASE = "nuts.api.data.player.tournaments";
 const LOG_PREFIX = "[InGameUserStateCache]";
 
 function key(tournamentId: TournamentId, playerId: PlayerId): string {
   return `${TOURNAMENT_PLAYERS_BASE}.${tournamentId}.${playerId}`;
+}
+
+function playerTournamentsKey(playerId: PlayerId): string {
+  return `${PLAYER_TOURNAMENTS_BASE}.${playerId}`;
 }
 
 function keyPattern(tournamentId: TournamentId): string {
@@ -66,16 +71,20 @@ export interface InGameUserStateCache {
   getAllByTournament(tournamentId: TournamentId): Promise<InGameUserState[]>;
 
   /**
-   * Adds player to tournament with init state (freeEntryCount=0, freeReentryCount=0).
+   * Adds player to tournament with init state.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
    * @param earlyBird - If true, adds EarlyBird bonus to player
+   * @param freeEntryCount - Free entry count from profile (default 0)
+   * @param freeReentryCount - Free reentry count from profile (default 0)
    * @returns true if stored, false on error
    */
   addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    earlyBird?: boolean
+    earlyBird?: boolean,
+    freeEntryCount?: number,
+    freeReentryCount?: number
   ): Promise<boolean>;
 
   /**
@@ -158,6 +167,15 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
+   * Replaces reentry payment methods with the full list. Length must equal totalReentryCount.
+   */
+  setReentryPaymentMethods(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    payments: EntryPaymentMethod[]
+  ): Promise<InGameUserState | null>;
+
+  /**
    * Updates player table ID in tournament.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
@@ -168,6 +186,46 @@ export interface InGameUserStateCache {
     playerId: PlayerId,
     tournamentId: TournamentId,
     tableId: TableId | null
+  ): Promise<InGameUserState | null>;
+
+  /**
+   * Applies delta to tournament-only free entry count (clamp to >= 0). Only modifies state in Redis.
+   */
+  addTournamentFreeEntries(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null>;
+
+  /**
+   * Applies delta to tournament-only free reentry count (clamp to >= 0). Only modifies state in Redis.
+   */
+  addTournamentFreeReentries(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null>;
+
+  /**
+   * Syncs freeReentryCount from profile to all tournament states for this player.
+   * Call after updating player's free_reentry_count in DB.
+   */
+  syncPlayerFreeReentryCount(playerId: PlayerId, newCount: number): Promise<void>;
+
+  /**
+   * Decrements one free entry (freeEntryCount first, then tournamentFreeEntryCount). Use when player pays entry with Free.
+   */
+  deductOneFreeEntry(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<InGameUserState | null>;
+
+  /**
+   * Increments freeEntryCount by 1. Use when player switches entry payment from Free to paid.
+   */
+  addBackOneFreeEntry(
+    playerId: PlayerId,
+    tournamentId: TournamentId
   ): Promise<InGameUserState | null>;
 }
 
@@ -259,6 +317,8 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         totalReentryCount: String(state.totalReentryCount),
         freeEntryCount: String(state.freeEntryCount),
         freeReentryCount: String(state.freeReentryCount),
+        tournamentFreeEntryCount: String(state.tournamentFreeEntryCount ?? 0),
+        tournamentFreeReentryCount: String(state.tournamentFreeReentryCount ?? 0),
         placement: state.placement === null ? "" : String(state.placement),
         bonuses: state.bonuses === null ? "" : JSON.stringify(state.bonuses),
       });
@@ -306,15 +366,20 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   async addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    earlyBird?: boolean
+    earlyBird?: boolean,
+    freeEntryCount: number = 0,
+    freeReentryCount: number = 0
   ): Promise<boolean> {
-    logger.info({ playerId, tournamentId, earlyBird }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`);
+    logger.info(
+      { playerId, tournamentId, earlyBird, freeEntryCount, freeReentryCount },
+      `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`
+    );
     const existing = await this.getAllByTournament(tournamentId);
     const nextId =
       existing.length === 0
         ? 1
         : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
-    const state = initInGameUserState(playerId, nextId, 0, 0);
+    const state = initInGameUserState(playerId, nextId, freeEntryCount, freeReentryCount);
     const bonuses: BonusesByType = [];
     if (earlyBird) {
       bonuses.push([InGameBonus.EarlyBird, 1]);
@@ -326,6 +391,13 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       state.bonuses = bonuses;
     }
     const result = await this.set(playerId, tournamentId, state);
+    if (result) {
+      try {
+        await RedisClient.instance.sadd(playerTournamentsKey(playerId), tournamentId);
+      } catch (err) {
+        logger.info({ err }, `${LOG_PREFIX} addPlayerToTournament: failed to add player to tournaments set`);
+      }
+    }
     logger.info({ stored: result }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result`);
     return result;
   }
@@ -344,6 +416,13 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       }
       const deleted = await RedisClient.instance.del(k);
       const ok = deleted > 0;
+      if (ok) {
+        try {
+          await RedisClient.instance.srem(playerTournamentsKey(playerId), tournamentId);
+        } catch (e) {
+          logger.info({ err: e }, `${LOG_PREFIX} removePlayerFromTournament: failed to remove from tournaments set`);
+        }
+      }
       logger.info({ key: k, removed: ok }, `${LOG_PREFIX} InGameUserStateCache.removePlayerFromTournament result`);
       return ok;
     } catch (err) {
@@ -526,6 +605,24 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     }
   }
 
+  async setReentryPaymentMethods(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    payments: EntryPaymentMethod[]
+  ): Promise<InGameUserState | null> {
+    const state = await this.get(playerId, tournamentId);
+    if (!state) return null;
+    if (payments.length !== state.totalReentryCount) return null;
+    const map = new Map<EntryPaymentMethod, number>();
+    for (const method of payments) {
+      map.set(method, (map.get(method) ?? 0) + 1);
+    }
+    const reentryByPaymentMethod: ReentryByPaymentMethod = Array.from(map.entries());
+    const newState: InGameUserState = { ...state, reentryByPaymentMethod };
+    const ok = await this.set(playerId, tournamentId, newState);
+    return ok ? newState : null;
+  }
+
   async updateTableId(
     playerId: PlayerId,
     tournamentId: TournamentId,
@@ -552,6 +649,84 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.updateTableId failed`);
       return null;
     }
+  }
+
+  async addTournamentFreeEntries(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null> {
+    const state = await this.get(playerId, tournamentId);
+    if (!state) return null;
+    const current = state.tournamentFreeEntryCount ?? 0;
+    const newCount = Math.max(0, current + delta);
+    const newState: InGameUserState = { ...state, tournamentFreeEntryCount: newCount };
+    const ok = await this.set(playerId, tournamentId, newState);
+    return ok ? newState : null;
+  }
+
+  async addTournamentFreeReentries(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null> {
+    const state = await this.get(playerId, tournamentId);
+    if (!state) return null;
+    const current = state.tournamentFreeReentryCount ?? 0;
+    const newCount = Math.max(0, current + delta);
+    const newState: InGameUserState = { ...state, tournamentFreeReentryCount: newCount };
+    const ok = await this.set(playerId, tournamentId, newState);
+    return ok ? newState : null;
+  }
+
+  async syncPlayerFreeReentryCount(playerId: PlayerId, newCount: number): Promise<void> {
+    try {
+      const k = playerTournamentsKey(playerId);
+      const tournamentIds = await RedisClient.instance.smembers(k);
+      for (const tournamentId of tournamentIds) {
+        const stateKey = key(tournamentId, playerId);
+        await RedisClient.instance.hset(stateKey, "freeReentryCount", String(newCount));
+      }
+      logger.info(
+        { playerId, newCount, tournamentCount: tournamentIds.length },
+        `${LOG_PREFIX} syncPlayerFreeReentryCount done`
+      );
+    } catch (err) {
+      logger.info({ err, playerId }, `${LOG_PREFIX} syncPlayerFreeReentryCount failed`);
+    }
+  }
+
+  async deductOneFreeEntry(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<InGameUserState | null> {
+    const state = await this.get(playerId, tournamentId);
+    if (!state) return null;
+    if (state.freeEntryCount > 0) {
+      const newState: InGameUserState = { ...state, freeEntryCount: state.freeEntryCount - 1 };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    }
+    if ((state.tournamentFreeEntryCount ?? 0) > 0) {
+      const newState: InGameUserState = {
+        ...state,
+        tournamentFreeEntryCount: (state.tournamentFreeEntryCount ?? 0) - 1,
+      };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    }
+    return null;
+  }
+
+  async addBackOneFreeEntry(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<InGameUserState | null> {
+    const state = await this.get(playerId, tournamentId);
+    if (!state) return null;
+    const newState: InGameUserState = { ...state, freeEntryCount: state.freeEntryCount + 1 };
+    const ok = await this.set(playerId, tournamentId, newState);
+    return ok ? newState : null;
   }
 }
 
@@ -612,6 +787,14 @@ function parseHashToState(
     logger.info({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid freeReentryCount`);
     return null;
   }
+  const tournamentFreeEntryCount = Math.max(
+    0,
+    parseInt(hash.tournamentFreeEntryCount ?? "0", 10) || 0
+  );
+  const tournamentFreeReentryCount = Math.max(
+    0,
+    parseInt(hash.tournamentFreeReentryCount ?? "0", 10) || 0
+  );
   let placement: number | null = null;
   if (hash.placement !== undefined && hash.placement !== null && hash.placement !== "") {
     const p = parseInt(hash.placement, 10);
@@ -644,6 +827,8 @@ function parseHashToState(
     totalReentryCount,
     freeEntryCount,
     freeReentryCount,
+    tournamentFreeEntryCount,
+    tournamentFreeReentryCount,
     placement,
     bonuses,
   };

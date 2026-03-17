@@ -1,12 +1,14 @@
 create table if not exists players (
-    id         SERIAL     not null primary key,
-    nickname   text       not null,
-    name       text,
-    phone      text,
-    tg         text,
-    notes      text,
-    sing_agreement boolean default false,
-    created_at timestamp  not null default now()
+    id                  SERIAL     not null primary key,
+    nickname            text       not null,
+    name                text,
+    phone               text,
+    tg                  text,
+    notes               text,
+    sing_agreement       boolean    default false,
+    free_entry_count    integer    not null default 0,
+    free_reentry_count  integer    not null default 0,
+    created_at          timestamp  not null default now()
 );
 
 create table if not exists tournaments

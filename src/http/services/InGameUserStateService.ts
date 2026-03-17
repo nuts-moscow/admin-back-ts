@@ -1,5 +1,5 @@
 import { BountyKillsCache, InGameUserStateCache } from "../../cache";
-import { tournamentRepository } from "../../postgres";
+import { playerRepository, tournamentRepository } from "../../postgres";
 import { logger } from "../../logger";
 import {
   EntryPaymentMethod,
@@ -11,6 +11,17 @@ import {
   type TableId,
   type TournamentId,
 } from "../../domain/cache/InGameUserState";
+
+function countFreeInReentryByPaymentMethod(
+  pairs: ReentryByPaymentMethod | null
+): number {
+  if (!pairs) return 0;
+  let n = 0;
+  for (const [method, count] of pairs) {
+    if (method === EntryPaymentMethod.Free) n += count;
+  }
+  return n;
+}
 
 export interface CashDeskLine {
   quantity: number;
@@ -210,7 +221,17 @@ export class InGameUserStateService {
     tournamentId: TournamentId,
     earlyBird?: boolean
   ): Promise<boolean> {
-    return InGameUserStateCache.addPlayerToTournament(playerId, tournamentId, earlyBird);
+    const player = await playerRepository.findById(playerId);
+    if (!player) return false;
+    const freeEntryCount = player.freeEntryCount ?? 0;
+    const freeReentryCount = player.freeReentryCount ?? 0;
+    return InGameUserStateCache.addPlayerToTournament(
+      playerId,
+      tournamentId,
+      earlyBird,
+      freeEntryCount,
+      freeReentryCount
+    );
   }
 
   async removePlayerFromTournament(
@@ -239,8 +260,43 @@ export class InGameUserStateService {
   async updateEntryPaymentMethod(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    entryPaymentMethod: EntryPaymentMethod
-  ): Promise<InGameUserState | null> {
+    entryPaymentMethod: EntryPaymentMethod | null
+  ): Promise<
+    InGameUserState | null | { error: "insufficient_free_entries" }
+  > {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) return null;
+    const previousFree = state.entryPaymentMethod === EntryPaymentMethod.Free;
+
+    if (entryPaymentMethod === EntryPaymentMethod.Free) {
+      const available =
+        state.freeEntryCount + (state.tournamentFreeEntryCount ?? 0);
+      if (available < 1) return { error: "insufficient_free_entries" };
+      await InGameUserStateCache.updateEntryPaymentMethod(
+        playerId,
+        tournamentId,
+        EntryPaymentMethod.Free
+      );
+      const after = await InGameUserStateCache.deductOneFreeEntry(
+        playerId,
+        tournamentId
+      );
+      return after;
+    }
+
+    if (previousFree) {
+      await InGameUserStateCache.updateEntryPaymentMethod(
+        playerId,
+        tournamentId,
+        entryPaymentMethod
+      );
+      const after = await InGameUserStateCache.addBackOneFreeEntry(
+        playerId,
+        tournamentId
+      );
+      return after;
+    }
+
     return InGameUserStateCache.updateEntryPaymentMethod(
       playerId,
       tournamentId,
@@ -263,12 +319,12 @@ export class InGameUserStateService {
       InGamePlayerStatus.Registered
     );
     if (!afterStatus) return null;
-    const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
+    const afterPayment = await this.updateEntryPaymentMethod(
       playerId,
       tournamentId,
       null
     );
-    if (!afterPayment) return null;
+    if (!afterPayment || (typeof afterPayment === "object" && "error" in afterPayment)) return null;
     return InGameUserStateCache.updateTableId(playerId, tournamentId, null);
   }
 
@@ -282,7 +338,8 @@ export class InGameUserStateService {
     playerId: PlayerId,
     entryPaymentMethod: EntryPaymentMethod
   ): Promise<
-    { state: InGameUserState } | { error: "not_found" | "invalid_status" }
+    | { state: InGameUserState }
+    | { error: "not_found" | "invalid_status" | "insufficient_free_entries" }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) return { error: "not_found" };
@@ -293,11 +350,14 @@ export class InGameUserStateService {
     if (!allowedForPayment.has(state.status)) {
       return { error: "invalid_status" };
     }
-    const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
+    const afterPayment = await this.updateEntryPaymentMethod(
       playerId,
       tournamentId,
       entryPaymentMethod
     );
+    if (afterPayment && "error" in afterPayment) {
+      return { error: "insufficient_free_entries" };
+    }
     if (!afterPayment) return { error: "not_found" };
     if (state.status === InGamePlayerStatus.InGameNotPaid) {
       const finalState = await InGameUserStateCache.updateStatus(
@@ -398,12 +458,68 @@ export class InGameUserStateService {
     playerId: PlayerId,
     tournamentId: TournamentId,
     payments: EntryPaymentMethod[]
-  ): Promise<InGameUserState | null> {
+  ): Promise<
+    InGameUserState | null | { error: "insufficient_free_reentries" }
+  > {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) return null;
+    const currentFree = countFreeInReentryByPaymentMethod(
+      state.reentryByPaymentMethod
+    );
+    const newFree = payments.filter((p) => p === EntryPaymentMethod.Free).length;
+    const available =
+      state.freeReentryCount + (state.tournamentFreeReentryCount ?? 0);
+    if (currentFree + newFree > available) {
+      return { error: "insufficient_free_reentries" };
+    }
     return InGameUserStateCache.addReentryPayment(
       playerId,
       tournamentId,
       payments
     );
+  }
+
+  async setReentryPaymentMethods(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    payments: EntryPaymentMethod[]
+  ): Promise<
+    InGameUserState | null | { error: "insufficient_free_reentries" | "invalid_length" }
+  > {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) return null;
+    if (payments.length !== state.totalReentryCount) {
+      return { error: "invalid_length" };
+    }
+    const freeCount = payments.filter((p) => p === EntryPaymentMethod.Free).length;
+    const available =
+      state.freeReentryCount + (state.tournamentFreeReentryCount ?? 0);
+    if (freeCount > available) {
+      return { error: "insufficient_free_reentries" };
+    }
+    return InGameUserStateCache.setReentryPaymentMethods(
+      playerId,
+      tournamentId,
+      payments
+    );
+  }
+
+  /** Applies delta to tournament-only free entry count (state only). Returns updated state or null. */
+  async addTournamentFreeEntries(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.addTournamentFreeEntries(playerId, tournamentId, delta);
+  }
+
+  /** Applies delta to tournament-only free reentry count (state only). Returns updated state or null. */
+  async addTournamentFreeReentries(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.addTournamentFreeReentries(playerId, tournamentId, delta);
   }
 
   async updateTableId(

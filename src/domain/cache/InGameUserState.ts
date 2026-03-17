@@ -67,6 +67,10 @@ export interface InGameUserState {
   totalReentryCount: number;
   freeEntryCount: number;
   freeReentryCount: number;
+  /** Tournament-only free entries (temporary for this tournament) */
+  tournamentFreeEntryCount: number;
+  /** Tournament-only free re-entries (temporary for this tournament) */
+  tournamentFreeReentryCount: number;
   placement: number | null;
   bonuses: BonusesByType | null;
 }
@@ -89,6 +93,8 @@ export function initInGameUserState(
     totalReentryCount: 0,
     freeEntryCount,
     freeReentryCount,
+    tournamentFreeEntryCount: 0,
+    tournamentFreeReentryCount: 0,
     placement: null,
     bonuses: null,
   };

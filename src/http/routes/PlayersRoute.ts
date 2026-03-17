@@ -1,4 +1,5 @@
 import type { BunRequest } from "bun";
+import { InGameUserStateCache } from "../../cache";
 import { PlayersService } from "../services/PlayersService";
 
 function playerToJson(player: {
@@ -9,6 +10,8 @@ function playerToJson(player: {
   tg: string | null;
   notes: string | null;
   signAgreement: boolean;
+  freeEntryCount?: number;
+  freeReentryCount?: number;
   createdAt: Date;
 }) {
   return {
@@ -19,6 +22,8 @@ function playerToJson(player: {
     tg: player.tg,
     notes: player.notes,
     signAgreement: player.signAgreement,
+    freeEntryCount: player.freeEntryCount ?? 0,
+    freeReentryCount: player.freeReentryCount ?? 0,
     createdAt: player.createdAt.toISOString(),
   };
 }
@@ -165,6 +170,81 @@ export function playersRoutes() {
         }
         const player = result.player;
         return Response.json(playerToJson(player));
+      },
+    },
+    "/api/players/:playerId/free-entries": {
+      PATCH: async (
+        req: BunRequest<"/api/players/:playerId/free-entries"> & { params: { playerId: string } }
+      ) => {
+        const playerId = req.params?.playerId;
+        if (!playerId) {
+          return new Response(
+            JSON.stringify({ error: "playerId is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        let body: { delta?: number };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const delta = body.delta;
+        if (delta === undefined || delta === null || typeof delta !== "number") {
+          return new Response(
+            JSON.stringify({ error: "delta is required and must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.updateFreeEntryCountByDelta(playerId, delta);
+        if (!result.ok) {
+          return new Response(
+            JSON.stringify({ error: "Player not found" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json({ freeEntryCount: result.freeEntryCount });
+      },
+    },
+    "/api/players/:playerId/free-reentries": {
+      PATCH: async (
+        req: BunRequest<"/api/players/:playerId/free-reentries"> & { params: { playerId: string } }
+      ) => {
+        const playerId = req.params?.playerId;
+        if (!playerId) {
+          return new Response(
+            JSON.stringify({ error: "playerId is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        let body: { delta?: number };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const delta = body.delta;
+        if (delta === undefined || delta === null || typeof delta !== "number") {
+          return new Response(
+            JSON.stringify({ error: "delta is required and must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.updateFreeReentryCountByDelta(playerId, delta);
+        if (!result.ok) {
+          return new Response(
+            JSON.stringify({ error: "Player not found" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        await InGameUserStateCache.syncPlayerFreeReentryCount(playerId, result.freeReentryCount);
+        return Response.json({ freeReentryCount: result.freeReentryCount });
       },
     },
   };
