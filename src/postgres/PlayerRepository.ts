@@ -26,6 +26,7 @@ export interface PlayerRepository {
   updateFreeReentryCountByDelta(playerId: string, delta: number): Promise<number | null>;
 }
 
+/** Maps DB row to Player. Missing/null free_entry_count/free_reentry_count become 0; player is never excluded. */
 function rowToPlayer(row: Record<string, unknown>): Player {
   return {
     id: Number(row.id),
@@ -75,13 +76,16 @@ class PlayerRepositoryImpl implements PlayerRepository {
     }
   }
 
+  /**
+   * Returns all players (no filter by free_entry_count/free_reentry_count).
+   * Uses SELECT * so it works even when free_entry_count/free_reentry_count columns are missing (e.g. migration not run).
+   */
   async list(options?: ListPlayersOptions): Promise<Player[]> {
     try {
       const offset = Math.max(0, options?.offset ?? 0);
       const limit = options?.limit != null ? Math.max(1, Math.min(1000, options.limit)) : 1000;
       const result = await PostgresClient.instance.query(
-        `SELECT id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at
-         FROM players ORDER BY id ASC OFFSET $1 LIMIT $2`,
+        `SELECT * FROM players ORDER BY id ASC OFFSET $1 LIMIT $2`,
         [offset, limit]
       );
       return result.rows.map((row) => rowToPlayer(row as Record<string, unknown>));
@@ -96,7 +100,7 @@ class PlayerRepositoryImpl implements PlayerRepository {
       const id = parseInt(playerId, 10);
       if (Number.isNaN(id)) return null;
       const result = await PostgresClient.instance.query(
-        "SELECT id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at FROM players WHERE id = $1",
+        "SELECT * FROM players WHERE id = $1",
         [id]
       );
       const row = result.rows[0];

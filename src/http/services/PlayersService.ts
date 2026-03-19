@@ -14,6 +14,11 @@ export class PlayersService {
     return playerRepository.list({ offset, limit });
   }
 
+  /** Returns player by id or null if not found. */
+  async getPlayer(playerId: string): Promise<Player | null> {
+    return playerRepository.findById(playerId);
+  }
+
   async createPlayer(input: CreatePlayerInput): Promise<CreatePlayerResult> {
     const existing = await playerRepository.findByNickname(input.nickname);
     if (existing) {

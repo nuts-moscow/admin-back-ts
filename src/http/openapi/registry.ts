@@ -344,6 +344,34 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/players/{playerId}",
+  tags: ["Players"],
+  operationId: "getPlayer",
+  summary: "Get player by ID",
+  description: "Returns player by id including freeEntryCount and freeReentryCount.",
+  request: {
+    params: PlayerIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Player",
+      content: {
+        "application/json": { schema: PlayerSchema },
+      },
+    },
+    404: {
+      description: "Player not found",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: "patch",
   path: "/api/players/{playerId}",
   tags: ["Players"],

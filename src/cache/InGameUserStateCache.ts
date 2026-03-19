@@ -37,6 +37,37 @@ function keyPattern(tournamentId: TournamentId): string {
   return `${TOURNAMENT_PLAYERS_BASE}.${tournamentId}.*`;
 }
 
+function countFreeInReentryPairs(pairs: ReentryByPaymentMethod | null): number {
+  if (!pairs) return 0;
+  let n = 0;
+  for (const [method, count] of pairs) {
+    if (method === EntryPaymentMethod.Free) n += count;
+  }
+  return n;
+}
+
+/** Decrement freeReentryCount first, then tournamentFreeReentryCount; clamp to 0. */
+function applyFreeReentryDelta(
+  state: InGameUserState,
+  delta: number
+): { freeReentryCount: number; tournamentFreeReentryCount: number } {
+  let free = Math.max(0, state.freeReentryCount);
+  let tournament = Math.max(0, state.tournamentFreeReentryCount ?? 0);
+  if (delta > 0) {
+    while (delta > 0 && free > 0) {
+      free--;
+      delta--;
+    }
+    while (delta > 0 && tournament > 0) {
+      tournament--;
+      delta--;
+    }
+  } else if (delta < 0) {
+    free += -delta;
+  }
+  return { freeReentryCount: free, tournamentFreeReentryCount: tournament };
+}
+
 /** Cache for in-game user state by tournament and player */
 export interface InGameUserStateCache {
   /**
@@ -588,14 +619,21 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       for (const [method, count] of current) {
         map.set(method, (map.get(method) ?? 0) + count);
       }
+      const freeAdded = payments.filter((m) => m === EntryPaymentMethod.Free).length;
       for (const method of payments) {
         map.set(method, (map.get(method) ?? 0) + 1);
       }
       const updated: ReentryByPaymentMethod = Array.from(map.entries());
+      const { freeReentryCount, tournamentFreeReentryCount } = applyFreeReentryDelta(
+        state,
+        freeAdded
+      );
       const newState: InGameUserState = {
         ...state,
         reentryByPaymentMethod: updated,
         totalReentryCount: state.totalReentryCount,
+        freeReentryCount,
+        tournamentFreeReentryCount,
       };
       const ok = await this.set(playerId, tournamentId, newState);
       if (!ok) {
@@ -618,12 +656,21 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     const state = await this.get(playerId, tournamentId);
     if (!state) return null;
     if (payments.length !== state.totalReentryCount) return null;
+    const oldFree = countFreeInReentryPairs(state.reentryByPaymentMethod);
+    const newFree = payments.filter((p) => p === EntryPaymentMethod.Free).length;
+    const delta = newFree - oldFree;
     const map = new Map<EntryPaymentMethod, number>();
     for (const method of payments) {
       map.set(method, (map.get(method) ?? 0) + 1);
     }
     const reentryByPaymentMethod: ReentryByPaymentMethod = Array.from(map.entries());
-    const newState: InGameUserState = { ...state, reentryByPaymentMethod };
+    const { freeReentryCount, tournamentFreeReentryCount } = applyFreeReentryDelta(state, delta);
+    const newState: InGameUserState = {
+      ...state,
+      reentryByPaymentMethod,
+      freeReentryCount,
+      tournamentFreeReentryCount,
+    };
     const ok = await this.set(playerId, tournamentId, newState);
     return ok ? newState : null;
   }

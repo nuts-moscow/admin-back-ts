@@ -108,6 +108,25 @@ export function playersRoutes() {
       },
     },
     "/api/players/:playerId": {
+      GET: async (
+        req: BunRequest<"/api/players/:playerId"> & { params: { playerId: string } }
+      ) => {
+        const playerId = req.params?.playerId;
+        if (!playerId) {
+          return new Response(
+            JSON.stringify({ error: "playerId is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const player = await service.getPlayer(playerId);
+        if (!player) {
+          return new Response(
+            JSON.stringify({ error: "Player not found" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json(playerToJson(player));
+      },
       PATCH: async (
         req: BunRequest<"/api/players/:playerId"> & { params: { playerId: string } }
       ) => {

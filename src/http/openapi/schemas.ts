@@ -298,6 +298,8 @@ export const PlayerSchema = z
     tg: z.string().nullable().openapi({ description: "Telegram" }),
     notes: z.string().nullable().openapi({ description: "Notes" }),
     signAgreement: z.boolean().openapi({ description: "Whether player signed agreement" }),
+    freeEntryCount: z.number().openapi({ description: "Number of free entries in profile", example: 0 }),
+    freeReentryCount: z.number().openapi({ description: "Number of free reentries in profile", example: 0 }),
     createdAt: z.string().openapi({ description: "Created at ISO8601", example: "2026-03-13T12:00:00.000Z" }),
   })
   .openapi("Player");
