@@ -111,7 +111,7 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
                 bounty_count, bonuses, bounty_kills, eliminated_by
          FROM tournament_result_players
          WHERE tournament_id = $1
-         ORDER BY placement ASC NULLS LAST, tournament_player_id ASC`,
+         ORDER BY placement DESC NULLS LAST, tournament_player_id ASC`,
         [tournamentId]
       );
       return result.rows.map((row) =>

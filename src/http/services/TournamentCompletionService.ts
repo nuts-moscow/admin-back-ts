@@ -69,11 +69,12 @@ export async function runTournamentCompletion(
       inGameUserStateService.getEliminatedBy(tournamentIdStr, state.playerId),
     ]);
 
+    // Placement: 1 = first out (worst), N = winner (best). Winner gets max, eliminated get elimination order.
     const placement =
       state.status !== InGamePlayerStatus.Out
-        ? 1
+        ? N
         : state.placement != null
-          ? N - state.placement + 1
+          ? state.placement
           : null;
 
     resultRows.push({
