@@ -7,6 +7,9 @@ import {
   BountyRemoveBodySchema,
   CreatePlayerBodySchema,
   EntryPaymentBodySchema,
+  FreeCountDeltaBodySchema,
+  FreeEntryCountResponseSchema,
+  FreeReentryCountResponseSchema,
   InGameUserStateSchema,
   ListPlayersQuerySchema,
   ListPlayersResponseSchema,
@@ -380,6 +383,88 @@ openApiRegistry.registerPath({
     },
     409: {
       description: "Player with this nickname already exists",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/players/{playerId}/free-entries",
+  tags: ["Players"],
+  operationId: "updatePlayerFreeEntries",
+  summary: "Update free entry count",
+  description: "Add or subtract free entries for the player. Body: { delta: number }. Result is clamped to 0 (cannot go negative).",
+  request: {
+    params: PlayerIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: FreeCountDeltaBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Free entry count updated",
+      content: {
+        "application/json": { schema: FreeEntryCountResponseSchema },
+      },
+    },
+    400: {
+      description: "Invalid body (delta required and must be a number)",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not found",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/players/{playerId}/free-reentries",
+  tags: ["Players"],
+  operationId: "updatePlayerFreeReentries",
+  summary: "Update free reentry count",
+  description: "Add or subtract free reentries for the player. Body: { delta: number }. Result is clamped to 0. Also syncs freeReentryCount in all tournament states for this player.",
+  request: {
+    params: PlayerIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: FreeCountDeltaBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Free reentry count updated",
+      content: {
+        "application/json": { schema: FreeReentryCountResponseSchema },
+      },
+    },
+    400: {
+      description: "Invalid body (delta required and must be a number)",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not found",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

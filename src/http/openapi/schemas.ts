@@ -267,6 +267,27 @@ export const UpdatePlayerBodySchema = z
   })
   .openapi("UpdatePlayerBody");
 
+/** Request body: delta for free entries / free reentries (e.g. +2 or -1) */
+export const FreeCountDeltaBodySchema = z
+  .object({
+    delta: z.number().openapi({ description: "Change in count (positive to add, negative to subtract). Result is clamped to 0.", example: 2 }),
+  })
+  .openapi("FreeCountDeltaBody");
+
+/** Response: free entry count after update */
+export const FreeEntryCountResponseSchema = z
+  .object({
+    freeEntryCount: z.number().openapi({ description: "New free entry count in player profile", example: 3 }),
+  })
+  .openapi("FreeEntryCountResponse");
+
+/** Response: free reentry count after update */
+export const FreeReentryCountResponseSchema = z
+  .object({
+    freeReentryCount: z.number().openapi({ description: "New free reentry count in player profile", example: 5 }),
+  })
+  .openapi("FreeReentryCountResponse");
+
 /** Player response */
 export const PlayerSchema = z
   .object({
