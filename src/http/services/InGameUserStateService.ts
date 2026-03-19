@@ -276,6 +276,8 @@ export class InGameUserStateService {
     if (!tournament || tournament.status !== "completed") return null;
 
     const rows = await tournamentResultRepository.findByTournamentId(id);
+    const N = rows.length;
+    // Reverse placement when reading: DB has 1=winner, 2=second... → API returns 1=first out, N=winner
     const result = await Promise.all(
       rows.map(async (row) => {
         const player = await playerRepository.findById(row.playerId);
@@ -292,6 +294,8 @@ export class InGameUserStateService {
           0,
           row.totalReentryCount - paidReentry
         );
+        const placement =
+          row.placement != null ? N - row.placement + 1 : null;
         return {
           tournamentPlayerId: row.tournamentPlayerId,
           playerId: row.playerId,
@@ -305,7 +309,7 @@ export class InGameUserStateService {
           freeReentryCount: 0,
           tournamentFreeEntryCount: 0,
           tournamentFreeReentryCount: 0,
-          placement: row.placement,
+          placement,
           bonuses,
           playerName: player?.nickname ?? null,
           unpaidReentryCount,
