@@ -91,6 +91,27 @@ function applyFreeReentryDelta(
   return { freeReentryCount: free, tournamentFreeReentryCount: tournament };
 }
 
+/** Tournament-only free entry/reentry grants for fixed core player ids (see db/migrations/002_seed_core_players.sql). */
+function applyCorePlayerTournamentGrants(playerId: PlayerId, state: InGameUserState): InGameUserState {
+  const id = parseInt(playerId, 10);
+  if (Number.isNaN(id)) return state;
+  if (id >= 1 && id <= 3) {
+    return {
+      ...state,
+      tournamentFreeEntryCount: 1,
+      tournamentFreeReentryCount: 2,
+    };
+  }
+  if (id === 4) {
+    return {
+      ...state,
+      tournamentFreeEntryCount: 1,
+      tournamentFreeReentryCount: 3,
+    };
+  }
+  return state;
+}
+
 /** Cache for in-game user state by tournament and player */
 export interface InGameUserStateCache {
   /**
@@ -453,7 +474,8 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       existing.length === 0
         ? 1
         : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
-    const state = initInGameUserState(playerId, nextId, freeEntryCount, freeReentryCount);
+    let state = initInGameUserState(playerId, nextId, freeEntryCount, freeReentryCount);
+    state = applyCorePlayerTournamentGrants(playerId, state);
     const bonuses: BonusesByType = [];
     if (nextId <= 20) {
       bonuses.push([InGameBonus.First20, 1]);
