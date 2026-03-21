@@ -32,7 +32,7 @@ function paidReentryCount(pairs: ReentryByPaymentMethod | null): number {
 /**
  * Converts InGameUserState to API response format.
  * reentryByPaymentMethod: [["Cache", 2], ["CreditCard", 1]] -> ["Cache", "Cache", "CreditCard"]
- * bonuses: [["EarlyBird", 2], ["Diller", 1]] -> ["EarlyBird", "EarlyBird", "Diller"]
+ * bonuses: [["EarlyBird", 2], ["BonusOfTheDay", 1], ["Diller", 1]] -> ["EarlyBird", "EarlyBird", "BonusOfTheDay", "Diller"]
  * playerName: from Postgres players table (pass from caller)
  * unpaidReentryCount: totalReentryCount - paid (Cache + CreditCard)
  */

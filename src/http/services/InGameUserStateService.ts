@@ -8,6 +8,7 @@ import {
 import { logger } from "../../logger";
 import {
   EntryPaymentMethod,
+  InGameBonus,
   InGamePlayerStatus,
   type BountyEliminationTypeValue,
   type InGameUserState,
@@ -63,6 +64,24 @@ export class InGameUserStateService {
     tournamentId: TournamentId
   ): Promise<InGameUserState | null> {
     return InGameUserStateCache.get(playerId, tournamentId);
+  }
+
+  /** Adds one instance of the given bonus to the player's tournament state (counts stack). */
+  async addBonusOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    bonus: InGameBonus
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.addBonusOne(playerId, tournamentId, bonus);
+  }
+
+  /** Removes one instance of the given bonus (decrements count by 1). */
+  async removeBonusOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    bonus: InGameBonus
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.removeBonusOne(playerId, tournamentId, bonus);
   }
 
   async updateBountyCount(

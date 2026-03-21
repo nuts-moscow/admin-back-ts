@@ -17,7 +17,7 @@ export const EntryPaymentMethodSchema = z
 
 /** In-game bonus enum */
 export const InGameBonusSchema = z
-  .enum(["EarlyBird", "First20", "Hookah", "Diller"])
+  .enum(["EarlyBird", "First20", "Hookah", "Diller", "BonusOfTheDay"])
   .openapi("InGameBonus");
 
 /** In-game user state */
@@ -59,8 +59,8 @@ export const InGameUserStateSchema = z
       .array(InGameBonusSchema)
       .nullable()
       .openapi({
-        description: "Bonuses as flat list, e.g. [\"EarlyBird\", \"EarlyBird\", \"Diller\"]",
-        example: ["EarlyBird", "EarlyBird", "Diller"],
+        description: "Bonuses as flat list, e.g. [\"EarlyBird\", \"BonusOfTheDay\", \"Diller\"]",
+        example: ["EarlyBird", "BonusOfTheDay", "Diller"],
       }),
     bountyKills: z
       .array(z.string())
@@ -200,6 +200,17 @@ export const ReentryCountBodySchema = z
     count: z.number().openapi({ description: "Re-entry count to add", example: 1 }),
   })
   .openapi("ReentryCountBody");
+
+/** Request body: add one bonus instance or remove one (same shape) */
+export const BonusMutationBodySchema = z
+  .object({
+    bonus: InGameBonusSchema.openapi({
+      description:
+        "Bonus type. Add: increments count. Remove: decrements count by one (if count was zero, 404).",
+      example: "EarlyBird",
+    }),
+  })
+  .openapi("BonusMutationBody");
 
 /** Request body: entry payment method */
 export const EntryPaymentBodySchema = z

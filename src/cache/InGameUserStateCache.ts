@@ -45,6 +45,20 @@ function hasEarlyBirdInBonuses(bonuses: BonusesByType | null): boolean {
   return false;
 }
 
+function bonusesToMap(pairs: BonusesByType | null): Map<InGameBonus, number> {
+  const map = new Map<InGameBonus, number>();
+  if (!pairs) return map;
+  for (const [b, c] of pairs) {
+    map.set(b, (map.get(b) ?? 0) + c);
+  }
+  return map;
+}
+
+function mapToBonuses(map: Map<InGameBonus, number>): BonusesByType | null {
+  const entries = [...map.entries()].filter(([, c]) => c > 0);
+  return entries.length === 0 ? null : entries;
+}
+
 
 function countFreeInReentryPairs(pairs: ReentryByPaymentMethod | null): number {
   if (!pairs) return 0;
@@ -228,6 +242,20 @@ export interface InGameUserStateCache {
     playerId: PlayerId,
     tournamentId: TournamentId,
     tableId: TableId | null
+  ): Promise<InGameUserState | null>;
+
+  /** Adds one instance of a game bonus to the player's tournament state (same type can repeat). */
+  addBonusOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    bonus: InGameBonus
+  ): Promise<InGameUserState | null>;
+
+  /** Removes one instance of a bonus type (count decremented by 1). Returns null if none to remove or no state. */
+  removeBonusOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    bonus: InGameBonus
   ): Promise<InGameUserState | null>;
 
   /**
@@ -727,6 +755,53 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       return state;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.updateTableId failed`);
+      return null;
+    }
+  }
+
+  async addBonusOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    bonus: InGameBonus
+  ): Promise<InGameUserState | null> {
+    try {
+      const state = await this.get(playerId, tournamentId);
+      if (!state) return null;
+      const map = bonusesToMap(state.bonuses);
+      map.set(bonus, (map.get(bonus) ?? 0) + 1);
+      const newBonuses = mapToBonuses(map);
+      const newState: InGameUserState = { ...state, bonuses: newBonuses };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.addBonusOne failed`);
+      return null;
+    }
+  }
+
+  async removeBonusOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    bonus: InGameBonus
+  ): Promise<InGameUserState | null> {
+    try {
+      const state = await this.get(playerId, tournamentId);
+      if (!state) return null;
+      const map = bonusesToMap(state.bonuses);
+      const current = map.get(bonus) ?? 0;
+      if (current < 1) return null;
+      const next = current - 1;
+      if (next <= 0) {
+        map.delete(bonus);
+      } else {
+        map.set(bonus, next);
+      }
+      const newBonuses = mapToBonuses(map);
+      const newState: InGameUserState = { ...state, bonuses: newBonuses };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.removeBonusOne failed`);
       return null;
     }
   }

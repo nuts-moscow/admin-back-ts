@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   AddPlayerToTournamentBodySchema,
+  BonusMutationBodySchema,
   BountyCountBodySchema,
   BountyEliminateBodySchema,
   CashDeskResponseSchema,
@@ -688,6 +689,85 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/players/{playerId}/bonuses`,
+  tags: ["Tournament Players"],
+  operationId: "addPlayerBonusOne",
+  summary: "Add one in-game bonus instance",
+  description:
+    "Increments the count for the given bonus on the player's tournament state. Same bonus can be added multiple times.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: BonusMutationBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid bonus or body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not in tournament (no state)",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/players/{playerId}/bonuses/remove`,
+  tags: ["Tournament Players"],
+  operationId: "removePlayerBonusOne",
+  summary: "Remove one in-game bonus instance",
+  description:
+    "Decrements the count for the given bonus by one. If several instances exist, only one is removed.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: BonusMutationBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid bonus or body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "No state or bonus count already zero",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
     },
   },
 });

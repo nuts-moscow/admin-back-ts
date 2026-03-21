@@ -2,6 +2,7 @@ import type { BunRequest } from "bun";
 import {
   BountyEliminationType,
   EntryPaymentMethod,
+  InGameBonus,
 } from "../../domain/cache/InGameUserState";
 import { playerRepository } from "../../postgres";
 import { toApiResponse } from "../serializers/InGameUserStateSerializer";
@@ -10,6 +11,8 @@ import { InGameUserStateService } from "../services/InGameUserStateService";
 const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
   Object.values(EntryPaymentMethod)
 );
+
+const VALID_IN_GAME_BONUSES = new Set<string>(Object.values(InGameBonus));
 
 /** Parses EarlyBirdFlag / earlyBirdFlag / early_bird_flag from JSON body (boolean, string, or 1). */
 function parseEarlyBirdFlagFromBody(body: unknown): boolean {
@@ -222,6 +225,81 @@ export function inGameUserStateRoutes() {
 
         if (!state) {
           return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/bonuses": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bonuses">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { bonus?: string };
+        try {
+          body = (await req.json()) as { bonus?: string };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.bonus == null ||
+          typeof body.bonus !== "string" ||
+          !VALID_IN_GAME_BONUSES.has(body.bonus)
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: `bonus is required and must be one of: ${[...VALID_IN_GAME_BONUSES].join(", ")}`,
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const bonus = body.bonus as (typeof InGameBonus)[keyof typeof InGameBonus];
+        const state = await service.addBonusOne(playerId, tournamentId, bonus);
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/bonuses/remove": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bonuses/remove">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { bonus?: string };
+        try {
+          body = (await req.json()) as { bonus?: string };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (
+          body.bonus == null ||
+          typeof body.bonus !== "string" ||
+          !VALID_IN_GAME_BONUSES.has(body.bonus)
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: `bonus is required and must be one of: ${[...VALID_IN_GAME_BONUSES].join(", ")}`,
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const bonus = body.bonus as (typeof InGameBonus)[keyof typeof InGameBonus];
+        const state = await service.removeBonusOne(playerId, tournamentId, bonus);
+        if (!state) {
+          return new Response(
+            JSON.stringify({
+              error: "Player state not found or bonus count is already zero",
+            }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
         }
         const playerName = await playerRepository.getNicknameById(playerId);
         return Response.json(toApiResponse(state, playerName));

@@ -37,6 +37,8 @@ export const InGameBonus = {
   First20: "First20",
   Hookah: "Hookah",
   Diller: "Diller",
+  /** Бонус дня */
+  BonusOfTheDay: "BonusOfTheDay",
 } as const;
 
 export type InGameBonus =
