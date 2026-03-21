@@ -101,19 +101,9 @@ export const TournamentParamsSchema = z
   })
   .openapi("TournamentParams");
 
-/** Request body: add player to tournament — EarlyBird only when flag is truthy */
+/** Request body: add player to tournament (EarlyBird via game-start only) */
 export const AddPlayerToTournamentBodySchema = z
-  .object({
-    EarlyBirdFlag: z
-      .union([z.boolean(), z.string()])
-      .optional()
-      .openapi({
-        description:
-          "If true (or string \"true\"/\"1\"/\"yes\"), adds EarlyBird at registration. Also accepts camelCase earlyBirdFlag.",
-        example: true,
-      }),
-    earlyBirdFlag: z.boolean().optional().openapi({ description: "Alias for EarlyBirdFlag" }),
-  })
+  .object({})
   .openapi("AddPlayerToTournamentBody");
 
 /** Response: total rebuy count for tournament */
@@ -229,6 +219,13 @@ export const PlayerGameStartBodySchema = z
       .string()
       .optional()
       .openapi({ description: "If provided: assigns player to this table", example: "table-1" }),
+    EarlyBirdFlag: z
+      .boolean()
+      .optional()
+      .openapi({
+        description: "If true, adds EarlyBird bonus after successful game start (same as on add-player with flag)",
+        example: true,
+      }),
   })
   .openapi("PlayerGameStartBody");
 

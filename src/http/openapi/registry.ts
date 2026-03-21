@@ -508,7 +508,7 @@ openApiRegistry.registerPath({
   tags: ["Tournament Players"],
   operationId: "addPlayerToTournament",
   summary: "Add player to tournament",
-  description: "Adds a player to a tournament and returns the initial in-game state. EarlyBird bonus is added only when body EarlyBirdFlag is true.",
+  description: "Adds a player to a tournament and returns the initial in-game state. EarlyBird is applied via POST .../game-start with EarlyBirdFlag, not at registration.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -798,7 +798,7 @@ openApiRegistry.registerPath({
   operationId: "playerGameStart",
   summary: "Player game start",
   description:
-    "Transitions player from Registered to InGamePaid (if entry payment provided) or InGameNotPaid (if not). Updates entry payment method and table if provided.",
+    "Transitions player from Registered to InGamePaid (if entry payment provided) or InGameNotPaid (if not). Updates entry payment method and table if provided. Optional EarlyBirdFlag: if true, adds EarlyBird bonus after success.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -809,7 +809,7 @@ openApiRegistry.registerPath({
   },
   responses: {
     200: {
-      description: "Updated player state",
+      description: "Updated player state (includes bonuses if EarlyBirdFlag was applied)",
       content: {
         "application/json": { schema: InGameUserStateSchema },
       },

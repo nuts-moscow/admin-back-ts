@@ -37,6 +37,14 @@ function keyPattern(tournamentId: TournamentId): string {
   return `${TOURNAMENT_PLAYERS_BASE}.${tournamentId}.*`;
 }
 
+function hasEarlyBirdInBonuses(bonuses: BonusesByType | null): boolean {
+  if (!bonuses) return false;
+  for (const [b, c] of bonuses) {
+    if (b === InGameBonus.EarlyBird && c > 0) return true;
+  }
+  return false;
+}
+
 
 function countFreeInReentryPairs(pairs: ReentryByPaymentMethod | null): number {
   if (!pairs) return 0;
@@ -103,8 +111,7 @@ export interface InGameUserStateCache {
   getAllByTournament(tournamentId: TournamentId): Promise<InGameUserState[]>;
 
   /**
-   * Adds player to tournament with init state.
-   * EarlyBird is added only when earlyBirdFlag is true (from body EarlyBirdFlag).
+   * Adds player to tournament with init state (First20 when applicable). EarlyBird is not set here — use game-start with EarlyBirdFlag.
    * @param freeEntryCount - Free entry count from profile (default 0)
    * @param freeReentryCount - Free reentry count from profile (default 0)
    * @returns true if stored, false on error
@@ -112,10 +119,15 @@ export interface InGameUserStateCache {
   addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    earlyBirdFlag: boolean,
     freeEntryCount?: number,
     freeReentryCount?: number
   ): Promise<boolean>;
+
+  /** Adds EarlyBird once if missing (e.g. game-start with EarlyBirdFlag). */
+  ensureEarlyBirdBonusIfMissing(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<InGameUserState | null>;
 
   /**
    * Removes player from tournament (deletes state from cache).
@@ -401,12 +413,11 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   async addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    earlyBirdFlag: boolean,
     freeEntryCount: number = 0,
     freeReentryCount: number = 0
   ): Promise<boolean> {
     logger.info(
-      { playerId, tournamentId, earlyBirdFlag, freeEntryCount, freeReentryCount },
+      { playerId, tournamentId, freeEntryCount, freeReentryCount },
       `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`
     );
     const existing = await this.getAllByTournament(tournamentId);
@@ -416,9 +427,6 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
     const state = initInGameUserState(playerId, nextId, freeEntryCount, freeReentryCount);
     const bonuses: BonusesByType = [];
-    if (earlyBirdFlag) {
-      bonuses.push([InGameBonus.EarlyBird, 1]);
-    }
     if (nextId <= 20) {
       bonuses.push([InGameBonus.First20, 1]);
     }
@@ -435,6 +443,27 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     }
     logger.info({ stored: result }, `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament result`);
     return result;
+  }
+
+  async ensureEarlyBirdBonusIfMissing(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<InGameUserState | null> {
+    try {
+      const state = await this.get(playerId, tournamentId);
+      if (!state) return null;
+      if (hasEarlyBirdInBonuses(state.bonuses)) {
+        return state;
+      }
+      const newBonuses: BonusesByType = state.bonuses ? [...state.bonuses] : [];
+      newBonuses.push([InGameBonus.EarlyBird, 1]);
+      const newState: InGameUserState = { ...state, bonuses: newBonuses };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} ensureEarlyBirdBonusIfMissing failed`);
+      return null;
+    }
   }
 
   async removePlayerFromTournament(

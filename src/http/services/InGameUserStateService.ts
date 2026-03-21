@@ -324,8 +324,7 @@ export class InGameUserStateService {
 
   async addPlayerToTournament(
     playerId: PlayerId,
-    tournamentId: TournamentId,
-    earlyBirdFlag: boolean
+    tournamentId: TournamentId
   ): Promise<boolean> {
     const player = await playerRepository.findById(playerId);
     if (!player) return false;
@@ -334,7 +333,6 @@ export class InGameUserStateService {
     return InGameUserStateCache.addPlayerToTournament(
       playerId,
       tournamentId,
-      earlyBirdFlag,
       freeEntryCount,
       freeReentryCount
     );
@@ -345,6 +343,14 @@ export class InGameUserStateService {
     tournamentId: TournamentId
   ): Promise<boolean> {
     return InGameUserStateCache.removePlayerFromTournament(playerId, tournamentId);
+  }
+
+  /** Adds EarlyBird bonus if not already present (game-start with EarlyBirdFlag). */
+  async ensureEarlyBirdBonusIfMissing(
+    playerId: PlayerId,
+    tournamentId: TournamentId
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.ensureEarlyBirdBonusIfMissing(playerId, tournamentId);
   }
 
   async addReentryCount(

@@ -11,6 +11,21 @@ const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
   Object.values(EntryPaymentMethod)
 );
 
+/** Parses EarlyBirdFlag / earlyBirdFlag / early_bird_flag from JSON body (boolean, string, or 1). */
+function parseEarlyBirdFlagFromBody(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const o = body as Record<string, unknown>;
+  const raw = o.EarlyBirdFlag ?? o.earlyBirdFlag ?? o.early_bird_flag;
+  if (raw === true) return true;
+  if (raw === false) return false;
+  if (typeof raw === "string") {
+    const s = raw.trim().toLowerCase();
+    if (s === "true" || s === "1" || s === "yes") return true;
+  }
+  if (typeof raw === "number" && raw === 1) return true;
+  return false;
+}
+
 export function inGameUserStateRoutes() {
   const service = new InGameUserStateService();
 
@@ -33,28 +48,7 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let earlyBirdFlag = false;
-        try {
-          const body = (await req.json()) as Record<string, unknown> | null;
-          if (body && typeof body === "object") {
-            const raw =
-              body.EarlyBirdFlag ?? body.earlyBirdFlag ?? body.early_bird_flag;
-            if (raw === true) earlyBirdFlag = true;
-            else if (raw === false) earlyBirdFlag = false;
-            else if (typeof raw === "string") {
-              const s = raw.trim().toLowerCase();
-              if (s === "true" || s === "1" || s === "yes") earlyBirdFlag = true;
-            }
-            else if (typeof raw === "number" && raw === 1) earlyBirdFlag = true;
-          }
-        } catch {
-          // No body or invalid JSON — EarlyBirdFlag defaults to false
-        }
-        const ok = await service.addPlayerToTournament(
-          playerId,
-          tournamentId,
-          earlyBirdFlag
-        );
+        const ok = await service.addPlayerToTournament(playerId, tournamentId);
         if (!ok) {
           return new Response(
             JSON.stringify({ error: "Failed to add player to tournament" }),
@@ -327,9 +321,11 @@ export function inGameUserStateRoutes() {
       ) => {
         const { tournamentId, playerId } = req.params;
         let body: { entryPaymentMethod?: string; tableId?: string | null } = {};
+        let earlyBirdFlag = false;
         try {
           const raw = await req.json();
           body = (raw ?? {}) as typeof body;
+          earlyBirdFlag = parseEarlyBirdFlagFromBody(raw);
         } catch {
           // No body or invalid JSON - treat as no payment method
         }
@@ -377,8 +373,16 @@ export function inGameUserStateRoutes() {
           }
           return new Response(null, { status: 404 });
         }
+        let stateForResponse = result.state;
+        if (earlyBirdFlag) {
+          const withBird = await service.ensureEarlyBirdBonusIfMissing(
+            playerId,
+            tournamentId
+          );
+          if (withBird) stateForResponse = withBird;
+        }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(result.state, playerName));
+        return Response.json(toApiResponse(stateForResponse, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/rollback-game-start": {
