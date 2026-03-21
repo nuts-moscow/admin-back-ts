@@ -24,11 +24,13 @@ function parseStructure(raw: string | null): TournamentStructureData | null {
     const obj = JSON.parse(raw) as unknown;
     if (typeof obj !== "object" || obj === null) return null;
     const o = obj as Record<string, unknown>;
+    const freezeOutEnabled =
+      o.freezeOutEnabled === null ? false : o.freezeOutEnabled;
     if (
       typeof o.name !== "string" ||
       typeof o.playersLimit !== "number" ||
       typeof o.stackSize !== "number" ||
-      typeof o.freezeOutEnabled !== "boolean" ||
+      typeof freezeOutEnabled !== "boolean" ||
       !Array.isArray(o.blindsStructure)
     ) {
       return null;
@@ -37,7 +39,7 @@ function parseStructure(raw: string | null): TournamentStructureData | null {
       name: o.name,
       playersLimit: o.playersLimit,
       stackSize: o.stackSize,
-      freezeOutEnabled: o.freezeOutEnabled,
+      freezeOutEnabled,
       blindsStructure: o.blindsStructure as BlindType[],
     };
   } catch {

@@ -366,7 +366,10 @@ export const MakeTournamentStructureBodySchema = z
     name: z.string().min(1).openapi({ description: "Structure name" }),
     playersLimit: z.number().min(1).openapi({ description: "Max players" }),
     stackSize: z.number().min(1).openapi({ description: "Starting stack in chips" }),
-    freezeOutEnabled: z.boolean().openapi({ description: "Freeze-out mode" }),
+    freezeOutEnabled: z
+      .union([z.boolean(), z.null()])
+      .transform((v) => (v === null ? false : v))
+      .openapi({ description: "Freeze-out mode (null is treated as false)" }),
     blinds: z.array(BlindTypeSchema).openapi({ description: "Blinds and breaks" }),
   })
   .openapi("MakeTournamentStructureBody");

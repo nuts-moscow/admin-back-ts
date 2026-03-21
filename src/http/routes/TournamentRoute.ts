@@ -51,7 +51,12 @@ function validateStructureBody(body: unknown): {
   if (typeof o.stackSize !== "number" || o.stackSize < 1) {
     return { ok: false, error: "stackSize must be a positive number" };
   }
-  if (typeof o.freezeOutEnabled !== "boolean") {
+  let freezeOutEnabled: boolean;
+  if (o.freezeOutEnabled === null) {
+    freezeOutEnabled = false;
+  } else if (typeof o.freezeOutEnabled === "boolean") {
+    freezeOutEnabled = o.freezeOutEnabled;
+  } else {
     return { ok: false, error: "freezeOutEnabled must be a boolean" };
   }
   const blinds = parseBlinds(o.blinds);
@@ -64,7 +69,7 @@ function validateStructureBody(body: unknown): {
       name: o.name.trim(),
       playersLimit: o.playersLimit,
       stackSize: o.stackSize,
-      freezeOutEnabled: o.freezeOutEnabled,
+      freezeOutEnabled,
       blinds,
     },
   };
