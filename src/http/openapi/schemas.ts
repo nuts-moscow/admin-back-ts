@@ -101,13 +101,18 @@ export const TournamentParamsSchema = z
   })
   .openapi("TournamentParams");
 
-/** Request body: add player to tournament — EarlyBird only when EarlyBirdFlag is true */
+/** Request body: add player to tournament — EarlyBird only when flag is truthy */
 export const AddPlayerToTournamentBodySchema = z
   .object({
     EarlyBirdFlag: z
-      .boolean()
+      .union([z.boolean(), z.string()])
       .optional()
-      .openapi({ description: "If true, adds EarlyBird bonus at registration", example: true }),
+      .openapi({
+        description:
+          "If true (or string \"true\"/\"1\"/\"yes\"), adds EarlyBird at registration. Also accepts camelCase earlyBirdFlag.",
+        example: true,
+      }),
+    earlyBirdFlag: z.boolean().optional().openapi({ description: "Alias for EarlyBirdFlag" }),
   })
   .openapi("AddPlayerToTournamentBody");
 

@@ -35,9 +35,17 @@ export function inGameUserStateRoutes() {
         const { tournamentId, playerId } = req.params;
         let earlyBirdFlag = false;
         try {
-          const body = (await req.json()) as { EarlyBirdFlag?: boolean } | null;
-          if (body && typeof body.EarlyBirdFlag === "boolean") {
-            earlyBirdFlag = body.EarlyBirdFlag;
+          const body = (await req.json()) as Record<string, unknown> | null;
+          if (body && typeof body === "object") {
+            const raw =
+              body.EarlyBirdFlag ?? body.earlyBirdFlag ?? body.early_bird_flag;
+            if (raw === true) earlyBirdFlag = true;
+            else if (raw === false) earlyBirdFlag = false;
+            else if (typeof raw === "string") {
+              const s = raw.trim().toLowerCase();
+              if (s === "true" || s === "1" || s === "yes") earlyBirdFlag = true;
+            }
+            else if (typeof raw === "number" && raw === 1) earlyBirdFlag = true;
           }
         } catch {
           // No body or invalid JSON — EarlyBirdFlag defaults to false
