@@ -325,7 +325,7 @@ export class InGameUserStateService {
   async addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    earlyBird?: boolean
+    earlyBirdFlag: boolean
   ): Promise<boolean> {
     const player = await playerRepository.findById(playerId);
     if (!player) return false;
@@ -334,7 +334,7 @@ export class InGameUserStateService {
     return InGameUserStateCache.addPlayerToTournament(
       playerId,
       tournamentId,
-      earlyBird,
+      earlyBirdFlag,
       freeEntryCount,
       freeReentryCount
     );

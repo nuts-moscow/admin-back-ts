@@ -508,7 +508,7 @@ openApiRegistry.registerPath({
   tags: ["Tournament Players"],
   operationId: "addPlayerToTournament",
   summary: "Add player to tournament",
-  description: "Adds a player to a tournament and returns the initial in-game state. Optional earlyBird adds EarlyBird bonus.",
+  description: "Adds a player to a tournament and returns the initial in-game state. EarlyBird bonus is added only when body EarlyBirdFlag is true.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {

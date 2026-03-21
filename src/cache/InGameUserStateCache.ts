@@ -37,6 +37,7 @@ function keyPattern(tournamentId: TournamentId): string {
   return `${TOURNAMENT_PLAYERS_BASE}.${tournamentId}.*`;
 }
 
+
 function countFreeInReentryPairs(pairs: ReentryByPaymentMethod | null): number {
   if (!pairs) return 0;
   let n = 0;
@@ -103,9 +104,7 @@ export interface InGameUserStateCache {
 
   /**
    * Adds player to tournament with init state.
-   * @param playerId - Player ID
-   * @param tournamentId - Tournament ID
-   * @param earlyBird - If true, adds EarlyBird bonus to player
+   * EarlyBird is added only when earlyBirdFlag is true (from body EarlyBirdFlag).
    * @param freeEntryCount - Free entry count from profile (default 0)
    * @param freeReentryCount - Free reentry count from profile (default 0)
    * @returns true if stored, false on error
@@ -113,7 +112,7 @@ export interface InGameUserStateCache {
   addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    earlyBird?: boolean,
+    earlyBirdFlag: boolean,
     freeEntryCount?: number,
     freeReentryCount?: number
   ): Promise<boolean>;
@@ -402,12 +401,12 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   async addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    earlyBird?: boolean,
+    earlyBirdFlag: boolean,
     freeEntryCount: number = 0,
     freeReentryCount: number = 0
   ): Promise<boolean> {
     logger.info(
-      { playerId, tournamentId, earlyBird, freeEntryCount, freeReentryCount },
+      { playerId, tournamentId, earlyBirdFlag, freeEntryCount, freeReentryCount },
       `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`
     );
     const existing = await this.getAllByTournament(tournamentId);
@@ -417,7 +416,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
     const state = initInGameUserState(playerId, nextId, freeEntryCount, freeReentryCount);
     const bonuses: BonusesByType = [];
-    if (earlyBird) {
+    if (earlyBirdFlag) {
       bonuses.push([InGameBonus.EarlyBird, 1]);
     }
     if (nextId <= 20) {

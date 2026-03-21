@@ -33,16 +33,20 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let earlyBird = false;
+        let earlyBirdFlag = false;
         try {
-          const body = (await req.json()) as { earlyBird?: boolean } | null;
-          if (body && typeof body.earlyBird === "boolean") {
-            earlyBird = body.earlyBird;
+          const body = (await req.json()) as { EarlyBirdFlag?: boolean } | null;
+          if (body && typeof body.EarlyBirdFlag === "boolean") {
+            earlyBirdFlag = body.EarlyBirdFlag;
           }
         } catch {
-          // No body or invalid JSON - use default
+          // No body or invalid JSON — EarlyBirdFlag defaults to false
         }
-        const ok = await service.addPlayerToTournament(playerId, tournamentId, earlyBird);
+        const ok = await service.addPlayerToTournament(
+          playerId,
+          tournamentId,
+          earlyBirdFlag
+        );
         if (!ok) {
           return new Response(
             JSON.stringify({ error: "Failed to add player to tournament" }),
