@@ -225,6 +225,7 @@ export function playersRoutes() {
             { status: 404, headers: { "Content-Type": "application/json" } }
           );
         }
+        await InGameUserStateCache.syncPlayerFreeEntryCount(playerId, result.freeEntryCount);
         return Response.json({ freeEntryCount: result.freeEntryCount });
       },
     },

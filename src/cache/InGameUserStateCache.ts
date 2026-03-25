@@ -298,6 +298,12 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
+   * Syncs freeEntryCount from profile to all tournament states for this player.
+   * Call after updating player's free_entry_count in DB.
+   */
+  syncPlayerFreeEntryCount(playerId: PlayerId, newCount: number): Promise<void>;
+
+  /**
    * Syncs freeReentryCount from profile to all tournament states for this player.
    * Call after updating player's free_reentry_count in DB.
    */
@@ -854,6 +860,23 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     const newState: InGameUserState = { ...state, tournamentFreeReentryCount: newCount };
     const ok = await this.set(playerId, tournamentId, newState);
     return ok ? newState : null;
+  }
+
+  async syncPlayerFreeEntryCount(playerId: PlayerId, newCount: number): Promise<void> {
+    try {
+      const k = playerTournamentsKey(playerId);
+      const tournamentIds = await RedisClient.instance.smembers(k);
+      for (const tournamentId of tournamentIds) {
+        const stateKey = key(tournamentId, playerId);
+        await RedisClient.instance.hset(stateKey, "freeEntryCount", String(newCount));
+      }
+      logger.info(
+        { playerId, newCount, tournamentCount: tournamentIds.length },
+        `${LOG_PREFIX} syncPlayerFreeEntryCount done`
+      );
+    } catch (err) {
+      logger.info({ err, playerId }, `${LOG_PREFIX} syncPlayerFreeEntryCount failed`);
+    }
   }
 
   async syncPlayerFreeReentryCount(playerId: PlayerId, newCount: number): Promise<void> {

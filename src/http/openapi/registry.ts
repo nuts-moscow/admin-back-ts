@@ -427,7 +427,8 @@ openApiRegistry.registerPath({
   tags: ["Players"],
   operationId: "updatePlayerFreeEntries",
   summary: "Update free entry count",
-  description: "Add or subtract free entries for the player. Body: { delta: number }. Result is clamped to 0 (cannot go negative).",
+  description:
+    "Add or subtract free entries for the player. Body: { delta: number }. Result is clamped to 0 (cannot go negative). Also syncs freeEntryCount in all tournament states for this player.",
   request: {
     params: PlayerIdParamSchema,
     body: {
