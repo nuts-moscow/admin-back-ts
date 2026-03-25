@@ -17,6 +17,11 @@ import {
   type TableId,
   type TournamentId,
 } from "../../domain/cache/InGameUserState";
+import {
+  flattenReentryPairsForApi,
+  parseReentryByPaymentMethodStoredJson,
+  recordedReentryCountFromPairs,
+} from "../serializers/InGameUserStateSerializer";
 
 function countFreeInReentryByPaymentMethod(
   pairs: ReentryByPaymentMethod | null
@@ -302,16 +307,15 @@ export class InGameUserStateService {
         const player = await playerRepository.findById(row.playerId);
         const bountyKills = parseJsonStringArray(row.bountyKills);
         const eliminatedBy = parseJsonStringArray(row.eliminatedBy);
-        const reentryByPaymentMethod = parseJsonStringArray(row.reentryByPaymentMethod);
+        const reentryPairs = parseReentryByPaymentMethodStoredJson(
+          row.reentryByPaymentMethod
+        );
+        const reentryByPaymentMethod = flattenReentryPairsForApi(reentryPairs);
         const bonuses = parseJsonStringArray(row.bonuses);
-        const paidReentry = reentryByPaymentMethod
-          ? reentryByPaymentMethod.filter(
-              (m) => m === EntryPaymentMethod.Cache || m === EntryPaymentMethod.CreditCard
-            ).length
-          : 0;
+        const recordedReentry = recordedReentryCountFromPairs(reentryPairs);
         const unpaidReentryCount = Math.max(
           0,
-          row.totalReentryCount - paidReentry
+          row.totalReentryCount - recordedReentry
         );
         const placement =
           row.placement != null ? N - row.placement + 1 : null;

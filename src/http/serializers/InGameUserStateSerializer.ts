@@ -5,6 +5,10 @@ import {
   type ReentryByPaymentMethod,
 } from "../../domain/cache/InGameUserState";
 
+const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
+  Object.values(EntryPaymentMethod)
+);
+
 function flattenPairs<T extends string>(
   pairs: [T, number][] | null
 ): T[] | null {
@@ -18,15 +22,53 @@ function flattenPairs<T extends string>(
   return result.length > 0 ? result : null;
 }
 
-function paidReentryCount(pairs: ReentryByPaymentMethod | null): number {
+/**
+ * Total re-entries that have a recorded payment method (Cache, CreditCard, or Free).
+ */
+export function recordedReentryCountFromPairs(
+  pairs: ReentryByPaymentMethod | null
+): number {
   if (!pairs || pairs.length === 0) return 0;
   let sum = 0;
-  for (const [method, count] of pairs) {
-    if (method === EntryPaymentMethod.Cache || method === EntryPaymentMethod.CreditCard) {
-      sum += count;
-    }
+  for (const [, count] of pairs) {
+    sum += count;
   }
   return sum;
+}
+
+/**
+ * Parses stored JSON for reentryByPaymentMethod (pair format from Redis / tournament results).
+ */
+export function parseReentryByPaymentMethodStoredJson(
+  json: string | null
+): ReentryByPaymentMethod | null {
+  if (json == null || json === "") return null;
+  let arr: unknown;
+  try {
+    arr = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(arr)) return null;
+  const result: ReentryByPaymentMethod = [];
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    if (!Array.isArray(item) || item.length !== 2) return null;
+    const [method, count] = item;
+    if (typeof method !== "string" || !VALID_ENTRY_PAYMENT_METHODS.has(method)) {
+      return null;
+    }
+    const num = typeof count === "number" ? count : parseInt(String(count), 10);
+    if (Number.isNaN(num) || num < 0) return null;
+    result.push([method as EntryPaymentMethod, num]);
+  }
+  return result;
+}
+
+export function flattenReentryPairsForApi(
+  pairs: ReentryByPaymentMethod | null
+): string[] | null {
+  return flattenPairs(pairs);
 }
 
 /**
@@ -34,7 +76,7 @@ function paidReentryCount(pairs: ReentryByPaymentMethod | null): number {
  * reentryByPaymentMethod: [["Cache", 2], ["CreditCard", 1]] -> ["Cache", "Cache", "CreditCard"]
  * bonuses: [["EarlyBird", 2], ["BonusOfTheDay", 1], ["Diller", 1]] -> ["EarlyBird", "EarlyBird", "BonusOfTheDay", "Diller"]
  * playerName: from Postgres players table (pass from caller)
- * unpaidReentryCount: totalReentryCount - paid (Cache + CreditCard)
+ * unpaidReentryCount: totalReentryCount minus re-entries with any recorded payment (Cache, CreditCard, Free)
  */
 export function toApiResponse(
   state: InGameUserState,
@@ -46,8 +88,8 @@ export function toApiResponse(
   unpaidReentryCount: number;
 } {
   const pairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
-  const paid = paidReentryCount(pairs);
-  const unpaidReentryCount = Math.max(0, state.totalReentryCount - paid);
+  const recorded = recordedReentryCountFromPairs(pairs);
+  const unpaidReentryCount = Math.max(0, state.totalReentryCount - recorded);
   return {
     ...state,
     reentryByPaymentMethod: flattenPairs(pairs),

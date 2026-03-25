@@ -45,7 +45,11 @@ export const InGameUserStateSchema = z
     totalReentryCount: z.number().openapi({ description: "Total re-entry count", example: 0 }),
     unpaidReentryCount: z
       .number()
-      .openapi({ description: "Re-entries not yet paid (total minus Cache+CreditCard)", example: 0 }),
+      .openapi({
+        description:
+          "Re-entries without a recorded payment method yet (totalReentryCount minus sum of reentryByPaymentMethod counts, including Free)",
+        example: 0,
+      }),
     freeEntryCount: z.number().openapi({ description: "Free entry count", example: 0 }),
     freeReentryCount: z.number().openapi({ description: "Free re-entry count", example: 0 }),
     tournamentFreeEntryCount: z
