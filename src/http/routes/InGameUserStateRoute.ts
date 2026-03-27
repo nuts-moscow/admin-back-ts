@@ -314,6 +314,34 @@ export function inGameUserStateRoutes() {
         return Response.json({ rebuyCount });
       },
     },
+    "/api/tournaments/:tournamentId/chip-pool-summary": {
+      GET: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/chip-pool-summary">
+      ) => {
+        const { tournamentId } = req.params;
+        const result = await service.getTournamentChipPoolSummary(tournamentId);
+        if (!result.ok) {
+          if (result.error === "stack_size_unavailable") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "Stack size not available for this completed tournament (re-save snapshot or backfill stackSize)",
+              }),
+              { status: 422, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          const msg =
+            result.error === "structure_not_found"
+              ? "Tournament structure not found in cache"
+              : "Tournament not found";
+          return new Response(JSON.stringify({ error: msg }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return Response.json(result.summary);
+      },
+    },
     "/api/tournaments/:tournamentId/cash-desk": {
       GET: async (
         req: BunRequest<"/api/tournaments/:tournamentId/cash-desk">

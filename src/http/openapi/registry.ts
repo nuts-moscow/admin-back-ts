@@ -23,6 +23,7 @@ import {
   PlayerGameStartBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
+  TournamentChipPoolSummarySchema,
   ReentryCountBodySchema,
   ReentryPaymentBodySchema,
   TableIdBodySchema,
@@ -788,6 +789,43 @@ openApiRegistry.registerPath({
       description: "Total rebuy count for the tournament",
       content: {
         "application/json": { schema: RebuyCountResponseSchema },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: `${basePath}/chip-pool-summary`,
+  tags: ["Tournament Players"],
+  operationId: "getTournamentChipPoolSummary",
+  summary: "Chip pool and player summary",
+  description:
+    "Single response: arrived/active player counts, total rebuys, stackSize, base chips from entries and rebuys, bonus breakdown (only for non-Registered players), total chips. averageStack is playersActive/playersArrived (not chips÷players). Completed tournaments require stackSize on cash snapshot (saved at completion).",
+  request: {
+    params: TournamentParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Chip pool summary",
+      content: {
+        "application/json": { schema: TournamentChipPoolSummarySchema },
+      },
+    },
+    404: {
+      description: "Tournament not found or live tournament has no cached structure",
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+    },
+    422: {
+      description: "Completed tournament: stack size missing from cash snapshot",
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
       },
     },
   },

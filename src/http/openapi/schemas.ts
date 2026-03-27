@@ -119,6 +119,82 @@ export const RebuyCountResponseSchema = z
   })
   .openapi("RebuyCountResponse");
 
+/** One bonus type in chip pool breakdown (count × chips per unit) */
+export const ChipPoolBonusLineSchema = z
+  .object({
+    bonus: InGameBonusSchema,
+    count: z
+      .number()
+      .openapi({ description: "Total instances of this bonus across eligible players", example: 3 }),
+    chipsPerUnit: z
+      .number()
+      .openapi({ description: "Chips per one bonus instance", example: 3000 }),
+    totalChips: z
+      .number()
+      .openapi({ description: "count × chipsPerUnit", example: 9000 }),
+  })
+  .openapi("ChipPoolBonusLine");
+
+/** GET chip-pool-summary: players, rebuys, chips, bonus breakdown in one response */
+export const TournamentChipPoolSummarySchema = z
+  .object({
+    playersArrived: z
+      .number()
+      .openapi({
+        description:
+          "Players who joined the game (status not Registered): InGamePaid, InGameNotPaid, Out",
+        example: 24,
+      }),
+    playersActive: z
+      .number()
+      .openapi({
+        description: "Still in the game (InGamePaid or InGameNotPaid, not Out)",
+        example: 18,
+      }),
+    rebuyCount: z
+      .number()
+      .openapi({
+        description: "Total re-entries in the tournament (same as rebuy-count endpoint)",
+        example: 5,
+      }),
+    averageStack: z
+      .number()
+      .nullable()
+      .openapi({
+        description:
+          "playersActive / playersArrived when playersArrived > 0; not (total chips ÷ players). Null if no one arrived.",
+        example: 0.75,
+      }),
+    stackSize: z
+      .number()
+      .openapi({ description: "Starting stack from tournament structure", example: 15000 }),
+    entryUnits: z
+      .number()
+      .openapi({
+        description: "Same as playersArrived; used for (entryUnits + rebuyCount) × stackSize",
+        example: 24,
+      }),
+    baseChips: z
+      .number()
+      .openapi({
+        description: "(entryUnits + rebuyCount) × stackSize",
+        example: 435000,
+      }),
+    bonuses: z
+      .array(ChipPoolBonusLineSchema)
+      .openapi({
+        description:
+          "Bonus chips by type; counts only players with status not Registered (same as arrived)",
+      }),
+    bonusChipsTotal: z
+      .number()
+      .openapi({ description: "Sum of bonus totalChips", example: 12000 }),
+    totalChips: z
+      .number()
+      .openapi({ description: "baseChips + bonusChipsTotal", example: 447000 }),
+  })
+  .openapi("TournamentChipPoolSummary");
+
 /** Cash desk line: quantity and amount */
 const CashDeskLineSchema = z
   .object({

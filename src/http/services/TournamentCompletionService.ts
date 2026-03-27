@@ -46,14 +46,19 @@ export async function runTournamentCompletion(
     return { ok: true };
   }
 
-  // Step 1: Save cash desk snapshot
+  // Step 1: Save cash desk snapshot (merge stackSize from structure for later chip-pool API on completed tournaments)
   const cashDesk = await inGameUserStateService.getCashDesk(tournamentIdStr);
   if (!cashDesk) {
     return { ok: false, error: "cash_desk_compute_failed" };
   }
+  const structure = await tournamentStructureCache.get(tournamentIdStr);
+  const cashDeskWithStack: Record<string, unknown> = {
+    ...(cashDesk as unknown as Record<string, unknown>),
+    stackSize: structure?.stackSize ?? null,
+  };
   const saved = await tournamentCashSnapshotRepository.save(
     tournamentId,
-    cashDesk as Record<string, unknown>
+    cashDeskWithStack
   );
   if (!saved) {
     return { ok: false, error: "cash_snapshot_save_failed" };

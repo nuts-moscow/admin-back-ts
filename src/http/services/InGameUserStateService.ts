@@ -1,4 +1,8 @@
-import { BountyKillsCache, InGameUserStateCache } from "../../cache";
+import {
+  BountyKillsCache,
+  InGameUserStateCache,
+  tournamentStructureCache,
+} from "../../cache";
 import {
   playerRepository,
   tournamentCashSnapshotRepository,
@@ -6,6 +10,12 @@ import {
   tournamentResultRepository,
 } from "../../postgres";
 import { logger } from "../../logger";
+import {
+  breakdownFromMergedCounts,
+  mergeBonusesIntoCounts,
+  type BonusChipBreakdownLine,
+  parseStoredBonusesJson,
+} from "../../domain/cache/inGameBonusChips";
 import {
   EntryPaymentMethod,
   InGameBonus,
@@ -62,6 +72,29 @@ export interface CashDeskResponse {
   free: CashDeskCategory;
   grandTotal: CashDeskCategory;
 }
+
+export interface TournamentChipPoolSummary {
+  playersArrived: number;
+  playersActive: number;
+  rebuyCount: number;
+  /** Active (not Out, not Registered) ÷ arrived (not Registered); not total chips ÷ players. */
+  averageStack: number | null;
+  stackSize: number;
+  entryUnits: number;
+  baseChips: number;
+  bonuses: BonusChipBreakdownLine[];
+  bonusChipsTotal: number;
+  totalChips: number;
+}
+
+export type TournamentChipPoolSummaryError =
+  | "tournament_not_found"
+  | "structure_not_found"
+  | "stack_size_unavailable";
+
+export type TournamentChipPoolSummaryResult =
+  | { ok: true; summary: TournamentChipPoolSummary }
+  | { ok: false; error: TournamentChipPoolSummaryError };
 
 export class InGameUserStateService {
   async getUser(
@@ -179,6 +212,132 @@ export class InGameUserStateService {
     const rebuyCount = states.reduce((sum, s) => sum + s.totalReentryCount, 0);
     logger.info({ tournamentId, rebuyCount }, "[InGameUserStateService] getTotalRebuyCount result");
     return rebuyCount;
+  }
+
+  /**
+   * Single payload: player counts, rebuy total, chip pool from stack/entries/rebuys/bonuses, averageStack ratio.
+   * Completed tournaments need stackSize stored on cash snapshot at completion.
+   */
+  async getTournamentChipPoolSummary(
+    tournamentId: TournamentId
+  ): Promise<TournamentChipPoolSummaryResult> {
+    const id = parseInt(tournamentId, 10);
+    if (Number.isNaN(id)) {
+      return { ok: false, error: "tournament_not_found" };
+    }
+
+    const tournament = await tournamentRepository.findById(id);
+    if (!tournament) {
+      return { ok: false, error: "tournament_not_found" };
+    }
+
+    if (tournament.status === "completed") {
+      const rows = await tournamentResultRepository.findByTournamentId(id);
+      const snap = await tournamentCashSnapshotRepository.findByTournamentId(id);
+      const rawStack = snap?.stackSize;
+      const stackSize =
+        typeof rawStack === "number" && !Number.isNaN(rawStack) ? rawStack : null;
+      if (stackSize == null) {
+        return { ok: false, error: "stack_size_unavailable" };
+      }
+
+      let playersArrived = 0;
+      let playersActive = 0;
+      let rebuyCount = 0;
+      const bonusCounts = new Map<InGameBonus, number>();
+
+      for (const row of rows) {
+        rebuyCount += row.totalReentryCount;
+        if (row.status !== InGamePlayerStatus.Registered) {
+          playersArrived += 1;
+        }
+        if (
+          row.status === InGamePlayerStatus.InGamePaid ||
+          row.status === InGamePlayerStatus.InGameNotPaid
+        ) {
+          playersActive += 1;
+        }
+        if (row.status !== InGamePlayerStatus.Registered) {
+          mergeBonusesIntoCounts(bonusCounts, parseStoredBonusesJson(row.bonuses));
+        }
+      }
+
+      const entryUnits = playersArrived;
+      const baseChips = (entryUnits + rebuyCount) * stackSize;
+      const { lines: bonuses, bonusChipsTotal } =
+        breakdownFromMergedCounts(bonusCounts);
+      const totalChips = baseChips + bonusChipsTotal;
+      const averageStack =
+        playersArrived === 0 ? null : playersActive / playersArrived;
+
+      return {
+        ok: true,
+        summary: {
+          playersArrived,
+          playersActive,
+          rebuyCount,
+          averageStack,
+          stackSize,
+          entryUnits,
+          baseChips,
+          bonuses,
+          bonusChipsTotal,
+          totalChips,
+        },
+      };
+    }
+
+    const structure = await tournamentStructureCache.get(tournamentId);
+    if (!structure) {
+      return { ok: false, error: "structure_not_found" };
+    }
+
+    const states = await InGameUserStateCache.getAllByTournament(tournamentId);
+    let playersArrived = 0;
+    let playersActive = 0;
+    let rebuyCount = 0;
+    const bonusCounts = new Map<InGameBonus, number>();
+
+    for (const state of states) {
+      rebuyCount += state.totalReentryCount;
+      if (state.status !== InGamePlayerStatus.Registered) {
+        playersArrived += 1;
+      }
+      if (
+        state.status === InGamePlayerStatus.InGamePaid ||
+        state.status === InGamePlayerStatus.InGameNotPaid
+      ) {
+        playersActive += 1;
+      }
+      if (state.status !== InGamePlayerStatus.Registered) {
+        mergeBonusesIntoCounts(bonusCounts, state.bonuses);
+      }
+    }
+
+    const stackSize = structure.stackSize;
+    const entryUnits = playersArrived;
+    const baseChips = (entryUnits + rebuyCount) * stackSize;
+    const { lines: bonuses, bonusChipsTotal } =
+      breakdownFromMergedCounts(bonusCounts);
+    const totalChips = baseChips + bonusChipsTotal;
+    const averageStack =
+      playersArrived === 0 ? null : playersActive / playersArrived;
+
+    return {
+      ok: true,
+      summary: {
+        playersArrived,
+        playersActive,
+        rebuyCount,
+        averageStack,
+        stackSize,
+        entryUnits,
+        baseChips,
+        bonuses,
+        bonusChipsTotal,
+        totalChips,
+      },
+    };
   }
 
   async getCashDesk(tournamentId: TournamentId): Promise<CashDeskResponse | null> {
