@@ -589,7 +589,7 @@ openApiRegistry.registerPath({
   operationId: "recordBountyElimination",
   summary: "Record bounty elimination",
   description:
-    "Records who eliminated whom. If type=Rebuy: adds reentry to eliminated player. If type=Out: sets status Out. If burnedStack=false (default): killerPlayerId required, adds bounty to killer, stores kill record. If burnedStack=true: killerPlayerId optional, only rebuy/Out, no bounty recorded.",
+    "Elimination / bounty. type=Rebuy: adds reentry count; type=Out: status Out + placement. burnedStack=false (default): killerPlayerId required; bounty for killer + kill record. burnedStack=true: killerPlayerId optional; no bounty; burnedChips required (non-negative int); chips accumulate on eliminated player and reduce chip-pool totalChips. Rebuy and bust-out use the same endpoint.",
   request: {
     params: TournamentParamsSchema,
     body: {
@@ -879,7 +879,7 @@ openApiRegistry.registerPath({
   operationId: "getTournamentChipPoolSummary",
   summary: "Chip pool and player summary",
   description:
-    "Single response: arrived/active player counts, total rebuys, stackSize, base chips from entries and rebuys, bonus breakdown (only for non-Registered players), total chips. averageStack = totalChips ÷ playersActive (players in game: not Registered, not Out). Completed tournaments require stackSize on cash snapshot (saved at completion).",
+    "Arrived/active counts, rebuys, stackSize, baseChips (entries+rebuys × stack), bonus breakdown (non-Registered), burnedStackChipsTotal (sum of players' burned stacks), totalChips = baseChips + bonusChipsTotal − burnedStackChipsTotal (min 0). averageStack = totalChips ÷ playersActive. Completed tournaments need stackSize on cash snapshot.",
   request: {
     params: TournamentParamsSchema,
   },

@@ -86,6 +86,8 @@ export interface TournamentChipPoolSummary {
   baseChips: number;
   bonuses: BonusChipBreakdownLine[];
   bonusChipsTotal: number;
+  /** Sum of burnedStackChipsTotal across players (chips removed from play). */
+  burnedStackChipsTotal: number;
   totalChips: number;
 }
 
@@ -270,11 +272,13 @@ export class InGameUserStateService {
       let playersArrived = 0;
       let playersActive = 0;
       let rebuyCount = 0;
+      let burnedStackChipsTotal = 0;
       const bonusCounts = new Map<InGameBonus, number>();
       const customArrays: number[][] = [];
 
       for (const row of rows) {
         rebuyCount += row.totalReentryCount;
+        burnedStackChipsTotal += row.burnedStackChips ?? 0;
         if (row.status !== InGamePlayerStatus.Registered) {
           playersArrived += 1;
         }
@@ -302,7 +306,10 @@ export class InGameUserStateService {
       const bonuses = [...baseBonusLines];
       if (customLine) bonuses.push(customLine);
       bonuses.sort((a, b) => a.bonus.localeCompare(b.bonus));
-      const totalChips = baseChips + bonusChipsTotal;
+      const totalChips = Math.max(
+        0,
+        baseChips + bonusChipsTotal - burnedStackChipsTotal
+      );
       const averageStack =
         playersActive === 0 ? null : totalChips / playersActive;
 
@@ -318,6 +325,7 @@ export class InGameUserStateService {
           baseChips,
           bonuses,
           bonusChipsTotal,
+          burnedStackChipsTotal,
           totalChips,
         },
       };
@@ -332,11 +340,13 @@ export class InGameUserStateService {
     let playersArrived = 0;
     let playersActive = 0;
     let rebuyCount = 0;
+    let burnedStackChipsTotal = 0;
     const bonusCounts = new Map<InGameBonus, number>();
     const customArrays: number[][] = [];
 
     for (const state of states) {
       rebuyCount += state.totalReentryCount;
+      burnedStackChipsTotal += state.burnedStackChipsTotal ?? 0;
       if (state.status !== InGamePlayerStatus.Registered) {
         playersArrived += 1;
       }
@@ -363,7 +373,10 @@ export class InGameUserStateService {
     const bonuses = [...baseBonusLines];
     if (customLine) bonuses.push(customLine);
     bonuses.sort((a, b) => a.bonus.localeCompare(b.bonus));
-    const totalChips = baseChips + bonusChipsTotal;
+    const totalChips = Math.max(
+      0,
+      baseChips + bonusChipsTotal - burnedStackChipsTotal
+    );
     const averageStack =
       playersActive === 0 ? null : totalChips / playersActive;
 
@@ -379,6 +392,7 @@ export class InGameUserStateService {
         baseChips,
         bonuses,
         bonusChipsTotal,
+        burnedStackChipsTotal,
         totalChips,
       },
     };
@@ -491,6 +505,7 @@ export class InGameUserStateService {
       placement: number | null;
       bonuses: string[] | null;
       customBonusChips: number[];
+      burnedStackChipsTotal: number;
       playerName: string | null;
       unpaidReentryCount: number;
       signAgreement: boolean;
@@ -542,6 +557,7 @@ export class InGameUserStateService {
           placement,
           bonuses,
           customBonusChips,
+          burnedStackChipsTotal: row.burnedStackChips,
           playerName: player?.nickname ?? null,
           unpaidReentryCount,
           signAgreement: player?.signAgreement ?? false,
@@ -877,14 +893,16 @@ export class InGameUserStateService {
    * Records a bounty elimination: who eliminated whom and type (Rebuy/Out).
    * 1. If type=Rebuy: increments reentry count for eliminated player
    * 2. If type=Out: sets eliminated player status to Out
-   * 3. If !burnedStack && killerPlayerId: increments bounty count for killer, stores kill record
+   * 3. If burnedStack && burnedChips > 0: adds to eliminated player's burnedStackChipsTotal
+   * 4. If !burnedStack && killerPlayerId: increments bounty count for killer, stores kill record
    */
   async recordBountyElimination(
     tournamentId: TournamentId,
     eliminatedPlayerId: PlayerId,
     killerPlayerId: PlayerId | undefined,
     type: BountyEliminationTypeValue,
-    burnedStack: boolean
+    burnedStack: boolean,
+    burnedChips: number
   ): Promise<{ ok: boolean; error?: string }> {
     if (type === "Rebuy") {
       const reentryState = await InGameUserStateCache.addReentryCount(
@@ -921,6 +939,17 @@ export class InGameUserStateService {
         tournamentId,
         null
       );
+    }
+
+    if (burnedStack && burnedChips > 0) {
+      const afterBurn = await InGameUserStateCache.addBurnedStackChips(
+        eliminatedPlayerId,
+        tournamentId,
+        burnedChips
+      );
+      if (!afterBurn) {
+        return { ok: false, error: "Failed to record burned stack chips" };
+      }
     }
 
     if (!burnedStack && killerPlayerId) {

@@ -189,6 +189,19 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
+   * Adds delta to eliminated player's cumulative burned stack chips (chips removed from play).
+   * @param playerId - Player whose stack was burned
+   * @param tournamentId - Tournament ID
+   * @param delta - Non-negative chips to add to burnedStackChipsTotal
+   * @returns Updated state or null if state does not exist or on error
+   */
+  addBurnedStackChips(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null>;
+
+  /**
    * Updates player status in tournament.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
@@ -441,6 +454,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
           state.customBonusChips.length === 0
             ? ""
             : JSON.stringify(state.customBonusChips),
+        burnedStackChipsTotal: String(state.burnedStackChipsTotal ?? 0),
       });
       logger.info(`${LOG_PREFIX} InGameUserStateCache.set result: stored`);
       return true;
@@ -603,6 +617,54 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       return state;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.addReentryCount failed`);
+      return null;
+    }
+  }
+
+  async addBurnedStackChips(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null> {
+    logger.info(
+      { playerId, tournamentId, delta },
+      `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips entry`
+    );
+    if (delta < 0 || !Number.isInteger(delta)) {
+      logger.info({ delta }, `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips: invalid delta`);
+      return null;
+    }
+    if (delta === 0) {
+      return this.get(playerId, tournamentId);
+    }
+    try {
+      const k = key(tournamentId, playerId);
+      const exists = await RedisClient.instance.exists(k);
+      if (!exists) {
+        logger.info(`${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips result: miss (key not found)`);
+        return null;
+      }
+      const newBurnedTotal = await RedisClient.instance.hincrby(
+        k,
+        "burnedStackChipsTotal",
+        delta
+      );
+      const hash = await RedisClient.instance.hgetall(k);
+      if (!hash || Object.keys(hash).length === 0) {
+        logger.info(`${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips result: miss (no data after incr)`);
+        return null;
+      }
+      const state = parseHashToState(
+        { ...hash, burnedStackChipsTotal: String(newBurnedTotal) },
+        playerId
+      );
+      logger.info(
+        { state: !!state, burnedStackChipsTotal: state?.burnedStackChipsTotal },
+        `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips result`
+      );
+      return state;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips failed`);
       return null;
     }
   }
@@ -1111,6 +1173,14 @@ function parseHashToState(
   if (customBonusChips === undefined) {
     return null;
   }
+  const burnedStackChipsTotalRaw = parseInt(
+    hash.burnedStackChipsTotal ?? "0",
+    10
+  );
+  const burnedStackChipsTotal =
+    Number.isNaN(burnedStackChipsTotalRaw) || burnedStackChipsTotalRaw < 0
+      ? 0
+      : burnedStackChipsTotalRaw;
   const tournamentPlayerId =
     hash.tournamentPlayerId !== undefined && hash.tournamentPlayerId !== null && hash.tournamentPlayerId !== ""
       ? parseInt(hash.tournamentPlayerId, 10)
@@ -1135,6 +1205,7 @@ function parseHashToState(
     placement,
     bonuses,
     customBonusChips,
+    burnedStackChipsTotal,
   };
 }
 

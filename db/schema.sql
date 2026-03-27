@@ -51,5 +51,6 @@ create table if not exists tournament_result_players (
     custom_bonus_chips        text,
     bounty_kills              text,
     eliminated_by             text,
+    burned_stack_chips        integer  not null default 0,
     primary key (tournament_id, player_id)
 );

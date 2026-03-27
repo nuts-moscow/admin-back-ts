@@ -79,6 +79,8 @@ export interface InGameUserState {
   bonuses: BonusesByType | null;
   /** Размеры выдач custom-бонуса в фишках (каждый элемент — одна выдача). */
   customBonusChips: number[];
+  /** Кумулятивно сожжённые фишки игрока за турнир (сжёг стек при вылете/ребайе). */
+  burnedStackChipsTotal: number;
 }
 
 /** Creates initial state: optional fields empty, bountyCount = 0 */
@@ -104,5 +106,6 @@ export function initInGameUserState(
     placement: null,
     bonuses: null,
     customBonusChips: [],
+    burnedStackChipsTotal: 0,
   };
 }

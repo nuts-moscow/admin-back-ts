@@ -15,6 +15,7 @@ export interface TournamentResultPlayerRow {
   customBonusChips: string | null;
   bountyKills: string | null;
   eliminatedBy: string | null;
+  burnedStackChips: number;
 }
 
 export interface TournamentResultRepository {
@@ -50,6 +51,7 @@ function rowToResult(row: Record<string, unknown>): TournamentResultPlayerRow {
     bountyKills: row.bounty_kills != null ? String(row.bounty_kills) : null,
     eliminatedBy:
       row.eliminated_by != null ? String(row.eliminated_by) : null,
+    burnedStackChips: Number(row.burned_stack_chips ?? 0),
   };
 }
 
@@ -65,8 +67,9 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
           `INSERT INTO tournament_result_players (
             tournament_id, player_id, tournament_player_id, placement, status,
             entry_payment_method, reentry_by_payment_method, total_reentry_count,
-            bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by,
+            burned_stack_chips
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           ON CONFLICT (tournament_id, player_id) DO UPDATE SET
             tournament_player_id = EXCLUDED.tournament_player_id,
             placement = EXCLUDED.placement,
@@ -78,7 +81,8 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             bonuses = EXCLUDED.bonuses,
             custom_bonus_chips = EXCLUDED.custom_bonus_chips,
             bounty_kills = EXCLUDED.bounty_kills,
-            eliminated_by = EXCLUDED.eliminated_by`,
+            eliminated_by = EXCLUDED.eliminated_by,
+            burned_stack_chips = EXCLUDED.burned_stack_chips`,
           [
             tournamentId,
             r.playerId,
@@ -93,6 +97,7 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             r.customBonusChips,
             r.bountyKills,
             r.eliminatedBy,
+            r.burnedStackChips,
           ]
         );
       }
@@ -113,7 +118,8 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
       const result = await PostgresClient.instance.query(
         `SELECT tournament_id, player_id, tournament_player_id, placement, status,
                 entry_payment_method, reentry_by_payment_method, total_reentry_count,
-                bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by
+                bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by,
+                burned_stack_chips
          FROM tournament_result_players
          WHERE tournament_id = $1
          ORDER BY placement ASC NULLS LAST, tournament_player_id ASC`,

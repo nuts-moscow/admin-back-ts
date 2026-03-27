@@ -93,6 +93,7 @@ export function inGameUserStateRoutes() {
           killerPlayerId?: string;
           type: string;
           burnedStack?: boolean;
+          burnedChips?: unknown;
         };
         try {
           body = (await req.json()) as typeof body;
@@ -102,7 +103,8 @@ export function inGameUserStateRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        const { eliminatedPlayerId, killerPlayerId, type, burnedStack } = body;
+        const { eliminatedPlayerId, killerPlayerId, type, burnedStack, burnedChips } =
+          body;
         if (
           !eliminatedPlayerId ||
           !type ||
@@ -117,6 +119,21 @@ export function inGameUserStateRoutes() {
           );
         }
         const isBurnedStack = burnedStack === true;
+        if (isBurnedStack) {
+          if (
+            typeof burnedChips !== "number" ||
+            !Number.isInteger(burnedChips) ||
+            burnedChips < 0
+          ) {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "burnedChips is required and must be a non-negative integer when burnedStack is true",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
         if (!isBurnedStack && (!killerPlayerId || typeof killerPlayerId !== "string")) {
           return new Response(
             JSON.stringify({
@@ -140,7 +157,8 @@ export function inGameUserStateRoutes() {
           eliminatedPlayerId,
           killerPlayerId,
           eliminationType,
-          isBurnedStack
+          isBurnedStack,
+          isBurnedStack ? (burnedChips as number) : 0
         );
         if (!result.ok) {
           return new Response(

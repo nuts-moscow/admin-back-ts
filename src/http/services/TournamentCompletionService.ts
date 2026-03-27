@@ -103,6 +103,7 @@ export async function runTournamentCompletion(
           : null,
       bountyKills: JSON.stringify(bountyKills),
       eliminatedBy: JSON.stringify(eliminatedBy),
+      burnedStackChips: state.burnedStackChipsTotal ?? 0,
     });
   }
 

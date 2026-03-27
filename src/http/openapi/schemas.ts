@@ -70,6 +70,13 @@ export const InGameUserStateSchema = z
     tournamentFreeReentryCount: z
       .number()
       .openapi({ description: "Tournament-only free re-entry count", example: 0 }),
+    burnedStackChipsTotal: z
+      .number()
+      .openapi({
+        description:
+          "Cumulative chips burned (left table without transferring) for this player in the tournament",
+        example: 0,
+      }),
     placement: z.number().nullable().openapi({ description: "Placement position" }),
     bonuses: z
       .array(InGameBonusSchema)
@@ -209,9 +216,19 @@ export const TournamentChipPoolSummarySchema = z
     bonusChipsTotal: z
       .number()
       .openapi({ description: "Sum of bonus totalChips", example: 12000 }),
+    burnedStackChipsTotal: z
+      .number()
+      .openapi({
+        description:
+          "Sum of burnedStackChipsTotal across all players; chips removed from play (burned stacks)",
+        example: 5000,
+      }),
     totalChips: z
       .number()
-      .openapi({ description: "baseChips + bonusChipsTotal", example: 447000 }),
+      .openapi({
+        description: "Chips still in play: baseChips + bonusChipsTotal − burnedStackChipsTotal (floored at 0)",
+        example: 442000,
+      }),
   })
   .openapi("TournamentChipPoolSummary");
 
@@ -281,9 +298,35 @@ export const BountyEliminateBodySchema = z
       .optional()
       .openapi({
         description:
-          "If true: victim burned stack, bounty not recorded for killer, only rebuy/Out. killerPlayerId optional.",
+          "If true: victim burned stack, bounty not recorded for killer, only rebuy/Out. killerPlayerId optional. burnedChips required.",
         default: false,
       }),
+    burnedChips: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .openapi({
+        description:
+          "Chips burned this elimination; required when burnedStack is true (non-negative integer).",
+        example: 3200,
+      }),
+  })
+  .superRefine((data, ctx) => {
+    if (data.burnedStack === true) {
+      if (
+        data.burnedChips === undefined ||
+        typeof data.burnedChips !== "number" ||
+        !Number.isInteger(data.burnedChips) ||
+        data.burnedChips < 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "burnedChips is required (non-negative integer) when burnedStack is true",
+          path: ["burnedChips"],
+        });
+      }
+    }
   })
   .openapi("BountyEliminateBody");
 
