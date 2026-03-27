@@ -32,6 +32,14 @@ export const FixedInGameBonusPairSchema = z
   .enum(["EarlyBird", "First20", "Hookah", "Diller", "BonusOfTheDay"])
   .openapi("FixedInGameBonusPair");
 
+/** One burned-stack elimination (rebuy or bust-out) */
+export const BurnedStackEventSchema = z
+  .object({
+    chips: z.number().int().min(0).openapi({ example: 3200 }),
+    source: z.enum(["Rebuy", "Out"]).openapi({ description: "Rebuy events can be undone via rebuy-burned-stack/undo" }),
+  })
+  .openapi("BurnedStackEvent");
+
 /** In-game user state */
 export const InGameUserStateSchema = z
   .object({
@@ -70,11 +78,17 @@ export const InGameUserStateSchema = z
     tournamentFreeReentryCount: z
       .number()
       .openapi({ description: "Tournament-only free re-entry count", example: 0 }),
+    burnedStackEvents: z
+      .array(BurnedStackEventSchema)
+      .openapi({
+        description:
+          "Per-event burned stacks; sum(chips) equals burnedStackChipsTotal. Undo rebuy burn: POST .../rebuy-burned-stack/undo with matching chips (LIFO among Rebuy).",
+        example: [{ chips: 3200, source: "Rebuy" }],
+      }),
     burnedStackChipsTotal: z
       .number()
       .openapi({
-        description:
-          "Cumulative chips burned (left table without transferring) for this player in the tournament",
+        description: "Sum of chips in burnedStackEvents (all sources)",
         example: 0,
       }),
     placement: z.number().nullable().openapi({ description: "Placement position" }),
@@ -329,6 +343,22 @@ export const BountyEliminateBodySchema = z
     }
   })
   .openapi("BountyEliminateBody");
+
+/** Request body: undo one Rebuy + burned stack (removes last matching Rebuy event by chips, LIFO) */
+export const RebuyBurnedStackUndoBodySchema = z
+  .object({
+    playerId: z.string().openapi({ description: "Player whose rebuy+burn to undo", example: "123" }),
+    burnedChips: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({
+        description:
+          "Chips value of the event to remove (must match a Rebuy-sourced entry); duplicates resolved LIFO",
+        example: 3200,
+      }),
+  })
+  .openapi("RebuyBurnedStackUndoBody");
 
 /** Request body: add bounty count */
 export const BountyCountBodySchema = z

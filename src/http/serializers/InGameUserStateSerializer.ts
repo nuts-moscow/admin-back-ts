@@ -3,6 +3,7 @@ import {
   type BonusesByType,
   type InGameUserState,
   type ReentryByPaymentMethod,
+  sumBurnedStackChips,
 } from "../../domain/cache/InGameUserState";
 
 const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
@@ -93,6 +94,8 @@ export function toApiResponse(
   const unpaidReentryCount = Math.max(0, state.totalReentryCount - recorded);
   return {
     ...state,
+    burnedStackEvents: state.burnedStackEvents.map((e) => ({ ...e })),
+    burnedStackChipsTotal: sumBurnedStackChips(state.burnedStackEvents),
     reentryByPaymentMethod: flattenPairs(pairs),
     bonuses: flattenPairs(state.bonuses as BonusesByType | null),
     customBonusChips: [...state.customBonusChips],

@@ -169,6 +169,51 @@ export function inGameUserStateRoutes() {
         return new Response(null, { status: 204 });
       },
     },
+    "/api/tournaments/:tournamentId/bounty/rebuy-burned-stack/undo": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/bounty/rebuy-burned-stack/undo">
+      ) => {
+        const { tournamentId } = req.params;
+        let body: { playerId?: unknown; burnedChips?: unknown };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const { playerId, burnedChips } = body;
+        if (
+          !playerId ||
+          typeof playerId !== "string" ||
+          typeof burnedChips !== "number" ||
+          !Number.isInteger(burnedChips) ||
+          burnedChips < 0
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: "playerId (string) and burnedChips (non-negative integer) are required",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.undoRebuyBurnedStack(
+          tournamentId,
+          playerId,
+          burnedChips
+        );
+        if (!result.ok) {
+          const msg = result.error ?? "Failed to undo rebuy burned stack";
+          const status = msg === "Player not found in tournament" ? 404 : 400;
+          return new Response(JSON.stringify({ error: msg }), {
+            status,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(null, { status: 204 });
+      },
+    },
     "/api/tournaments/:tournamentId/bounty/remove": {
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/bounty/remove">

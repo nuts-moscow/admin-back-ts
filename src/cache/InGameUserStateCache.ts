@@ -5,6 +5,7 @@ import {
   InGameBonus,
   initInGameUserState,
   InGamePlayerStatus,
+  type BurnedStackEvent,
   type InGameUserState,
   type PlayerId,
   type ReentryByPaymentMethod,
@@ -189,16 +190,25 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
-   * Adds delta to eliminated player's cumulative burned stack chips (chips removed from play).
-   * @param playerId - Player whose stack was burned
-   * @param tournamentId - Tournament ID
-   * @param delta - Non-negative chips to add to burnedStackChipsTotal
-   * @returns Updated state or null if state does not exist or on error
+   * Appends one burned-stack event (rebuy or bust-out).
+   * @param chips - Non-negative integer; count burned this elimination
+   * @param source - Rebuy vs Out (undo API only removes Rebuy entries)
    */
-  addBurnedStackChips(
+  appendBurnedStackEvent(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    delta: number
+    chips: number,
+    source: "Rebuy" | "Out"
+  ): Promise<InGameUserState | null>;
+
+  /**
+   * Removes the last Rebuy-source event with matching chips (LIFO). Does not remove Out events.
+   * @returns Updated state or null if no match or state missing
+   */
+  removeLastRebuyBurnedStackEventMatching(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
   ): Promise<InGameUserState | null>;
 
   /**
@@ -454,7 +464,10 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
           state.customBonusChips.length === 0
             ? ""
             : JSON.stringify(state.customBonusChips),
-        burnedStackChipsTotal: String(state.burnedStackChipsTotal ?? 0),
+        burnedStackEvents:
+          state.burnedStackEvents.length === 0
+            ? ""
+            : JSON.stringify(state.burnedStackEvents),
       });
       logger.info(`${LOG_PREFIX} InGameUserStateCache.set result: stored`);
       return true;
@@ -621,52 +634,69 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     }
   }
 
-  async addBurnedStackChips(
+  async appendBurnedStackEvent(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    delta: number
+    chips: number,
+    source: "Rebuy" | "Out"
   ): Promise<InGameUserState | null> {
     logger.info(
-      { playerId, tournamentId, delta },
-      `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips entry`
+      { playerId, tournamentId, chips, source },
+      `${LOG_PREFIX} InGameUserStateCache.appendBurnedStackEvent entry`
     );
-    if (delta < 0 || !Number.isInteger(delta)) {
-      logger.info({ delta }, `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips: invalid delta`);
+    if (!Number.isInteger(chips) || chips < 0) {
+      logger.info({ chips }, `${LOG_PREFIX} InGameUserStateCache.appendBurnedStackEvent: invalid chips`);
       return null;
     }
-    if (delta === 0) {
-      return this.get(playerId, tournamentId);
+    const state = await this.get(playerId, tournamentId);
+    if (!state) {
+      logger.info(`${LOG_PREFIX} InGameUserStateCache.appendBurnedStackEvent: miss`);
+      return null;
     }
-    try {
-      const k = key(tournamentId, playerId);
-      const exists = await RedisClient.instance.exists(k);
-      if (!exists) {
-        logger.info(`${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips result: miss (key not found)`);
-        return null;
+    const event: BurnedStackEvent = { chips, source };
+    const newState: InGameUserState = {
+      ...state,
+      burnedStackEvents: [...state.burnedStackEvents, event],
+    };
+    const ok = await this.set(playerId, tournamentId, newState);
+    logger.info({ stored: ok }, `${LOG_PREFIX} InGameUserStateCache.appendBurnedStackEvent result`);
+    return ok ? newState : null;
+  }
+
+  async removeLastRebuyBurnedStackEventMatching(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
+  ): Promise<InGameUserState | null> {
+    logger.info(
+      { playerId, tournamentId, chips },
+      `${LOG_PREFIX} InGameUserStateCache.removeLastRebuyBurnedStackEventMatching entry`
+    );
+    if (!Number.isInteger(chips) || chips < 0) {
+      return null;
+    }
+    const state = await this.get(playerId, tournamentId);
+    if (!state) return null;
+    const events = state.burnedStackEvents;
+    let idx = -1;
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e != null && e.source === "Rebuy" && e.chips === chips) {
+        idx = i;
+        break;
       }
-      const newBurnedTotal = await RedisClient.instance.hincrby(
-        k,
-        "burnedStackChipsTotal",
-        delta
-      );
-      const hash = await RedisClient.instance.hgetall(k);
-      if (!hash || Object.keys(hash).length === 0) {
-        logger.info(`${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips result: miss (no data after incr)`);
-        return null;
-      }
-      const state = parseHashToState(
-        { ...hash, burnedStackChipsTotal: String(newBurnedTotal) },
-        playerId
-      );
+    }
+    if (idx < 0) {
       logger.info(
-        { state: !!state, burnedStackChipsTotal: state?.burnedStackChipsTotal },
-        `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips result`
+        { chips },
+        `${LOG_PREFIX} InGameUserStateCache.removeLastRebuyBurnedStackEventMatching: no match`
       );
-      return state;
-    } catch (err) {
-      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.addBurnedStackChips failed`);
       return null;
     }
+    const nextEvents = events.slice(0, idx).concat(events.slice(idx + 1));
+    const newState: InGameUserState = { ...state, burnedStackEvents: nextEvents };
+    const ok = await this.set(playerId, tournamentId, newState);
+    return ok ? newState : null;
   }
 
   async updateStatus(
@@ -1173,14 +1203,21 @@ function parseHashToState(
   if (customBonusChips === undefined) {
     return null;
   }
-  const burnedStackChipsTotalRaw = parseInt(
-    hash.burnedStackChipsTotal ?? "0",
-    10
-  );
-  const burnedStackChipsTotal =
-    Number.isNaN(burnedStackChipsTotalRaw) || burnedStackChipsTotalRaw < 0
-      ? 0
-      : burnedStackChipsTotalRaw;
+  let burnedStackEvents = parseBurnedStackEvents(hash.burnedStackEvents);
+  if (burnedStackEvents === undefined) {
+    return null;
+  }
+  if (
+    burnedStackEvents.length === 0 &&
+    hash.burnedStackChipsTotal !== undefined &&
+    hash.burnedStackChipsTotal !== null &&
+    hash.burnedStackChipsTotal !== ""
+  ) {
+    const legacy = parseInt(hash.burnedStackChipsTotal, 10);
+    if (!Number.isNaN(legacy) && legacy > 0) {
+      burnedStackEvents = [{ chips: legacy, source: "Rebuy" }];
+    }
+  }
   const tournamentPlayerId =
     hash.tournamentPlayerId !== undefined && hash.tournamentPlayerId !== null && hash.tournamentPlayerId !== ""
       ? parseInt(hash.tournamentPlayerId, 10)
@@ -1205,8 +1242,51 @@ function parseHashToState(
     placement,
     bonuses,
     customBonusChips,
-    burnedStackChipsTotal,
+    burnedStackEvents,
   };
+}
+
+function parseBurnedStackEvents(
+  raw: string | undefined | null
+): BurnedStackEvent[] | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    return [];
+  }
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    logger.info({ raw }, `${LOG_PREFIX} parseBurnedStackEvents failed: invalid JSON`);
+    return undefined;
+  }
+  if (!Array.isArray(arr)) {
+    logger.info({ raw }, `${LOG_PREFIX} parseBurnedStackEvents failed: expected array`);
+    return undefined;
+  }
+  const out: BurnedStackEvent[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    if (item !== null && typeof item === "object" && !Array.isArray(item)) {
+      const o = item as Record<string, unknown>;
+      const c = o.chips;
+      const n =
+        typeof c === "number" ? c : typeof c === "string" ? parseInt(c, 10) : NaN;
+      if (Number.isNaN(n) || !Number.isInteger(n) || n < 0) {
+        logger.info({ item, index: i }, `${LOG_PREFIX} parseBurnedStackEvents failed: bad chips`);
+        return undefined;
+      }
+      const src = o.source;
+      if (src !== "Rebuy" && src !== "Out") {
+        logger.info({ item, index: i }, `${LOG_PREFIX} parseBurnedStackEvents failed: bad source`);
+        return undefined;
+      }
+      out.push({ chips: n, source: src });
+      continue;
+    }
+    logger.info({ item, index: i }, `${LOG_PREFIX} parseBurnedStackEvents failed: expected object`);
+    return undefined;
+  }
+  return out;
 }
 
 function parseCustomBonusChips(

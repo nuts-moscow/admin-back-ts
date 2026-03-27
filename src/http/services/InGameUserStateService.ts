@@ -23,11 +23,14 @@ import {
   InGameBonus,
   InGamePlayerStatus,
   type BountyEliminationTypeValue,
+  type BurnedStackEvent,
   type InGameUserState,
   type PlayerId,
   type ReentryByPaymentMethod,
   type TableId,
   type TournamentId,
+  parseBurnedStackEventsFromJson,
+  sumBurnedStackChips,
 } from "../../domain/cache/InGameUserState";
 import {
   flattenReentryPairsForApi,
@@ -278,7 +281,9 @@ export class InGameUserStateService {
 
       for (const row of rows) {
         rebuyCount += row.totalReentryCount;
-        burnedStackChipsTotal += row.burnedStackChips ?? 0;
+        burnedStackChipsTotal += sumBurnedStackChips(
+          parseBurnedStackEventsFromJson(row.burnedStackEvents)
+        );
         if (row.status !== InGamePlayerStatus.Registered) {
           playersArrived += 1;
         }
@@ -346,7 +351,7 @@ export class InGameUserStateService {
 
     for (const state of states) {
       rebuyCount += state.totalReentryCount;
-      burnedStackChipsTotal += state.burnedStackChipsTotal ?? 0;
+      burnedStackChipsTotal += sumBurnedStackChips(state.burnedStackEvents);
       if (state.status !== InGamePlayerStatus.Registered) {
         playersArrived += 1;
       }
@@ -505,6 +510,7 @@ export class InGameUserStateService {
       placement: number | null;
       bonuses: string[] | null;
       customBonusChips: number[];
+      burnedStackEvents: BurnedStackEvent[];
       burnedStackChipsTotal: number;
       playerName: string | null;
       unpaidReentryCount: number;
@@ -541,6 +547,9 @@ export class InGameUserStateService {
         );
         const placement =
           row.placement != null ? N - row.placement + 1 : null;
+        const burnedStackEvents = parseBurnedStackEventsFromJson(
+          row.burnedStackEvents
+        );
         return {
           tournamentPlayerId: row.tournamentPlayerId,
           playerId: row.playerId,
@@ -557,7 +566,8 @@ export class InGameUserStateService {
           placement,
           bonuses,
           customBonusChips,
-          burnedStackChipsTotal: row.burnedStackChips,
+          burnedStackEvents,
+          burnedStackChipsTotal: sumBurnedStackChips(burnedStackEvents),
           playerName: player?.nickname ?? null,
           unpaidReentryCount,
           signAgreement: player?.signAgreement ?? false,
@@ -893,7 +903,7 @@ export class InGameUserStateService {
    * Records a bounty elimination: who eliminated whom and type (Rebuy/Out).
    * 1. If type=Rebuy: increments reentry count for eliminated player
    * 2. If type=Out: sets eliminated player status to Out
-   * 3. If burnedStack && burnedChips > 0: adds to eliminated player's burnedStackChipsTotal
+   * 3. If burnedStack: appends { chips: burnedChips, source } on eliminated player (Rebuy vs Out)
    * 4. If !burnedStack && killerPlayerId: increments bounty count for killer, stores kill record
    */
   async recordBountyElimination(
@@ -941,14 +951,16 @@ export class InGameUserStateService {
       );
     }
 
-    if (burnedStack && burnedChips > 0) {
-      const afterBurn = await InGameUserStateCache.addBurnedStackChips(
+    if (burnedStack) {
+      const burnSource = type === "Rebuy" ? "Rebuy" : "Out";
+      const afterBurn = await InGameUserStateCache.appendBurnedStackEvent(
         eliminatedPlayerId,
         tournamentId,
-        burnedChips
+        burnedChips,
+        burnSource
       );
       if (!afterBurn) {
-        return { ok: false, error: "Failed to record burned stack chips" };
+        return { ok: false, error: "Failed to record burned stack event" };
       }
     }
 
@@ -980,6 +992,47 @@ export class InGameUserStateService {
       );
     }
 
+    return { ok: true };
+  }
+
+  /**
+   * Undoes one "Rebuy + burned stack" event: −1 totalReentryCount and removes the last matching
+   * Rebuy-only burnedStackEvents entry with given chips (LIFO). Does not alter Out-sourced burns.
+   */
+  async undoRebuyBurnedStack(
+    tournamentId: TournamentId,
+    playerId: PlayerId,
+    burnedChips: number
+  ): Promise<{ ok: boolean; error?: string }> {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) {
+      return { ok: false, error: "Player not found in tournament" };
+    }
+    if (state.totalReentryCount < 1) {
+      return { ok: false, error: "Cannot undo rebuy: totalReentryCount is already 0" };
+    }
+    const afterRemove = await InGameUserStateCache.removeLastRebuyBurnedStackEventMatching(
+      playerId,
+      tournamentId,
+      burnedChips
+    );
+    if (!afterRemove) {
+      return { ok: false, error: "No matching Rebuy burned-stack event" };
+    }
+    const afterReentry = await InGameUserStateCache.addReentryCount(
+      playerId,
+      tournamentId,
+      -1
+    );
+    if (!afterReentry) {
+      await InGameUserStateCache.appendBurnedStackEvent(
+        playerId,
+        tournamentId,
+        burnedChips,
+        "Rebuy"
+      );
+      return { ok: false, error: "Failed to decrement reentry count" };
+    }
     return { ok: true };
   }
 }

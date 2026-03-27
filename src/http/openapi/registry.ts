@@ -6,6 +6,7 @@ import {
   BountyEliminateBodySchema,
   CashDeskResponseSchema,
   BountyRemoveBodySchema,
+  RebuyBurnedStackUndoBodySchema,
   CreatePlayerBodySchema,
   CustomBonusChipsBodySchema,
   EntryPaymentBodySchema,
@@ -612,6 +613,43 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Eliminated or killer player not found in tournament",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/bounty/rebuy-burned-stack/undo`,
+  tags: ["Tournament Players"],
+  operationId: "undoRebuyBurnedStack",
+  summary: "Undo rebuy with burned stack",
+  description:
+    "Removes the last burnedStackEvents entry with source=Rebuy and chips=burnedChips (LIFO if the same chips appear multiple times), then decrements totalReentryCount by 1. Out-sourced burns are never removed by this call. Active tournaments only.",
+  request: {
+    params: TournamentParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: RebuyBurnedStackUndoBodySchema },
+      },
+    },
+  },
+  responses: {
+    204: { description: "Undo applied" },
+    400: {
+      description: "Invalid body or no matching Rebuy burn / cannot decrement reentry",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not in tournament",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
