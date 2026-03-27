@@ -801,7 +801,7 @@ openApiRegistry.registerPath({
   operationId: "getTournamentChipPoolSummary",
   summary: "Chip pool and player summary",
   description:
-    "Single response: arrived/active player counts, total rebuys, stackSize, base chips from entries and rebuys, bonus breakdown (only for non-Registered players), total chips. averageStack is playersActive/playersArrived (not chips÷players). Completed tournaments require stackSize on cash snapshot (saved at completion).",
+    "Single response: arrived/active player counts, total rebuys, stackSize, base chips from entries and rebuys, bonus breakdown (only for non-Registered players), total chips. averageStack = totalChips ÷ playersActive (players in game: not Registered, not Out). Completed tournaments require stackSize on cash snapshot (saved at completion).",
   request: {
     params: TournamentParamsSchema,
   },

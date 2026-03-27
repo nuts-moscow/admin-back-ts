@@ -77,7 +77,7 @@ export interface TournamentChipPoolSummary {
   playersArrived: number;
   playersActive: number;
   rebuyCount: number;
-  /** Active (not Out, not Registered) ÷ arrived (not Registered); not total chips ÷ players. */
+  /** totalChips ÷ playersActive when playersActive > 0 (игроки в игре: не Registered и не Out). */
   averageStack: number | null;
   stackSize: number;
   entryUnits: number;
@@ -215,7 +215,7 @@ export class InGameUserStateService {
   }
 
   /**
-   * Single payload: player counts, rebuy total, chip pool from stack/entries/rebuys/bonuses, averageStack ratio.
+   * Single payload: player counts, rebuy total, chip pool, averageStack = totalChips / playersActive.
    * Completed tournaments need stackSize stored on cash snapshot at completion.
    */
   async getTournamentChipPoolSummary(
@@ -268,7 +268,7 @@ export class InGameUserStateService {
         breakdownFromMergedCounts(bonusCounts);
       const totalChips = baseChips + bonusChipsTotal;
       const averageStack =
-        playersArrived === 0 ? null : playersActive / playersArrived;
+        playersActive === 0 ? null : totalChips / playersActive;
 
       return {
         ok: true,
@@ -321,7 +321,7 @@ export class InGameUserStateService {
       breakdownFromMergedCounts(bonusCounts);
     const totalChips = baseChips + bonusChipsTotal;
     const averageStack =
-      playersArrived === 0 ? null : playersActive / playersArrived;
+      playersActive === 0 ? null : totalChips / playersActive;
 
     return {
       ok: true,

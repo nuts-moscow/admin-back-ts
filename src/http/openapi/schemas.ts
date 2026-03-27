@@ -162,8 +162,8 @@ export const TournamentChipPoolSummarySchema = z
       .nullable()
       .openapi({
         description:
-          "playersActive / playersArrived when playersArrived > 0; not (total chips ÷ players). Null if no one arrived.",
-        example: 0.75,
+          "totalChips ÷ playersActive when playersActive > 0 (players in game: not Registered, not Out). Null if no active players.",
+        example: 24850,
       }),
     stackSize: z
       .number()
