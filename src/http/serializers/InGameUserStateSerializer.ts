@@ -81,9 +81,10 @@ export function flattenReentryPairsForApi(
 export function toApiResponse(
   state: InGameUserState,
   playerName: string | null = null
-): Omit<InGameUserState, "reentryByPaymentMethod" | "bonuses"> & {
+): Omit<InGameUserState, "reentryByPaymentMethod" | "bonuses" | "customBonusChips"> & {
   reentryByPaymentMethod: string[] | null;
   bonuses: string[] | null;
+  customBonusChips: number[];
   playerName: string | null;
   unpaidReentryCount: number;
 } {
@@ -94,6 +95,7 @@ export function toApiResponse(
     ...state,
     reentryByPaymentMethod: flattenPairs(pairs),
     bonuses: flattenPairs(state.bonuses as BonusesByType | null),
+    customBonusChips: [...state.customBonusChips],
     playerName,
     totalReentryCount: state.totalReentryCount,
     unpaidReentryCount,

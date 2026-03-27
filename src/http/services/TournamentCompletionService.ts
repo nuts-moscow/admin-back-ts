@@ -97,6 +97,10 @@ export async function runTournamentCompletion(
       bountyCount: state.bountyCount,
       bonuses:
         state.bonuses != null ? JSON.stringify(state.bonuses) : null,
+      customBonusChips:
+        state.customBonusChips.length > 0
+          ? JSON.stringify(state.customBonusChips)
+          : null,
       bountyKills: JSON.stringify(bountyKills),
       eliminatedBy: JSON.stringify(eliminatedBy),
     });

@@ -12,6 +12,7 @@ export interface TournamentResultPlayerRow {
   totalReentryCount: number;
   bountyCount: number;
   bonuses: string | null;
+  customBonusChips: string | null;
   bountyKills: string | null;
   eliminatedBy: string | null;
 }
@@ -44,6 +45,8 @@ function rowToResult(row: Record<string, unknown>): TournamentResultPlayerRow {
     totalReentryCount: Number(row.total_reentry_count ?? 0),
     bountyCount: Number(row.bounty_count ?? 0),
     bonuses: row.bonuses != null ? String(row.bonuses) : null,
+    customBonusChips:
+      row.custom_bonus_chips != null ? String(row.custom_bonus_chips) : null,
     bountyKills: row.bounty_kills != null ? String(row.bounty_kills) : null,
     eliminatedBy:
       row.eliminated_by != null ? String(row.eliminated_by) : null,
@@ -62,8 +65,8 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
           `INSERT INTO tournament_result_players (
             tournament_id, player_id, tournament_player_id, placement, status,
             entry_payment_method, reentry_by_payment_method, total_reentry_count,
-            bounty_count, bonuses, bounty_kills, eliminated_by
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           ON CONFLICT (tournament_id, player_id) DO UPDATE SET
             tournament_player_id = EXCLUDED.tournament_player_id,
             placement = EXCLUDED.placement,
@@ -73,6 +76,7 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             total_reentry_count = EXCLUDED.total_reentry_count,
             bounty_count = EXCLUDED.bounty_count,
             bonuses = EXCLUDED.bonuses,
+            custom_bonus_chips = EXCLUDED.custom_bonus_chips,
             bounty_kills = EXCLUDED.bounty_kills,
             eliminated_by = EXCLUDED.eliminated_by`,
           [
@@ -86,6 +90,7 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             r.totalReentryCount,
             r.bountyCount,
             r.bonuses,
+            r.customBonusChips,
             r.bountyKills,
             r.eliminatedBy,
           ]
@@ -108,7 +113,7 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
       const result = await PostgresClient.instance.query(
         `SELECT tournament_id, player_id, tournament_player_id, placement, status,
                 entry_payment_method, reentry_by_payment_method, total_reentry_count,
-                bounty_count, bonuses, bounty_kills, eliminated_by
+                bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by
          FROM tournament_result_players
          WHERE tournament_id = $1
          ORDER BY placement ASC NULLS LAST, tournament_player_id ASC`,

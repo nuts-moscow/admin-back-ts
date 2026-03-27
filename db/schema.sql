@@ -48,6 +48,7 @@ create table if not exists tournament_result_players (
     total_reentry_count       integer  not null default 0,
     bounty_count              integer  not null default 0,
     bonuses                   text,
+    custom_bonus_chips        text,
     bounty_kills              text,
     eliminated_by             text,
     primary key (tournament_id, player_id)

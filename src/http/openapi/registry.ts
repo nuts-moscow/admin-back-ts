@@ -7,6 +7,7 @@ import {
   CashDeskResponseSchema,
   BountyRemoveBodySchema,
   CreatePlayerBodySchema,
+  CustomBonusChipsBodySchema,
   EntryPaymentBodySchema,
   FreeCountDeltaBodySchema,
   FreeEntryCountResponseSchema,
@@ -702,7 +703,7 @@ openApiRegistry.registerPath({
   operationId: "addPlayerBonusOne",
   summary: "Add one in-game bonus instance",
   description:
-    "Increments the count for the given bonus on the player's tournament state. Same bonus can be added multiple times.",
+    "Increments the count for the given bonus on the player's tournament state. Custom chips: POST .../bonuses/custom.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -765,6 +766,83 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "No state or bonus count already zero",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/players/{playerId}/bonuses/custom`,
+  tags: ["Tournament Players"],
+  operationId: "addPlayerCustomBonusChips",
+  summary: "Add custom bonus chips",
+  description:
+    "Appends one grant with the given chip amount to customBonusChips (variable-size bonus).",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: CustomBonusChipsBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: { description: "Player not in tournament" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/players/{playerId}/bonuses/custom/remove`,
+  tags: ["Tournament Players"],
+  operationId: "removePlayerCustomBonusChipsOne",
+  summary: "Remove one custom bonus grant",
+  description:
+    "Removes one entry equal to chips, searching from the end of customBonusChips.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: CustomBonusChipsBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid body",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "No state or no matching custom grant",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

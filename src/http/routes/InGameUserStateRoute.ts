@@ -12,7 +12,10 @@ const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
   Object.values(EntryPaymentMethod)
 );
 
-const VALID_IN_GAME_BONUSES = new Set<string>(Object.values(InGameBonus));
+/** Fixed bonuses only; Custom uses /bonuses/custom */
+const VALID_PAIR_BONUSES = new Set<string>(
+  Object.values(InGameBonus).filter((b) => b !== InGameBonus.Custom)
+);
 
 /** Parses EarlyBirdFlag / earlyBirdFlag / early_bird_flag from JSON body (boolean, string, or 1). */
 function parseEarlyBirdFlagFromBody(body: unknown): boolean {
@@ -247,11 +250,11 @@ export function inGameUserStateRoutes() {
         if (
           body.bonus == null ||
           typeof body.bonus !== "string" ||
-          !VALID_IN_GAME_BONUSES.has(body.bonus)
+          !VALID_PAIR_BONUSES.has(body.bonus)
         ) {
           return new Response(
             JSON.stringify({
-              error: `bonus is required and must be one of: ${[...VALID_IN_GAME_BONUSES].join(", ")}`,
+              error: `bonus is required and must be one of: ${[...VALID_PAIR_BONUSES].join(", ")} (use /bonuses/custom for Custom)`,
             }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
@@ -282,11 +285,11 @@ export function inGameUserStateRoutes() {
         if (
           body.bonus == null ||
           typeof body.bonus !== "string" ||
-          !VALID_IN_GAME_BONUSES.has(body.bonus)
+          !VALID_PAIR_BONUSES.has(body.bonus)
         ) {
           return new Response(
             JSON.stringify({
-              error: `bonus is required and must be one of: ${[...VALID_IN_GAME_BONUSES].join(", ")}`,
+              error: `bonus is required and must be one of: ${[...VALID_PAIR_BONUSES].join(", ")} (use /bonuses/custom/remove for Custom)`,
             }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
@@ -297,6 +300,90 @@ export function inGameUserStateRoutes() {
           return new Response(
             JSON.stringify({
               error: "Player state not found or bonus count is already zero",
+            }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/bonuses/custom": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bonuses/custom">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { chips?: unknown };
+        try {
+          body = (await req.json()) as { chips?: unknown };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const chips = body.chips;
+        if (
+          typeof chips !== "number" ||
+          !Number.isInteger(chips) ||
+          chips <= 0
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: "chips is required and must be a positive integer",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.addCustomBonusChips(
+          playerId,
+          tournamentId,
+          chips
+        );
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(toApiResponse(state, playerName));
+      },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/bonuses/custom/remove": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bonuses/custom/remove">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { chips?: unknown };
+        try {
+          body = (await req.json()) as { chips?: unknown };
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const chips = body.chips;
+        if (
+          typeof chips !== "number" ||
+          !Number.isInteger(chips) ||
+          chips <= 0
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: "chips is required and must be a positive integer",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.removeCustomBonusChipsOne(
+          playerId,
+          tournamentId,
+          chips
+        );
+        if (!state) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Player state not found or no custom bonus grant with this chips value",
             }),
             { status: 404, headers: { "Content-Type": "application/json" } }
           );

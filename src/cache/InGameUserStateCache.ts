@@ -279,6 +279,20 @@ export interface InGameUserStateCache {
     bonus: InGameBonus
   ): Promise<InGameUserState | null>;
 
+  /** Appends one custom bonus grant (chips > 0). */
+  addCustomBonusChips(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
+  ): Promise<InGameUserState | null>;
+
+  /** Removes one grant equal to chips (last matching entry from the end). Returns null if not found or no state. */
+  removeCustomBonusChipsOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
+  ): Promise<InGameUserState | null>;
+
   /**
    * Applies delta to tournament-only free entry count (clamp to >= 0). Only modifies state in Redis.
    */
@@ -423,6 +437,10 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         tournamentFreeReentryCount: String(state.tournamentFreeReentryCount ?? 0),
         placement: state.placement === null ? "" : String(state.placement),
         bonuses: state.bonuses === null ? "" : JSON.stringify(state.bonuses),
+        customBonusChips:
+          state.customBonusChips.length === 0
+            ? ""
+            : JSON.stringify(state.customBonusChips),
       });
       logger.info(`${LOG_PREFIX} InGameUserStateCache.set result: stored`);
       return true;
@@ -793,6 +811,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     bonus: InGameBonus
   ): Promise<InGameUserState | null> {
     try {
+      if (bonus === InGameBonus.Custom) return null;
       const state = await this.get(playerId, tournamentId);
       if (!state) return null;
       const map = bonusesToMap(state.bonuses);
@@ -813,6 +832,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     bonus: InGameBonus
   ): Promise<InGameUserState | null> {
     try {
+      if (bonus === InGameBonus.Custom) return null;
       const state = await this.get(playerId, tournamentId);
       if (!state) return null;
       const map = bonusesToMap(state.bonuses);
@@ -830,6 +850,65 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       return ok ? newState : null;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.removeBonusOne failed`);
+      return null;
+    }
+  }
+
+  async addCustomBonusChips(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
+  ): Promise<InGameUserState | null> {
+    try {
+      if (
+        typeof chips !== "number" ||
+        !Number.isInteger(chips) ||
+        chips <= 0
+      ) {
+        return null;
+      }
+      const state = await this.get(playerId, tournamentId);
+      if (!state) return null;
+      const customBonusChips = [...state.customBonusChips, chips];
+      const newState: InGameUserState = { ...state, customBonusChips };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.addCustomBonusChips failed`);
+      return null;
+    }
+  }
+
+  async removeCustomBonusChipsOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
+  ): Promise<InGameUserState | null> {
+    try {
+      if (
+        typeof chips !== "number" ||
+        !Number.isInteger(chips) ||
+        chips <= 0
+      ) {
+        return null;
+      }
+      const state = await this.get(playerId, tournamentId);
+      if (!state) return null;
+      const arr = [...state.customBonusChips];
+      let found = -1;
+      for (let i = arr.length - 1; i >= 0; i--) {
+        if (arr[i] === chips) {
+          found = i;
+          break;
+        }
+      }
+      if (found < 0) return null;
+      arr.splice(found, 1);
+      const newState: InGameUserState = { ...state, customBonusChips: arr };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.removeCustomBonusChipsOne failed`);
       return null;
     }
   }
@@ -1028,6 +1107,10 @@ function parseHashToState(
   if (bonuses === undefined) {
     return null;
   }
+  const customBonusChips = parseCustomBonusChips(hash.customBonusChips);
+  if (customBonusChips === undefined) {
+    return null;
+  }
   const tournamentPlayerId =
     hash.tournamentPlayerId !== undefined && hash.tournamentPlayerId !== null && hash.tournamentPlayerId !== ""
       ? parseInt(hash.tournamentPlayerId, 10)
@@ -1051,7 +1134,42 @@ function parseHashToState(
     tournamentFreeReentryCount,
     placement,
     bonuses,
+    customBonusChips,
   };
+}
+
+function parseCustomBonusChips(
+  raw: string | undefined | null
+): number[] | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    return [];
+  }
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    logger.info({ raw }, `${LOG_PREFIX} parseCustomBonusChips failed: invalid JSON`);
+    return undefined;
+  }
+  if (!Array.isArray(arr)) {
+    logger.info({ raw }, `${LOG_PREFIX} parseCustomBonusChips failed: expected array`);
+    return undefined;
+  }
+  const out: number[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const x = arr[i];
+    const n = typeof x === "number" ? x : parseInt(String(x), 10);
+    if (Number.isNaN(n) || n <= 0) {
+      logger.info({ x, index: i }, `${LOG_PREFIX} parseCustomBonusChips failed: invalid entry`);
+      return undefined;
+    }
+    if (!Number.isInteger(n)) {
+      logger.info({ x, index: i }, `${LOG_PREFIX} parseCustomBonusChips failed: non-integer`);
+      return undefined;
+    }
+    out.push(n);
+  }
+  return out;
 }
 
 function parseReentryByPaymentMethod(
@@ -1120,6 +1238,10 @@ function parseBonuses(
     const [bonus, count] = item;
     if (typeof bonus !== "string" || !VALID_BONUSES.has(bonus)) {
       logger.info({ bonus, index: i }, `${LOG_PREFIX} parseBonuses failed: invalid bonus at index ${i}`);
+      return undefined;
+    }
+    if (bonus === InGameBonus.Custom) {
+      logger.info({ index: i }, `${LOG_PREFIX} parseBonuses failed: Custom must not appear in pairs`);
       return undefined;
     }
     const num = typeof count === "number" ? count : parseInt(String(count), 10);

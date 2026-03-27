@@ -11,10 +11,12 @@ import {
 } from "../../postgres";
 import { logger } from "../../logger";
 import {
+  aggregateCustomBonusChipsForBreakdown,
   breakdownFromMergedCounts,
   mergeBonusesIntoCounts,
   type BonusChipBreakdownLine,
   parseStoredBonusesJson,
+  parseStoredCustomBonusChipsJson,
 } from "../../domain/cache/inGameBonusChips";
 import {
   EntryPaymentMethod,
@@ -120,6 +122,30 @@ export class InGameUserStateService {
     bonus: InGameBonus
   ): Promise<InGameUserState | null> {
     return InGameUserStateCache.removeBonusOne(playerId, tournamentId, bonus);
+  }
+
+  async addCustomBonusChips(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.addCustomBonusChips(
+      playerId,
+      tournamentId,
+      chips
+    );
+  }
+
+  async removeCustomBonusChipsOne(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.removeCustomBonusChipsOne(
+      playerId,
+      tournamentId,
+      chips
+    );
   }
 
   async updateBountyCount(
@@ -245,6 +271,7 @@ export class InGameUserStateService {
       let playersActive = 0;
       let rebuyCount = 0;
       const bonusCounts = new Map<InGameBonus, number>();
+      const customArrays: number[][] = [];
 
       for (const row of rows) {
         rebuyCount += row.totalReentryCount;
@@ -259,13 +286,22 @@ export class InGameUserStateService {
         }
         if (row.status !== InGamePlayerStatus.Registered) {
           mergeBonusesIntoCounts(bonusCounts, parseStoredBonusesJson(row.bonuses));
+          customArrays.push(
+            parseStoredCustomBonusChipsJson(row.customBonusChips)
+          );
         }
       }
 
       const entryUnits = playersArrived;
       const baseChips = (entryUnits + rebuyCount) * stackSize;
-      const { lines: bonuses, bonusChipsTotal } =
+      const { lines: baseBonusLines, bonusChipsTotal: baseBonusTotal } =
         breakdownFromMergedCounts(bonusCounts);
+      const { line: customLine, totalChips: customBonusTotal } =
+        aggregateCustomBonusChipsForBreakdown(customArrays);
+      const bonusChipsTotal = baseBonusTotal + customBonusTotal;
+      const bonuses = [...baseBonusLines];
+      if (customLine) bonuses.push(customLine);
+      bonuses.sort((a, b) => a.bonus.localeCompare(b.bonus));
       const totalChips = baseChips + bonusChipsTotal;
       const averageStack =
         playersActive === 0 ? null : totalChips / playersActive;
@@ -297,6 +333,7 @@ export class InGameUserStateService {
     let playersActive = 0;
     let rebuyCount = 0;
     const bonusCounts = new Map<InGameBonus, number>();
+    const customArrays: number[][] = [];
 
     for (const state of states) {
       rebuyCount += state.totalReentryCount;
@@ -311,14 +348,21 @@ export class InGameUserStateService {
       }
       if (state.status !== InGamePlayerStatus.Registered) {
         mergeBonusesIntoCounts(bonusCounts, state.bonuses);
+        customArrays.push([...state.customBonusChips]);
       }
     }
 
     const stackSize = structure.stackSize;
     const entryUnits = playersArrived;
     const baseChips = (entryUnits + rebuyCount) * stackSize;
-    const { lines: bonuses, bonusChipsTotal } =
+    const { lines: baseBonusLines, bonusChipsTotal: baseBonusTotal } =
       breakdownFromMergedCounts(bonusCounts);
+    const { line: customLine, totalChips: customBonusTotal } =
+      aggregateCustomBonusChipsForBreakdown(customArrays);
+    const bonusChipsTotal = baseBonusTotal + customBonusTotal;
+    const bonuses = [...baseBonusLines];
+    if (customLine) bonuses.push(customLine);
+    bonuses.sort((a, b) => a.bonus.localeCompare(b.bonus));
     const totalChips = baseChips + bonusChipsTotal;
     const averageStack =
       playersActive === 0 ? null : totalChips / playersActive;
@@ -446,6 +490,7 @@ export class InGameUserStateService {
       tournamentFreeReentryCount: number;
       placement: number | null;
       bonuses: string[] | null;
+      customBonusChips: number[];
       playerName: string | null;
       unpaidReentryCount: number;
       signAgreement: boolean;
@@ -471,6 +516,9 @@ export class InGameUserStateService {
         );
         const reentryByPaymentMethod = flattenReentryPairsForApi(reentryPairs);
         const bonuses = parseJsonStringArray(row.bonuses);
+        const customBonusChips = parseStoredCustomBonusChipsJson(
+          row.customBonusChips
+        );
         const recordedReentry = recordedReentryCountFromPairs(reentryPairs);
         const unpaidReentryCount = Math.max(
           0,
@@ -493,6 +541,7 @@ export class InGameUserStateService {
           tournamentFreeReentryCount: 0,
           placement,
           bonuses,
+          customBonusChips,
           playerName: player?.nickname ?? null,
           unpaidReentryCount,
           signAgreement: player?.signAgreement ?? false,

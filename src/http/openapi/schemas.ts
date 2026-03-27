@@ -17,8 +17,20 @@ export const EntryPaymentMethodSchema = z
 
 /** In-game bonus enum */
 export const InGameBonusSchema = z
-  .enum(["EarlyBird", "First20", "Hookah", "Diller", "BonusOfTheDay"])
+  .enum([
+    "EarlyBird",
+    "First20",
+    "Hookah",
+    "Diller",
+    "BonusOfTheDay",
+    "Custom",
+  ])
   .openapi("InGameBonus");
+
+/** Bonuses stored as type+count pairs (excludes Custom — use customBonusChips) */
+export const FixedInGameBonusPairSchema = z
+  .enum(["EarlyBird", "First20", "Hookah", "Diller", "BonusOfTheDay"])
+  .openapi("FixedInGameBonusPair");
 
 /** In-game user state */
 export const InGameUserStateSchema = z
@@ -63,8 +75,16 @@ export const InGameUserStateSchema = z
       .array(InGameBonusSchema)
       .nullable()
       .openapi({
-        description: "Bonuses as flat list, e.g. [\"EarlyBird\", \"BonusOfTheDay\", \"Diller\"]",
+        description:
+          "Bonuses as flat list (Custom is never listed here — use customBonusChips)",
         example: ["EarlyBird", "BonusOfTheDay", "Diller"],
+      }),
+    customBonusChips: z
+      .array(z.number().int().positive())
+      .openapi({
+        description:
+          "Per-grant custom bonus chip amounts (use POST .../bonuses/custom to add)",
+        example: [5000, 7500],
       }),
     bountyKills: z
       .array(z.string())
@@ -281,12 +301,23 @@ export const ReentryCountBodySchema = z
   })
   .openapi("ReentryCountBody");
 
+/** Request body: add custom bonus chips (one grant) */
+export const CustomBonusChipsBodySchema = z
+  .object({
+    chips: z
+      .number()
+      .int()
+      .positive()
+      .openapi({ description: "Chip amount for this grant", example: 7500 }),
+  })
+  .openapi("CustomBonusChipsBody");
+
 /** Request body: add one bonus instance or remove one (same shape) */
 export const BonusMutationBodySchema = z
   .object({
-    bonus: InGameBonusSchema.openapi({
+    bonus: FixedInGameBonusPairSchema.openapi({
       description:
-        "Bonus type. Add: increments count. Remove: decrements count by one (if count was zero, 404).",
+        "Bonus type (not Custom — use POST .../bonuses/custom). Add: increments count. Remove: decrements by one.",
       example: "EarlyBird",
     }),
   })

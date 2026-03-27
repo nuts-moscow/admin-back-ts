@@ -39,6 +39,8 @@ export const InGameBonus = {
   Diller: "Diller",
   /** Бонус дня */
   BonusOfTheDay: "BonusOfTheDay",
+  /** Произвольные фишки: хранятся в customBonusChips, не в bonuses-парах */
+  Custom: "Custom",
 } as const;
 
 export type InGameBonus =
@@ -75,6 +77,8 @@ export interface InGameUserState {
   tournamentFreeReentryCount: number;
   placement: number | null;
   bonuses: BonusesByType | null;
+  /** Размеры выдач custom-бонуса в фишках (каждый элемент — одна выдача). */
+  customBonusChips: number[];
 }
 
 /** Creates initial state: optional fields empty, bountyCount = 0 */
@@ -99,5 +103,6 @@ export function initInGameUserState(
     tournamentFreeReentryCount: 0,
     placement: null,
     bonuses: null,
+    customBonusChips: [],
   };
 }
