@@ -17,3 +17,9 @@ export type {
   TournamentStructureId,
   TournamentStructureName,
 } from "./TournamentStructure";
+export type {
+  TournamentClockRedisState,
+  TournamentClockStepType,
+  TournamentClockTick,
+  TournamentClockTournamentStatus,
+} from "./TournamentClockState";

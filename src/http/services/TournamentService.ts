@@ -7,6 +7,7 @@ import {
 } from "../../postgres";
 import { runTournamentCompletion } from "./TournamentCompletionService";
 import type { InGameUserStateService } from "./InGameUserStateService";
+import { tournamentClockService } from "./TournamentClockService";
 
 export interface MakeTournamentStructureBody {
   name: string;
@@ -157,6 +158,14 @@ export class TournamentService {
     }
     const tournament = await tournamentRepository.updateStatus(id, status);
     if (!tournament) return { ok: false, error: "not_found" };
+
+    if (tournament.status === "in_progress") {
+      await tournamentClockService.ensureStarted(tournament.id);
+    }
+    if (tournament.status === "completed") {
+      await tournamentClockService.clearClock(tournament.id);
+    }
+
     return {
       ok: true,
       tournament: {
@@ -196,6 +205,14 @@ export class TournamentService {
     }
     const tournament = await tournamentRepository.update(id, input);
     if (!tournament) return { ok: false, error: "not_found" };
+
+    if (tournament.status === "in_progress") {
+      await tournamentClockService.ensureStarted(tournament.id);
+    }
+    if (tournament.status === "completed") {
+      await tournamentClockService.clearClock(tournament.id);
+    }
+
     return {
       ok: true,
       tournament: {
@@ -225,6 +242,7 @@ export class TournamentService {
       blindsStructure: structure.blinds,
     });
     if (!stored) return { ok: false, error: "failed" };
+    await tournamentClockService.reconcileAfterStructureChange(id);
     return { ok: true };
   }
 }

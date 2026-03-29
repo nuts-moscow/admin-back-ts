@@ -2,6 +2,7 @@ import type { BunRequest } from "bun";
 import type { BlindType } from "../../domain/BlindType";
 import { InGameUserStateService } from "../services/InGameUserStateService";
 import { TournamentService } from "../services/TournamentService";
+import { tournamentClockService } from "../services/TournamentClockService";
 
 function isValidBlind(x: unknown): x is Extract<BlindType, { type: "Blind" }> {
   if (typeof x !== "object" || x === null) return false;
@@ -73,6 +74,43 @@ function validateStructureBody(body: unknown): {
       blinds,
     },
   };
+}
+
+function parseClockPatch(body: unknown):
+  | { ok: true; paused?: boolean; extendCurrentLevelSec?: number }
+  | { ok: false; error: string } {
+  if (typeof body !== "object" || body === null) {
+    return { ok: false, error: "Invalid JSON body" };
+  }
+  const o = body as Record<string, unknown>;
+  let paused: boolean | undefined;
+  if (o.paused !== undefined) {
+    if (typeof o.paused !== "boolean") {
+      return { ok: false, error: "paused must be a boolean" };
+    }
+    paused = o.paused;
+  }
+  let extendCurrentLevelSec: number | undefined;
+  if (o.extendCurrentLevelSec !== undefined) {
+    if (
+      typeof o.extendCurrentLevelSec !== "number" ||
+      !Number.isInteger(o.extendCurrentLevelSec) ||
+      o.extendCurrentLevelSec < 1
+    ) {
+      return {
+        ok: false,
+        error: "extendCurrentLevelSec must be a positive integer",
+      };
+    }
+    extendCurrentLevelSec = o.extendCurrentLevelSec;
+  }
+  if (paused === undefined && extendCurrentLevelSec === undefined) {
+    return {
+      ok: false,
+      error: "At least one of paused or extendCurrentLevelSec is required",
+    };
+  }
+  return { ok: true, paused, extendCurrentLevelSec };
 }
 
 export function tournamentRoutes() {
@@ -446,6 +484,129 @@ export function tournamentRoutes() {
           );
         }
         return Response.json(result.tournament);
+      },
+    },
+    "/api/tournaments/:id/clock": {
+      GET: async (
+        req: BunRequest<"/api/tournaments/:id/clock"> & { params: { id: string } }
+      ) => {
+        const idStr = req.params?.id;
+        if (!idStr) {
+          return new Response(
+            JSON.stringify({ error: "id is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const id = parseInt(idStr, 10);
+        if (Number.isNaN(id)) {
+          return new Response(
+            JSON.stringify({ error: "id must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const tick = await tournamentClockService.getTick(id);
+        if (!tick) {
+          return new Response(
+            JSON.stringify({ error: "Tournament not found" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json(tick);
+      },
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:id/clock"> & { params: { id: string } }
+      ) => {
+        const idStr = req.params?.id;
+        if (!idStr) {
+          return new Response(
+            JSON.stringify({ error: "id is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const id = parseInt(idStr, 10);
+        if (Number.isNaN(id)) {
+          return new Response(
+            JSON.stringify({ error: "id must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        let body: unknown;
+        try {
+          body = await req.json();
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const parsed = parseClockPatch(body);
+        if (!parsed.ok) {
+          return new Response(
+            JSON.stringify({ error: parsed.error }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        if (parsed.extendCurrentLevelSec !== undefined) {
+          const r = await tournamentClockService.extendCurrentLevel(
+            id,
+            parsed.extendCurrentLevelSec
+          );
+          if (!r.ok) {
+            const status =
+              r.error === "not_found"
+                ? 404
+                : r.error === "failed"
+                  ? 500
+                  : r.error === "bad_request"
+                    ? 400
+                    : 400;
+            const msg =
+              r.error === "not_found"
+                ? "Tournament not found"
+                : r.error === "not_in_progress"
+                  ? "Tournament must be in_progress"
+                  : r.error === "no_clock"
+                    ? "Clock not started for this tournament"
+                    : r.error === "bad_request"
+                      ? "Cannot extend clock in current state"
+                      : "Failed to update clock";
+            return new Response(
+              JSON.stringify({ error: msg }),
+              { status, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
+
+        if (parsed.paused !== undefined) {
+          const r = parsed.paused
+            ? await tournamentClockService.pause(id)
+            : await tournamentClockService.resume(id);
+          if (!r.ok) {
+            const status =
+              r.error === "not_found"
+                ? 404
+                : r.error === "failed"
+                  ? 500
+                  : 400;
+            const msg =
+              r.error === "not_found"
+                ? "Tournament not found"
+                : r.error === "not_in_progress"
+                  ? "Tournament must be in_progress"
+                  : r.error === "no_clock"
+                    ? "Clock not started for this tournament"
+                    : r.error === "bad_request"
+                      ? "Invalid clock operation"
+                      : "Failed to update clock";
+            return new Response(
+              JSON.stringify({ error: msg }),
+              { status, headers: { "Content-Type": "application/json" } }
+            );
+          }
+        }
+
+        return new Response(null, { status: 204 });
       },
     },
     "/api/tournaments/:id/structure": {

@@ -661,3 +661,47 @@ export const UpdateTournamentStatusBodySchema = z
     status: TournamentStatusSchema.openapi({ description: "Tournament status" }),
   })
   .openapi("UpdateTournamentStatusBody");
+
+/** Request body: pause / resume clock or extend current blind/break */
+export const PatchTournamentClockBodySchema = z
+  .object({
+    paused: z.boolean().optional().openapi({
+      description: "Pause clock (true) or resume (false). Tournament must be in_progress.",
+      example: true,
+    }),
+    extendCurrentLevelSec: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .openapi({
+        description: "Add this many seconds to the current structure step end",
+        example: 120,
+      }),
+  })
+  .refine(
+    (b) => b.paused !== undefined || b.extendCurrentLevelSec !== undefined,
+    {
+      message: "At least one of paused or extendCurrentLevelSec is required",
+    }
+  )
+  .openapi("PatchTournamentClockBody");
+
+/** WebSocket tick payload (~1/s) for tournament blind clock */
+export const TournamentClockTickSchema = z
+  .object({
+    type: z.literal("tournament_clock_tick"),
+    tournamentId: z.number(),
+    serverTimeMs: z.number(),
+    tournamentStatus: TournamentStatusSchema,
+    clockActive: z.boolean().openapi({
+      description: "True when tournament is in_progress and Redis clock state exists",
+    }),
+    paused: z.boolean(),
+    currentStepIndex: z.number().nullable(),
+    stepType: z.enum(["Blind", "Break"]).nullable(),
+    levelId: z.number().nullable(),
+    secondsRemaining: z.number().nullable(),
+    structureFinished: z.boolean(),
+  })
+  .openapi("TournamentClockTick");

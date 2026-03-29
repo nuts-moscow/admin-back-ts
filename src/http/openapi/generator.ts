@@ -34,6 +34,11 @@ export function generateOpenAPIDocument() {
         name: "Tournament Players",
         description: "Управление игроками турнира: добавление, состояние, bounty, re-entry, статус, оплата",
       },
+      {
+        name: "Tournament clock",
+        description:
+          "Турнирные часы (Redis): пауза, продление текущего уровня. Трансляция тиков: WebSocket `ws://…/ws/tournaments/{id}/clock`, тело сообщения — схема TournamentClockTick в openapi.json",
+      },
     ],
   });
 }

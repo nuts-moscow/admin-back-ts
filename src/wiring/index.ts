@@ -1,4 +1,5 @@
 import { createHttpServer } from "../http";
+import { startTournamentClockBroadcastLoop } from "../http/tournamentClockSocket";
 import { logger } from "../logger";
 import { PostgresClient } from "../postgres";
 import { RedisClient } from "../redis";
@@ -23,4 +24,5 @@ export async function wireRedis(): Promise<void> {
 
 export function wireHttp(): void {
   createHttpServer();
+  startTournamentClockBroadcastLoop();
 }

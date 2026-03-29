@@ -22,6 +22,7 @@ import {
   ListTournamentsResponseSchema,
   MakeTournamentBodySchema,
   MakeTournamentStructureBodySchema,
+  PatchTournamentClockBodySchema,
   PlayerGameStartBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
@@ -33,6 +34,7 @@ import {
   TournamentPlayerParamsSchema,
   TournamentResponseSchema,
   TournamentStructureResponseSchema,
+  TournamentClockTickSchema,
   TournamentWithStructureResponseSchema,
   UpdatePlayerBodySchema,
   UpdateTournamentBodySchema,
@@ -344,6 +346,59 @@ openApiRegistry.registerPath({
     400: { description: "Invalid request body" },
     404: { description: "Tournament not found" },
     500: { description: "Failed to update structure" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/tournaments/{id}/clock",
+  tags: ["Tournament clock"],
+  operationId: "getTournamentClockTick",
+  summary: "Current tournament blind clock snapshot",
+  description:
+    "Returns the same JSON shape as WebSocket ticks (one-shot). For live updates use WebSocket `/ws/tournaments/{id}/clock`.",
+  request: {
+    params: TournamentIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: "Current clock tick",
+      content: {
+        "application/json": { schema: TournamentClockTickSchema },
+      },
+    },
+    404: { description: "Tournament not found" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/tournaments/{id}/clock",
+  tags: ["Tournament clock"],
+  operationId: "patchTournamentClock",
+  summary: "Pause, resume, or extend current blind clock",
+  description:
+    "Updates tournament blind clock in Redis: pause freezes countdown and level advances; resume shifts the segment end; extendCurrentLevelSec adds seconds to the current step. Requires tournament in_progress and existing clock state (after first in_progress). WebSocket: connect to `/ws/tournaments/{tournamentId}/clock` — server emits JSON messages matching schema `TournamentClockTick` (~1 Hz + immediate snapshot on connect).",
+  request: {
+    params: TournamentIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: PatchTournamentClockBodySchema },
+      },
+    },
+  },
+  responses: {
+    204: { description: "Clock updated" },
+    400: {
+      description: "Invalid body or bad request for current clock state",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: { description: "Tournament not found" },
+    500: { description: "Failed to persist clock" },
   },
 });
 
