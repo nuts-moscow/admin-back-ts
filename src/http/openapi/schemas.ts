@@ -528,7 +528,9 @@ export const BlindSchema = z
     smallBlind: z.number(),
     bigBlind: z.number(),
     ante: z.boolean(),
-    duration: z.number(),
+    duration: z
+      .number()
+      .openapi({ description: "Level length in minutes (tournament clock uses seconds = minutes × 60)", example: 15 }),
   })
   .openapi("Blind");
 
@@ -537,7 +539,12 @@ export const BreakSchema = z
   .object({
     type: z.literal("Break"),
     id: z.number(),
-    duration: z.number(),
+    duration: z
+      .number()
+      .openapi({
+        description: "Break length in minutes (tournament clock uses seconds = minutes × 60)",
+        example: 5,
+      }),
   })
   .openapi("Break");
 

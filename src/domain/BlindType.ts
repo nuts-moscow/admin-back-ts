@@ -7,10 +7,10 @@ export type BlindId = number;
 /** Blind size (chips) */
 export type BlindSize = number;
 
-/** Blind duration in seconds */
+/** Blind level length in minutes (clock converts to seconds) */
 export type BlindDuration = number;
 
-/** Break duration in seconds */
+/** Break length in minutes (clock converts to seconds) */
 export type BreakDuration = number;
 
 /** Blind level with small/big blinds and optional ante */

@@ -1,8 +1,9 @@
 import type { BlindType } from "../../domain/BlindType";
 import type { TournamentClockRedisState } from "../../domain/TournamentClockState";
 
+/** Structure stores `duration` in minutes; clock uses whole seconds. */
 export function stepDurationSec(step: BlindType): number {
-  return step.duration;
+  return Math.max(0, step.duration * 60);
 }
 
 export function getEffectiveNowMs(
