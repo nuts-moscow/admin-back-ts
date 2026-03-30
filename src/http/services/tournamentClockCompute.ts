@@ -25,6 +25,35 @@ export function getSecondsRemaining(
 }
 
 /**
+ * Seconds from effective tournament time until the start of the next `Break`
+ * after `currentStepIndex`. Uses same pause semantics as `getSecondsRemaining`.
+ */
+export function getSecondsUntilNextBreak(
+  state: TournamentClockRedisState,
+  blinds: BlindType[],
+  realNowMs: number
+): number | null {
+  if (state.finished || blinds.length === 0) return null;
+  const i = state.currentStepIndex;
+  if (i < 0 || i >= blinds.length) return null;
+
+  let breakIndex = -1;
+  for (let j = i + 1; j < blinds.length; j++) {
+    if (blinds[j]!.type === "Break") {
+      breakIndex = j;
+      break;
+    }
+  }
+  if (breakIndex < 0) return null;
+
+  let total = getSecondsRemaining(state, realNowMs);
+  for (let j = i + 1; j < breakIndex; j++) {
+    total += stepDurationSec(blinds[j]!);
+  }
+  return Math.max(0, Math.ceil(total));
+}
+
+/**
  * Advances past completed segments while not paused and not finished.
  * Mutates a shallow copy semantics — returns a new state object.
  */

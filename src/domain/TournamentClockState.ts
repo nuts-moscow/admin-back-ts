@@ -41,6 +41,11 @@ export interface TournamentClockTick {
    * Zero when segment ended or structure finished.
    */
   secondsRemaining: number | null;
+  /**
+   * Seconds until the start of the next `Break` step after `currentStepIndex`.
+   * `null` when clock inactive, schedule finished, or no later break in the structure.
+   */
+  secondsUntilNextBreak: number | null;
   /** True when the blinds schedule has fully elapsed */
   structureFinished: boolean;
 }

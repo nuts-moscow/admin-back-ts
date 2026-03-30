@@ -9,6 +9,7 @@ import { tournamentRepository } from "../../postgres";
 import {
   advanceClockWhileElapsed,
   getSecondsRemaining,
+  getSecondsUntilNextBreak,
   initialStateFromFirstStep,
   reconcileAfterStructureChange,
 } from "./tournamentClockCompute";
@@ -185,6 +186,7 @@ export class TournamentClockService {
         stepType: null,
         levelId: null,
         secondsRemaining: null,
+        secondsUntilNextBreak: null,
         structureFinished: false,
       };
     }
@@ -199,6 +201,7 @@ export class TournamentClockService {
     const secRem = getSecondsRemaining(state, now);
     const idx = state.currentStepIndex;
     const stepType = stepTypeAt(blinds, idx);
+    const secondsUntilNextBreak = getSecondsUntilNextBreak(state, blinds, now);
 
     return {
       type: "tournament_clock_tick",
@@ -211,6 +214,7 @@ export class TournamentClockService {
       stepType,
       levelId: state.currentStepId,
       secondsRemaining: secRem,
+      secondsUntilNextBreak,
       structureFinished: state.finished,
     };
   }
@@ -231,6 +235,7 @@ export class TournamentClockService {
       stepType: null,
       levelId: null,
       secondsRemaining: null,
+      secondsUntilNextBreak: null,
       structureFinished: false,
     };
   }

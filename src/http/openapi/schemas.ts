@@ -709,6 +709,15 @@ export const TournamentClockTickSchema = z
     stepType: z.enum(["Blind", "Break"]).nullable(),
     levelId: z.number().nullable(),
     secondsRemaining: z.number().nullable(),
+    secondsUntilNextBreak: z
+      .number()
+      .int()
+      .nullable()
+      .openapi({
+        description:
+          "Seconds until the next Break in blindsStructure after currentStepIndex; null if none or clock inactive",
+        example: 900,
+      }),
     structureFinished: z.boolean(),
   })
   .openapi("TournamentClockTick");
