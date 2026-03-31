@@ -9,7 +9,7 @@ import {
 import { playerRepository } from "../../postgres";
 import { toApiResponse } from "../serializers/InGameUserStateSerializer";
 import {
-  eliminationEventIdsForPlayer,
+  eliminationEventsForPlayer,
   InGameUserStateService,
 } from "../services/InGameUserStateService";
 
@@ -51,7 +51,7 @@ export function inGameUserStateRoutes() {
     return toApiResponse(
       state,
       playerName,
-      eliminationEventIdsForPlayer(state.playerId, events)
+      eliminationEventsForPlayer(state.playerId, events)
     );
   }
 
@@ -591,7 +591,7 @@ export function inGameUserStateRoutes() {
               ...toApiResponse(
                 s,
                 player?.nickname ?? null,
-                eliminationEventIdsForPlayer(s.playerId, eliminationEvents)
+                eliminationEventsForPlayer(s.playerId, eliminationEvents)
               ),
               signAgreement: player?.signAgreement ?? false,
               bountyKills,

@@ -20,6 +20,7 @@ import {
   parseStoredBonusesJson,
   parseStoredCustomBonusChipsJson,
 } from "../../domain/cache/inGameBonusChips";
+import type { BountyEliminationEventForPlayer } from "../../domain/cache/BountyEliminationEventForPlayer";
 import {
   EntryPaymentMethod,
   InGameBonus,
@@ -484,6 +485,7 @@ export class InGameUserStateService {
       bountyKills: string[];
       eliminatedBy: string[];
       bountyEliminationEventIds: string[];
+      bountyEliminationEvents: BountyEliminationEventForPlayer[];
     }> | null
   > {
     const id = parseInt(tournamentId, 10);
@@ -541,6 +543,7 @@ export class InGameUserStateService {
           bountyKills: bountyKills ?? [],
           eliminatedBy: eliminatedBy ?? [],
           bountyEliminationEventIds: [],
+          bountyEliminationEvents: [],
         };
       })
     );
@@ -1488,17 +1491,24 @@ export class InGameUserStateService {
   }
 }
 
-/** Event IDs for POST .../bounty/eliminate/undo involving this player (victim or killer). */
-export function eliminationEventIdsForPlayer(
+/**
+ * Pending bounty eliminations involving this player (victim or one of the killers), for API state.
+ * Sorted by eventId. Undo: POST .../bounty/eliminate/undo with eventId.
+ */
+export function eliminationEventsForPlayer(
   playerId: PlayerId,
   events: BountyEliminationEventRecord[]
-): string[] {
+): BountyEliminationEventForPlayer[] {
   return events
     .filter(
       (e) =>
         e.eliminatedPlayerId === playerId ||
         e.killerPlayerIds.includes(playerId)
     )
-    .map((e) => e.eventId)
-    .sort((a, b) => a.localeCompare(b));
+    .sort((a, b) => a.eventId.localeCompare(b.eventId))
+    .map((e) => ({
+      eventId: e.eventId,
+      eliminatedPlayerId: e.eliminatedPlayerId,
+      killerPlayerIds: [...e.killerPlayerIds],
+    }));
 }

@@ -1,3 +1,4 @@
+import type { BountyEliminationEventForPlayer } from "../../domain/cache/BountyEliminationEventForPlayer";
 import {
   EntryPaymentMethod,
   type BonusesByType,
@@ -78,12 +79,13 @@ export function flattenReentryPairsForApi(
  * bonuses: [["EarlyBird", 2], ["BonusOfTheDay", 1], ["Diller", 1]] -> ["EarlyBird", "EarlyBird", "BonusOfTheDay", "Diller"]
  * playerName: from Postgres players table (pass from caller)
  * unpaidReentryCount: totalReentryCount minus re-entries with any recorded payment (Cache, CreditCard, Free)
- * bountyEliminationEventIds: pending POST /bounty/eliminate events where this player is victim or killer (undo via eventId)
+ * bountyEliminationEvents: pending POST /bounty/eliminate rows where this player is victim or killer (who was eliminated + killer list; undo via eventId)
+ * bountyEliminationEventIds: same events’ IDs only (convenience for undo)
  */
 export function toApiResponse(
   state: InGameUserState,
   playerName: string | null = null,
-  bountyEliminationEventIds: string[] = []
+  bountyEliminationEvents: BountyEliminationEventForPlayer[] = []
 ): Omit<InGameUserState, "reentryByPaymentMethod" | "bonuses" | "customBonusChips"> & {
   burnedStackChipsTotal: number;
   reentryByPaymentMethod: string[] | null;
@@ -92,6 +94,7 @@ export function toApiResponse(
   playerName: string | null;
   unpaidReentryCount: number;
   bountyEliminationEventIds: string[];
+  bountyEliminationEvents: BountyEliminationEventForPlayer[];
 } {
   const pairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
   const recorded = recordedReentryCountFromPairs(pairs);
@@ -106,6 +109,11 @@ export function toApiResponse(
     playerName,
     totalReentryCount: state.totalReentryCount,
     unpaidReentryCount,
-    bountyEliminationEventIds: [...bountyEliminationEventIds],
+    bountyEliminationEventIds: bountyEliminationEvents.map((e) => e.eventId),
+    bountyEliminationEvents: bountyEliminationEvents.map((e) => ({
+      eventId: e.eventId,
+      eliminatedPlayerId: e.eliminatedPlayerId,
+      killerPlayerIds: [...e.killerPlayerIds],
+    })),
   };
 }

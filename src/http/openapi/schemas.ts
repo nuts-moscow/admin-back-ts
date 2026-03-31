@@ -40,6 +40,24 @@ export const BurnedStackEventSchema = z
   })
   .openapi("BurnedStackEvent");
 
+/** Pending bounty elimination as embedded in player state (victim + killers) */
+export const BountyEliminationEventForPlayerSchema = z
+  .object({
+    eventId: z
+      .string()
+      .openapi({ description: "Pass to POST .../bounty/eliminate/undo", example: "550e8400-e29b-41d4-a716-446655440000" }),
+    eliminatedPlayerId: z
+      .string()
+      .openapi({ description: "Player who was eliminated in this event", example: "player-victim" }),
+    killerPlayerIds: z
+      .array(z.string())
+      .openapi({
+        description: "Players who shared this elimination / bounty (may be empty if not recorded)",
+        example: ["player-a", "player-b"],
+      }),
+  })
+  .openapi("BountyEliminationEventForPlayer");
+
 /** In-game user state */
 export const InGameUserStateSchema = z
   .object({
@@ -79,7 +97,14 @@ export const InGameUserStateSchema = z
       .array(z.string())
       .openapi({
         description:
-          "Pending POST /bounty/eliminate event IDs for this tournament where this player is the eliminated victim or one of the killers; undo with POST .../bounty/eliminate/undo. Empty for completed tournaments (archived results).",
+          "Same as bountyEliminationEvents[].eventId (convenience). Pending POST /bounty/eliminate where this player is victim or killer; undo with POST .../bounty/eliminate/undo. Empty when archived.",
+        example: [],
+      }),
+    bountyEliminationEvents: z
+      .array(BountyEliminationEventForPlayerSchema)
+      .openapi({
+        description:
+          "Pending bounty eliminations for this tournament involving this player: event id, who was eliminated, and killer list. Empty for completed tournaments.",
         example: [],
       }),
     freeEntryCount: z.number().openapi({ description: "Free entry count", example: 0 }),
