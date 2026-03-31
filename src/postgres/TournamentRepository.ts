@@ -45,6 +45,8 @@ export interface TournamentRepository {
   create(input: MakeTournamentInput): Promise<TournamentRow | null>;
   findById(id: number): Promise<TournamentRow | null>;
   list(options?: ListTournamentsOptions): Promise<TournamentRow[]>;
+  /** Numeric ids only; cheap for background clock tick. */
+  listIdsByStatus(status: string): Promise<number[]>;
   update(id: number, input: UpdateTournamentInput): Promise<TournamentRow | null>;
   updateStatus(id: number, status: string): Promise<TournamentRow | null>;
 }
@@ -100,6 +102,19 @@ class TournamentRepositoryImpl implements TournamentRepository {
       return result.rows.map((row) => rowToTournament(row as Record<string, unknown>));
     } catch (err) {
       logger.info({ err }, "[Postgres] TournamentRepository.list failed");
+      return [];
+    }
+  }
+
+  async listIdsByStatus(status: string): Promise<number[]> {
+    try {
+      const result = await PostgresClient.instance.query(
+        "SELECT id FROM tournaments WHERE status = $1 ORDER BY id",
+        [status]
+      );
+      return result.rows.map((row) => Number((row as Record<string, unknown>).id));
+    } catch (err) {
+      logger.info({ err }, "[Postgres] TournamentRepository.listIdsByStatus failed");
       return [];
     }
   }

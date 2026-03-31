@@ -483,8 +483,6 @@ export class InGameUserStateService {
       unpaidReentryCount: number;
       signAgreement: boolean;
       bountyKills: string[];
-      eliminatedBy: string[];
-      bountyEliminationEventIds: string[];
       bountyEliminationEvents: BountyEliminationEventForPlayer[];
     }> | null
   > {
@@ -500,7 +498,6 @@ export class InGameUserStateService {
       rows.map(async (row) => {
         const player = await playerRepository.findById(row.playerId);
         const bountyKills = parseJsonStringArray(row.bountyKills);
-        const eliminatedBy = parseJsonStringArray(row.eliminatedBy);
         const reentryPairs = parseReentryByPaymentMethodStoredJson(
           row.reentryByPaymentMethod
         );
@@ -541,8 +538,6 @@ export class InGameUserStateService {
           unpaidReentryCount,
           signAgreement: player?.signAgreement ?? false,
           bountyKills: bountyKills ?? [],
-          eliminatedBy: eliminatedBy ?? [],
-          bountyEliminationEventIds: [],
           bountyEliminationEvents: [],
         };
       })

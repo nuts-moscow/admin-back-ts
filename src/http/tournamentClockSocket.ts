@@ -1,5 +1,6 @@
 import type { ServerWebSocket } from "bun";
 import { logger } from "../logger";
+import { tournamentRepository } from "../postgres";
 import { tournamentClockService } from "./services/TournamentClockService";
 
 const LOG_PREFIX = "[TournamentClockSocket]";
@@ -45,12 +46,38 @@ export function onTournamentClockSocketClose(
   logger.info({ tournamentId }, `${LOG_PREFIX} close`);
 }
 
-async function broadcastTicks(): Promise<void> {
+/**
+ * ~1 Hz: advances persisted clock only for tournaments with DB status `in_progress`.
+ * Pause: `getTick` → `advanceClockWhileElapsed` does not step levels while `pauseBeganAtMs` is set;
+ * remaining time uses frozen effective now (see tournamentClockCompute).
+ *
+ * WebSocket clients on other statuses still receive `getTick` (inactive shape) so UI can update.
+ */
+async function tournamentClockTickAndBroadcast(): Promise<void> {
+  const inProgressIds = await tournamentRepository.listIdsByStatus("in_progress");
+
+  const ticks = new Map<
+    number,
+    Awaited<ReturnType<typeof tournamentClockService.getTick>>
+  >();
+
+  for (const tournamentId of inProgressIds) {
+    const tick = await tournamentClockService.getTick(tournamentId);
+    ticks.set(tournamentId, tick);
+  }
+
+  for (const tournamentId of subscribers.keys()) {
+    if (!ticks.has(tournamentId)) {
+      const tick = await tournamentClockService.getTick(tournamentId);
+      ticks.set(tournamentId, tick);
+    }
+  }
+
   for (const tournamentId of [...subscribers.keys()]) {
     const set = subscribers.get(tournamentId);
     if (!set || set.size === 0) continue;
 
-    const tick = await tournamentClockService.getTick(tournamentId);
+    const tick = ticks.get(tournamentId);
     if (!tick) {
       for (const ws of [...set]) {
         try {
@@ -77,6 +104,6 @@ async function broadcastTicks(): Promise<void> {
 
 export function startTournamentClockBroadcastLoop(): void {
   setInterval(() => {
-    void broadcastTicks();
+    void tournamentClockTickAndBroadcast();
   }, 1000);
 }

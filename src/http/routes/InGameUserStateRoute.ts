@@ -582,10 +582,9 @@ export function inGameUserStateRoutes() {
         const eliminationEvents = await service.getBountyEliminationEvents(tournamentId);
         const enriched = await Promise.all(
           states.map(async (s) => {
-            const [player, bountyKills, eliminatedBy] = await Promise.all([
+            const [player, bountyKills] = await Promise.all([
               playerRepository.findById(s.playerId),
               service.getKillsByKiller(tournamentId, s.playerId),
-              service.getEliminatedBy(tournamentId, s.playerId),
             ]);
             return {
               ...toApiResponse(
@@ -595,7 +594,6 @@ export function inGameUserStateRoutes() {
               ),
               signAgreement: player?.signAgreement ?? false,
               bountyKills,
-              eliminatedBy,
             };
           })
         );

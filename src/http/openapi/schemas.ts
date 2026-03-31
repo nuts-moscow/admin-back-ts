@@ -93,18 +93,11 @@ export const InGameUserStateSchema = z
           "Re-entries without a recorded payment method yet (totalReentryCount minus sum of reentryByPaymentMethod counts, including Free)",
         example: 0,
       }),
-    bountyEliminationEventIds: z
-      .array(z.string())
-      .openapi({
-        description:
-          "Same as bountyEliminationEvents[].eventId (convenience). Pending POST /bounty/eliminate where this player is victim or killer; undo with POST .../bounty/eliminate/undo. Empty when archived.",
-        example: [],
-      }),
     bountyEliminationEvents: z
       .array(BountyEliminationEventForPlayerSchema)
       .openapi({
         description:
-          "Pending bounty eliminations for this tournament involving this player: event id, who was eliminated, and killer list. Empty for completed tournaments.",
+          "Pending bounty eliminations for this tournament involving this player: event id, who was eliminated, and killer list. Undo: POST .../bounty/eliminate/undo with eventId. Empty for completed tournaments.",
         example: [],
       }),
     freeEntryCount: z.number().openapi({ description: "Free entry count", example: 0 }),
@@ -150,13 +143,6 @@ export const InGameUserStateSchema = z
       .openapi({
         description: "List of player IDs this player eliminated (only in list endpoint)",
         example: ["123", "456"],
-      }),
-    eliminatedBy: z
-      .array(z.string())
-      .optional()
-      .openapi({
-        description: "List of player IDs who eliminated this player (only in list endpoint)",
-        example: ["456"],
       }),
     signAgreement: z
       .boolean()

@@ -157,7 +157,8 @@ export class TournamentClockService {
   }
 
   /**
-   * Advances elapsed segments, persists if needed, returns wire tick.
+   * Advances elapsed segments for `in_progress` only, persists if needed, returns wire tick.
+   * While paused (`pauseBeganAtMs`), segments do not advance; `secondsRemaining` stays frozen.
    */
   async getTick(tournamentId: number): Promise<TournamentClockTick | null> {
     const idStr = String(tournamentId);

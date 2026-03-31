@@ -379,7 +379,7 @@ openApiRegistry.registerPath({
   operationId: "patchTournamentClock",
   summary: "Pause, resume, or extend current blind clock",
   description:
-    "Updates tournament blind clock in Redis: pause freezes countdown and level advances; resume shifts the segment end; extendCurrentLevelSec adds seconds to the current step. Requires tournament in_progress and existing clock state (after first in_progress). WebSocket: connect to `/ws/tournaments/{tournamentId}/clock` — server emits JSON messages matching schema `TournamentClockTick` (~1 Hz + immediate snapshot on connect).",
+    "Updates tournament blind clock in Redis: pause freezes countdown and blocks blind/break stepping until resume; resume shifts segment end; extendCurrentLevelSec adds seconds to the current step. Requires tournament in_progress and existing clock state (after first in_progress). Background ~1 Hz `getTick` runs only for DB `in_progress` (Redis advances when not paused; no stepping during pause). WebSocket `/ws/tournaments/{tournamentId}/clock` streams the same `TournamentClockTick` JSON (~1 Hz + snapshot on connect; other statuses for subscribers get inactive ticks).",
   request: {
     params: TournamentIdParamSchema,
     body: {

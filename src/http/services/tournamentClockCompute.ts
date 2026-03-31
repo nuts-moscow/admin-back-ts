@@ -54,8 +54,9 @@ export function getSecondsUntilNextBreak(
 }
 
 /**
- * Advances past completed segments while not paused and not finished.
- * Mutates a shallow copy semantics — returns a new state object.
+ * Advances past completed segments while the clock is running (not paused), not finished.
+ * When `pauseBeganAtMs` is set, returns `state` unchanged so level/break does not roll until resume.
+ * Mutates a shallow copy semantics — returns a new state object when advancing.
  */
 export function advanceClockWhileElapsed(
   state: TournamentClockRedisState,
