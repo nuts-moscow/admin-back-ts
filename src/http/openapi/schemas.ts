@@ -53,7 +53,12 @@ export const InGameUserStateSchema = z
       .openapi({ description: "Player name from Postgres players table", example: "john_doe" }),
     status: InGamePlayerStatusSchema,
     tableId: z.string().nullable().openapi({ description: "Table ID", example: "table-1" }),
-    bountyCount: z.number().openapi({ description: "Bounty count", example: 0 }),
+    bountyCount: z
+      .number()
+      .openapi({
+        description: "Bounty count (may be fractional when split across multiple killers)",
+        example: 1,
+      }),
     entryPaymentMethod: EntryPaymentMethodSchema.nullable(),
     reentryByPaymentMethod: z
       .array(EntryPaymentMethodSchema)
@@ -278,17 +283,26 @@ export const BountyEliminationTypeSchema = z
   .enum(["Rebuy", "Out"])
   .openapi("BountyEliminationType");
 
-/** Request body: remove bounty */
-export const BountyRemoveBodySchema = z
+/** Response: record bounty elimination */
+export const BountyEliminateResponseSchema = z
   .object({
-    killerPlayerId: z
+    eventId: z
       .string()
-      .openapi({ description: "Player from whom we take the bounty", example: "456" }),
-    victimPlayerId: z
-      .string()
-      .openapi({ description: "Player to remove from killer's list (eliminated player)", example: "123" }),
+      .openapi({
+        description: "Pass to POST .../bounty/eliminate/undo to fully reverse this elimination",
+        example: "550e8400-e29b-41d4-a716-446655440000",
+      }),
   })
-  .openapi("BountyRemoveBody");
+  .openapi("BountyEliminateResponse");
+
+/** Request body: undo recordBountyElimination */
+export const BountyEliminateUndoBodySchema = z
+  .object({
+    eventId: z
+      .string()
+      .openapi({ description: "eventId from POST .../bounty/eliminate response", example: "550e8400-e29b-41d4-a716-446655440000" }),
+  })
+  .openapi("BountyEliminateUndoBody");
 
 /** Request body: record bounty elimination */
 export const BountyEliminateBodySchema = z
@@ -296,12 +310,12 @@ export const BountyEliminateBodySchema = z
     eliminatedPlayerId: z
       .string()
       .openapi({ description: "Player who was eliminated", example: "123" }),
-    killerPlayerId: z
-      .string()
-      .optional()
+    killerPlayerIds: z
+      .array(z.string())
       .openapi({
-        description: "Player who made the elimination. Required when burnedStack is false.",
-        example: "456",
+        description:
+          "Players who shared the elimination bounty (1/N each). Required at least one when burnedStack is false. May be empty when burnedStack is true.",
+        example: ["456", "789"],
       }),
     type: BountyEliminationTypeSchema.openapi({
       description: "Rebuy = eliminated gets reentry, Out = no reentry",
@@ -312,7 +326,7 @@ export const BountyEliminateBodySchema = z
       .optional()
       .openapi({
         description:
-          "If true: victim burned stack, bounty not recorded for killer, only rebuy/Out. killerPlayerId optional. burnedChips required.",
+          "If true: victim burned stack, no bounty; killerPlayerIds may be empty. burnedChips required.",
         default: false,
       }),
     burnedChips: z
@@ -340,6 +354,12 @@ export const BountyEliminateBodySchema = z
           path: ["burnedChips"],
         });
       }
+    } else if (!data.killerPlayerIds || data.killerPlayerIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "killerPlayerIds must contain at least one id when burnedStack is false",
+        path: ["killerPlayerIds"],
+      });
     }
   })
   .openapi("BountyEliminateBody");

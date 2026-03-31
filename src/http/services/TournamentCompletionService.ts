@@ -1,4 +1,5 @@
 import {
+  BountyEliminationEventsCache,
   BountyKillsCache,
   InGameUserStateCache,
   tournamentStructureCache,
@@ -42,6 +43,7 @@ export async function runTournamentCompletion(
     );
     await InGameUserStateCache.deleteAllForTournament(tournamentIdStr);
     await BountyKillsCache.deleteAllForTournament(tournamentIdStr);
+    await BountyEliminationEventsCache.deleteAllForTournament(tournamentIdStr);
     await tournamentStructureCache.delete(tournamentIdStr);
     return { ok: true };
   }
@@ -140,6 +142,7 @@ export async function runTournamentCompletion(
   // Step 4: Delete all cache for tournament
   await InGameUserStateCache.deleteAllForTournament(tournamentIdStr);
   await BountyKillsCache.deleteAllForTournament(tournamentIdStr);
+  await BountyEliminationEventsCache.deleteAllForTournament(tournamentIdStr);
   await tournamentStructureCache.delete(tournamentIdStr);
 
   logger.info({ tournamentId, playerCount: states.length }, "[TournamentCompletion] done");

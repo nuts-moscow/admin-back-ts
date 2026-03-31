@@ -4,8 +4,9 @@ import {
   BonusMutationBodySchema,
   BountyCountBodySchema,
   BountyEliminateBodySchema,
+  BountyEliminateResponseSchema,
+  BountyEliminateUndoBodySchema,
   CashDeskResponseSchema,
-  BountyRemoveBodySchema,
   RebuyBurnedStackUndoBodySchema,
   CreatePlayerBodySchema,
   CustomBonusChipsBodySchema,
@@ -645,7 +646,7 @@ openApiRegistry.registerPath({
   operationId: "recordBountyElimination",
   summary: "Record bounty elimination",
   description:
-    "Elimination / bounty. type=Rebuy: adds reentry count; type=Out: status Out + placement. burnedStack=false (default): killerPlayerId required; bounty for killer + kill record. burnedStack=true: killerPlayerId optional; no bounty; burnedChips required (non-negative int); chips accumulate on eliminated player and reduce chip-pool totalChips. Rebuy and bust-out use the same endpoint.",
+    "Elimination / bounty. type=Rebuy: adds reentry count; type=Out: status Out + placement. burnedStack=false: killerPlayerIds required (min 1); one full bounty is split 1/N across listed killers (fractional bountyCount). burnedStack=true: killerPlayerIds may be empty; no bounty; burnedChips required. Stores an event; use eventId with POST .../bounty/eliminate/undo for full rollback.",
   request: {
     params: TournamentParamsSchema,
     body: {
@@ -655,8 +656,11 @@ openApiRegistry.registerPath({
     },
   },
   responses: {
-    204: {
-      description: "Elimination recorded successfully",
+    200: {
+      description: "Elimination recorded; save eventId for undo",
+      content: {
+        "application/json": { schema: BountyEliminateResponseSchema },
+      },
     },
     400: {
       description: "Invalid request body",
@@ -668,6 +672,59 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Eliminated or killer player not found in tournament",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    500: {
+      description: "Failed to persist elimination event after applying state",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/bounty/eliminate/undo`,
+  tags: ["Tournament Players"],
+  operationId: "undoBountyElimination",
+  summary: "Undo bounty elimination",
+  description:
+    "Fully reverses one POST .../bounty/eliminate using the returned eventId: bounty shares, kill lists, burned stack if any, Rebuy reentry or Out+placement.",
+  request: {
+    params: TournamentParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: BountyEliminateUndoBodySchema },
+      },
+    },
+  },
+  responses: {
+    204: { description: "Undo applied" },
+    400: {
+      description: "Cannot undo (validation failed)",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Event or victim not found",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    409: {
+      description: "Conflict with current player state (e.g. victim no longer Out)",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
@@ -705,45 +762,6 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Player not in tournament",
-      content: {
-        "application/json": {
-          schema: { type: "object", properties: { error: { type: "string" } } },
-        },
-      },
-    },
-  },
-});
-
-openApiRegistry.registerPath({
-  method: "post",
-  path: `${basePath}/bounty/remove`,
-  tags: ["Tournament Players"],
-  operationId: "removeBounty",
-  summary: "Remove bounty",
-  description:
-    "Undoes an elimination: removes victim from killer's list, decreases killer's bountyCount by 1, decreases victim's totalReentryCount by 1",
-  request: {
-    params: TournamentParamsSchema,
-    body: {
-      content: {
-        "application/json": { schema: BountyRemoveBodySchema },
-      },
-    },
-  },
-  responses: {
-    204: {
-      description: "Bounty removed successfully",
-    },
-    400: {
-      description: "Invalid request body",
-      content: {
-        "application/json": {
-          schema: { type: "object", properties: { error: { type: "string" } } },
-        },
-      },
-    },
-    404: {
-      description: "Kill record or player not found",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

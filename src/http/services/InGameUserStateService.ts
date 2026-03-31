@@ -1,4 +1,6 @@
 import {
+  BountyEliminationEventsCache,
+  type BountyEliminationEventRecord,
   BountyKillsCache,
   InGameUserStateCache,
   tournamentStructureCache,
@@ -181,49 +183,6 @@ export class InGameUserStateService {
     victimPlayerId: PlayerId
   ): Promise<PlayerId[]> {
     return BountyKillsCache.getEliminatedBy(tournamentId, victimPlayerId);
-  }
-
-  /**
-   * Removes a bounty: undoes one elimination.
-   * 1. Removes victim from killer's kill list
-   * 2. Decreases killer's bountyCount by 1
-   * 3. Decreases victim's totalReentryCount by 1
-   */
-  async removeBounty(
-    tournamentId: TournamentId,
-    killerPlayerId: PlayerId,
-    victimPlayerId: PlayerId
-  ): Promise<{ ok: boolean; error?: string }> {
-    const killRemoved = await BountyKillsCache.removeKill(
-      tournamentId,
-      killerPlayerId,
-      victimPlayerId
-    );
-    if (!killRemoved) {
-      return { ok: false, error: "Kill record not found" };
-    }
-    await BountyKillsCache.removeEliminatedBy(
-      tournamentId,
-      victimPlayerId,
-      killerPlayerId
-    );
-    const killerState = await InGameUserStateCache.updateBountyCount(
-      killerPlayerId,
-      tournamentId,
-      -1
-    );
-    if (!killerState) {
-      return { ok: false, error: "Killer player not found" };
-    }
-    const victimState = await InGameUserStateCache.addReentryCount(
-      victimPlayerId,
-      tournamentId,
-      -1
-    );
-    if (!victimState) {
-      return { ok: false, error: "Victim player not found" };
-    }
-    return { ok: true };
   }
 
   /** Returns count of players at table (excluding playerId if they're moving to another table) */
@@ -904,16 +863,38 @@ export class InGameUserStateService {
    * 1. If type=Rebuy: increments reentry count for eliminated player
    * 2. If type=Out: sets eliminated player status to Out
    * 3. If burnedStack: appends { chips: burnedChips, source } on eliminated player (Rebuy vs Out)
-   * 4. If !burnedStack && killerPlayerId: increments bounty count for killer, stores kill record
+   * 4. If !burnedStack && killerPlayerIds.length > 0: bounty share 1/N per killer + kill records
+   * Persists an elimination event and returns eventId for POST .../bounty/eliminate/undo.
    */
   async recordBountyElimination(
     tournamentId: TournamentId,
     eliminatedPlayerId: PlayerId,
-    killerPlayerId: PlayerId | undefined,
+    killerPlayerIds: PlayerId[],
     type: BountyEliminationTypeValue,
     burnedStack: boolean,
     burnedChips: number
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<{ ok: true; eventId: string } | { ok: false; error: string }> {
+    const normalizedKillers = [
+      ...new Set(killerPlayerIds.filter((id) => typeof id === "string" && id.length > 0)),
+    ];
+
+    if (!burnedStack && normalizedKillers.length === 0) {
+      return {
+        ok: false,
+        error: "killerPlayerIds must contain at least one id when burnedStack is false",
+      };
+    }
+
+    for (const kid of normalizedKillers) {
+      if (kid === eliminatedPlayerId) {
+        return { ok: false, error: "Eliminated player cannot be listed as killer" };
+      }
+      const ks = await InGameUserStateCache.get(kid, tournamentId);
+      if (!ks) {
+        return { ok: false, error: "Killer player not found in tournament" };
+      }
+    }
+
     if (type === "Rebuy") {
       const reentryState = await InGameUserStateCache.addReentryCount(
         eliminatedPlayerId,
@@ -924,7 +905,6 @@ export class InGameUserStateService {
         return { ok: false, error: "Eliminated player not found in tournament" };
       }
     } else {
-      // type === "Out": set status to Out and placement (elimination order)
       const eliminatedState = await InGameUserStateCache.get(
         eliminatedPlayerId,
         tournamentId
@@ -964,34 +944,366 @@ export class InGameUserStateService {
       }
     }
 
-    if (!burnedStack && killerPlayerId) {
-      const bountyState = await InGameUserStateCache.updateBountyCount(
-        killerPlayerId,
-        tournamentId,
-        1
-      );
-      if (!bountyState) {
-        return { ok: false, error: "Killer player not found in tournament" };
-      }
+    const n = normalizedKillers.length;
+    const recordedBounty = !burnedStack && n > 0;
+    const bountyShare = recordedBounty ? 1 / n : 0;
 
-      const killStored = await BountyKillsCache.addKill(
-        tournamentId,
-        killerPlayerId,
-        eliminatedPlayerId
-      );
-      if (!killStored) {
-        logger.info(
-          { tournamentId, killerPlayerId, eliminatedPlayerId },
-          "[InGameUserStateService] recordBountyElimination: kill record failed to store"
+    if (recordedBounty) {
+      for (const killerPlayerId of normalizedKillers) {
+        const bountyState = await InGameUserStateCache.updateBountyCount(
+          killerPlayerId,
+          tournamentId,
+          bountyShare
+        );
+        if (!bountyState) {
+          return { ok: false, error: "Killer player not found in tournament" };
+        }
+
+        const killStored = await BountyKillsCache.addKill(
+          tournamentId,
+          killerPlayerId,
+          eliminatedPlayerId
+        );
+        if (!killStored) {
+          logger.info(
+            { tournamentId, killerPlayerId, eliminatedPlayerId },
+            "[InGameUserStateService] recordBountyElimination: kill record failed to store"
+          );
+        }
+        await BountyKillsCache.addEliminatedBy(
+          tournamentId,
+          eliminatedPlayerId,
+          killerPlayerId
         );
       }
-      await BountyKillsCache.addEliminatedBy(
-        tournamentId,
-        eliminatedPlayerId,
-        killerPlayerId
-      );
     }
 
+    const eventId = crypto.randomUUID();
+    const record: BountyEliminationEventRecord = {
+      eventId,
+      eliminatedPlayerId,
+      killerPlayerIds: [...normalizedKillers],
+      type,
+      burnedStack,
+      burnedChips: burnedStack ? burnedChips : 0,
+      recordedBounty,
+      bountyShare,
+    };
+    const saved = await BountyEliminationEventsCache.save(record, tournamentId);
+    if (!saved) {
+      return { ok: false, error: "Failed to persist elimination event" };
+    }
+
+    return { ok: true, eventId };
+  }
+
+  /**
+   * Full undo of one POST /bounty/eliminate via stored event (bounty shares, kill lists, burn, Rebuy or Out).
+   */
+  async undoBountyElimination(
+    tournamentId: TournamentId,
+    eventId: string
+  ): Promise<{ ok: true } | { ok: false; error: string; conflict?: boolean }> {
+    const event = await BountyEliminationEventsCache.get(tournamentId, eventId);
+    if (!event) {
+      return { ok: false, error: "Elimination event not found" };
+    }
+
+    const victim = await InGameUserStateCache.get(event.eliminatedPlayerId, tournamentId);
+    if (!victim) {
+      return { ok: false, error: "Victim not found in tournament" };
+    }
+
+    if (event.type === "Rebuy") {
+      if (victim.totalReentryCount < 1) {
+        return {
+          ok: false,
+          error: "Cannot undo: victim has no reentry to remove",
+          conflict: true,
+        };
+      }
+    } else if (victim.status !== InGamePlayerStatus.Out) {
+      return {
+        ok: false,
+        error: "Cannot undo Out elimination: victim is not Out",
+        conflict: true,
+      };
+    }
+
+    if (event.burnedStack) {
+      const burnSource = event.type === "Rebuy" ? "Rebuy" : "Out";
+      if (
+        !InGameUserStateService.lastBurnedStackMatches(
+          victim,
+          event.burnedChips,
+          burnSource
+        )
+      ) {
+        return {
+          ok: false,
+          error: "No matching burned stack event to undo (LIFO)",
+          conflict: true,
+        };
+      }
+    }
+
+    if (event.recordedBounty) {
+      for (const kid of event.killerPlayerIds) {
+        const kills = await BountyKillsCache.getKillsByKiller(tournamentId, kid);
+        if (!kills.includes(event.eliminatedPlayerId)) {
+          return { ok: false, error: "Kill record not found for undo" };
+        }
+      }
+    }
+
+    const bountyRollback: { playerId: PlayerId; amount: number }[] = [];
+    const killersKillRemoved: PlayerId[] = [];
+
+    if (event.recordedBounty) {
+      for (const kid of event.killerPlayerIds) {
+        const st = await InGameUserStateCache.updateBountyCount(
+          kid,
+          tournamentId,
+          -event.bountyShare
+        );
+        if (!st) {
+          for (const r of bountyRollback) {
+            await InGameUserStateCache.updateBountyCount(r.playerId, tournamentId, r.amount);
+          }
+          for (const k of killersKillRemoved) {
+            await BountyKillsCache.addKill(tournamentId, k, event.eliminatedPlayerId);
+            await BountyKillsCache.addEliminatedBy(
+              tournamentId,
+              event.eliminatedPlayerId,
+              k
+            );
+          }
+          return { ok: false, error: "Failed to decrement killer bounty" };
+        }
+        bountyRollback.push({ playerId: kid, amount: event.bountyShare });
+
+        const removed = await BountyKillsCache.removeKill(
+          tournamentId,
+          kid,
+          event.eliminatedPlayerId
+        );
+        if (!removed) {
+          for (const r of bountyRollback) {
+            await InGameUserStateCache.updateBountyCount(r.playerId, tournamentId, r.amount);
+          }
+          for (const k of killersKillRemoved) {
+            await BountyKillsCache.addKill(tournamentId, k, event.eliminatedPlayerId);
+            await BountyKillsCache.addEliminatedBy(
+              tournamentId,
+              event.eliminatedPlayerId,
+              k
+            );
+          }
+          return { ok: false, error: "Failed to remove kill record" };
+        }
+        await BountyKillsCache.removeEliminatedBy(
+          tournamentId,
+          event.eliminatedPlayerId,
+          kid
+        );
+        killersKillRemoved.push(kid);
+      }
+    }
+
+    if (event.burnedStack) {
+      const burnSource = event.type === "Rebuy" ? "Rebuy" : "Out";
+      const afterBurn = await InGameUserStateCache.removeLastBurnedStackEventMatching(
+        event.eliminatedPlayerId,
+        tournamentId,
+        event.burnedChips,
+        burnSource
+      );
+      if (!afterBurn) {
+        if (event.recordedBounty) {
+          for (const kid of event.killerPlayerIds) {
+            await BountyKillsCache.addKill(
+              tournamentId,
+              kid,
+              event.eliminatedPlayerId
+            );
+            await BountyKillsCache.addEliminatedBy(
+              tournamentId,
+              event.eliminatedPlayerId,
+              kid
+            );
+            await InGameUserStateCache.updateBountyCount(
+              kid,
+              tournamentId,
+              event.bountyShare
+            );
+          }
+        }
+        return { ok: false, error: "Failed to remove burned stack event" };
+      }
+    }
+
+    if (event.type === "Rebuy") {
+      const afterRe = await InGameUserStateCache.addReentryCount(
+        event.eliminatedPlayerId,
+        tournamentId,
+        -1
+      );
+      if (!afterRe) {
+        if (event.burnedStack) {
+          const burnSource = event.type === "Rebuy" ? "Rebuy" : "Out";
+          await InGameUserStateCache.appendBurnedStackEvent(
+            event.eliminatedPlayerId,
+            tournamentId,
+            event.burnedChips,
+            burnSource
+          );
+        }
+        if (event.recordedBounty) {
+          for (const kid of event.killerPlayerIds) {
+            await BountyKillsCache.addKill(
+              tournamentId,
+              kid,
+              event.eliminatedPlayerId
+            );
+            await BountyKillsCache.addEliminatedBy(
+              tournamentId,
+              event.eliminatedPlayerId,
+              kid
+            );
+            await InGameUserStateCache.updateBountyCount(
+              kid,
+              tournamentId,
+              event.bountyShare
+            );
+          }
+        }
+        return { ok: false, error: "Failed to decrement victim reentry" };
+      }
+    } else {
+      const outUndo = await this.undoOutEliminationForVictim(
+        tournamentId,
+        event.eliminatedPlayerId,
+        victim
+      );
+      if (!outUndo.ok) {
+        if (event.burnedStack) {
+          const burnSource = "Out";
+          await InGameUserStateCache.appendBurnedStackEvent(
+            event.eliminatedPlayerId,
+            tournamentId,
+            event.burnedChips,
+            burnSource
+          );
+        }
+        if (event.recordedBounty) {
+          for (const kid of event.killerPlayerIds) {
+            await BountyKillsCache.addKill(
+              tournamentId,
+              kid,
+              event.eliminatedPlayerId
+            );
+            await BountyKillsCache.addEliminatedBy(
+              tournamentId,
+              event.eliminatedPlayerId,
+              kid
+            );
+            await InGameUserStateCache.updateBountyCount(
+              kid,
+              tournamentId,
+              event.bountyShare
+            );
+          }
+        }
+        return { ok: false, error: outUndo.error };
+      }
+    }
+
+    await BountyEliminationEventsCache.delete(tournamentId, eventId);
+    return { ok: true };
+  }
+
+  private static lastBurnedStackMatches(
+    victim: InGameUserState,
+    chips: number,
+    source: "Rebuy" | "Out"
+  ): boolean {
+    for (let i = victim.burnedStackEvents.length - 1; i >= 0; i--) {
+      const e = victim.burnedStackEvents[i];
+      if (e != null && e.source === source && e.chips === chips) return true;
+    }
+    return false;
+  }
+
+  /** Restores victim from Out to in-game and shifts other Out placements down (inverse of elimination). */
+  private async undoOutEliminationForVictim(
+    tournamentId: TournamentId,
+    victimId: PlayerId,
+    victimState: InGameUserState
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const oldPlacement = victimState.placement;
+    const shifted: { playerId: PlayerId; fromPlacement: number }[] = [];
+
+    if (oldPlacement !== null) {
+      const allStates = await InGameUserStateCache.getAllByTournament(tournamentId);
+      const toShift = allStates.filter(
+        (s) =>
+          s.playerId !== victimId &&
+          s.status === InGamePlayerStatus.Out &&
+          s.placement != null &&
+          s.placement > oldPlacement
+      );
+      toShift.sort((a, b) => (b.placement ?? 0) - (a.placement ?? 0));
+
+      for (const s of toShift) {
+        const from = s.placement as number;
+        const to = from - 1;
+        const updated = await InGameUserStateCache.updateStatusAndPlacement(
+          s.playerId,
+          tournamentId,
+          InGamePlayerStatus.Out,
+          to
+        );
+        if (!updated) {
+          for (let i = shifted.length - 1; i >= 0; i--) {
+            const u = shifted[i]!;
+            await InGameUserStateCache.updateStatusAndPlacement(
+              u.playerId,
+              tournamentId,
+              InGamePlayerStatus.Out,
+              u.fromPlacement
+            );
+          }
+          return { ok: false, error: "Failed to shift placements" };
+        }
+        shifted.push({ playerId: s.playerId, fromPlacement: from });
+      }
+    }
+
+    const newStatus =
+      victimState.entryPaymentMethod != null
+        ? InGamePlayerStatus.InGamePaid
+        : InGamePlayerStatus.InGameNotPaid;
+
+    const afterStatus = await InGameUserStateCache.updateStatusAndPlacement(
+      victimId,
+      tournamentId,
+      newStatus,
+      null
+    );
+    if (!afterStatus) {
+      for (let i = shifted.length - 1; i >= 0; i--) {
+        const u = shifted[i]!;
+        await InGameUserStateCache.updateStatusAndPlacement(
+          u.playerId,
+          tournamentId,
+          InGamePlayerStatus.Out,
+          u.fromPlacement
+        );
+      }
+      return { ok: false, error: "Failed to restore victim status" };
+    }
+
+    await InGameUserStateCache.updateTableId(victimId, tournamentId, null);
     return { ok: true };
   }
 

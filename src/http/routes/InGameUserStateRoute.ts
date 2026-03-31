@@ -120,10 +120,10 @@ export function inGameUserStateRoutes() {
       ) => {
         const { tournamentId } = req.params;
         let body: {
-          eliminatedPlayerId: string;
-          killerPlayerId?: string;
-          type: string;
-          burnedStack?: boolean;
+          eliminatedPlayerId?: unknown;
+          killerPlayerIds?: unknown;
+          type?: unknown;
+          burnedStack?: unknown;
           burnedChips?: unknown;
         };
         try {
@@ -134,23 +134,33 @@ export function inGameUserStateRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        const { eliminatedPlayerId, killerPlayerId, type, burnedStack, burnedChips } =
-          body;
-        if (
-          !eliminatedPlayerId ||
-          !type ||
-          typeof eliminatedPlayerId !== "string" ||
-          typeof type !== "string"
-        ) {
+        const eliminatedPlayerId =
+          typeof body.eliminatedPlayerId === "string" ? body.eliminatedPlayerId : "";
+        const type = typeof body.type === "string" ? body.type : "";
+        const burnedStack = body.burnedStack === true;
+        const burnedChips = body.burnedChips;
+        const killerPlayerIdsRaw = body.killerPlayerIds;
+        if (!eliminatedPlayerId || !type) {
           return new Response(
             JSON.stringify({
-              error: "eliminatedPlayerId and type are required strings",
+              error: "eliminatedPlayerId and type are required",
             }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        const isBurnedStack = burnedStack === true;
-        if (isBurnedStack) {
+        if (
+          !Array.isArray(killerPlayerIdsRaw) ||
+          !killerPlayerIdsRaw.every((id) => typeof id === "string")
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: "killerPlayerIds must be an array of strings",
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const killerPlayerIds = killerPlayerIdsRaw as string[];
+        if (burnedStack) {
           if (
             typeof burnedChips !== "number" ||
             !Number.isInteger(burnedChips) ||
@@ -164,11 +174,11 @@ export function inGameUserStateRoutes() {
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
-        }
-        if (!isBurnedStack && (!killerPlayerId || typeof killerPlayerId !== "string")) {
+        } else if (killerPlayerIds.length === 0) {
           return new Response(
             JSON.stringify({
-              error: "killerPlayerId is required when burnedStack is false",
+              error:
+                "killerPlayerIds must contain at least one id when burnedStack is false",
             }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
@@ -186,16 +196,56 @@ export function inGameUserStateRoutes() {
         const result = await service.recordBountyElimination(
           tournamentId,
           eliminatedPlayerId,
-          killerPlayerId,
+          killerPlayerIds,
           eliminationType,
-          isBurnedStack,
-          isBurnedStack ? (burnedChips as number) : 0
+          burnedStack,
+          burnedStack ? (burnedChips as number) : 0
         );
         if (!result.ok) {
+          const msg = result.error ?? "Failed to record elimination";
+          let status = 400;
+          if (msg === "Failed to persist elimination event") status = 500;
+          else if (msg.includes("not found")) status = 404;
+          return new Response(JSON.stringify({ error: msg }), {
+            status,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return Response.json({ eventId: result.eventId });
+      },
+    },
+    "/api/tournaments/:tournamentId/bounty/eliminate/undo": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/bounty/eliminate/undo">
+      ) => {
+        const { tournamentId } = req.params;
+        let body: { eventId?: unknown };
+        try {
+          body = (await req.json()) as { eventId?: unknown };
+        } catch {
           return new Response(
-            JSON.stringify({ error: result.error ?? "Failed to record elimination" }),
-            { status: 404, headers: { "Content-Type": "application/json" } }
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
           );
+        }
+        if (typeof body.eventId !== "string" || !body.eventId) {
+          return new Response(
+            JSON.stringify({ error: "eventId is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.undoBountyElimination(tournamentId, body.eventId);
+        if (!result.ok) {
+          const msg = result.error;
+          const status = result.conflict
+            ? 409
+            : msg.includes("not found")
+              ? 404
+              : 400;
+          return new Response(JSON.stringify({ error: msg }), {
+            status,
+            headers: { "Content-Type": "application/json" },
+          });
         }
         return new Response(null, { status: 204 });
       },
@@ -241,48 +291,6 @@ export function inGameUserStateRoutes() {
             status,
             headers: { "Content-Type": "application/json" },
           });
-        }
-        return new Response(null, { status: 204 });
-      },
-    },
-    "/api/tournaments/:tournamentId/bounty/remove": {
-      POST: async (
-        req: BunRequest<"/api/tournaments/:tournamentId/bounty/remove">
-      ) => {
-        const { tournamentId } = req.params;
-        let body: { killerPlayerId: string; victimPlayerId: string };
-        try {
-          body = (await req.json()) as { killerPlayerId: string; victimPlayerId: string };
-        } catch {
-          return new Response(
-            JSON.stringify({ error: "Invalid JSON body" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
-        }
-        const { killerPlayerId, victimPlayerId } = body;
-        if (
-          !killerPlayerId ||
-          !victimPlayerId ||
-          typeof killerPlayerId !== "string" ||
-          typeof victimPlayerId !== "string"
-        ) {
-          return new Response(
-            JSON.stringify({
-              error: "killerPlayerId and victimPlayerId are required strings",
-            }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
-        }
-        const result = await service.removeBounty(
-          tournamentId,
-          killerPlayerId,
-          victimPlayerId
-        );
-        if (!result.ok) {
-          return new Response(
-            JSON.stringify({ error: result.error ?? "Failed to remove bounty" }),
-            { status: 404, headers: { "Content-Type": "application/json" } }
-          );
         }
         return new Response(null, { status: 204 });
       },

@@ -127,10 +127,10 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
-   * Atomically adds incoming bounty count to current state.
+   * Atomically adds to current bounty count (Redis HINCRBYFLOAT; supports fractional shares).
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
-   * @param bountyCountToAdd - Amount to add to current bountyCount
+   * @param bountyCountToAdd - Delta (may be fractional, e.g. 1/N killers)
    * @returns Updated state or null if state does not exist or on error
    */
   updateBountyCount(
@@ -209,6 +209,17 @@ export interface InGameUserStateCache {
     playerId: PlayerId,
     tournamentId: TournamentId,
     chips: number
+  ): Promise<InGameUserState | null>;
+
+  /**
+   * Removes the last burned-stack event with matching chips and source (LIFO).
+   * @returns Updated state or null if no match or state missing
+   */
+  removeLastBurnedStackEventMatching(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number,
+    source: "Rebuy" | "Out"
   ): Promise<InGameUserState | null>;
 
   /**
@@ -408,20 +419,13 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount result: miss (key not found)`);
         return null;
       }
-      const newBountyCount = await RedisClient.instance.hincrby(
-        k,
-        "bountyCount",
-        bountyCountToAdd
-      );
+      await RedisClient.instance.hincrbyfloat(k, "bountyCount", bountyCountToAdd);
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateBountyCount result: miss (no data after incr)`);
         return null;
       }
-      const state = parseHashToState(
-        { ...hash, bountyCount: String(newBountyCount) },
-        playerId
-      );
+      const state = parseHashToState(hash, playerId);
       logger.info(
         { state: !!state, playerId: state?.playerId, bountyCount: state?.bountyCount },
         `${LOG_PREFIX} InGameUserStateCache.updateBountyCount result`
@@ -668,9 +672,18 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     tournamentId: TournamentId,
     chips: number
   ): Promise<InGameUserState | null> {
+    return this.removeLastBurnedStackEventMatching(playerId, tournamentId, chips, "Rebuy");
+  }
+
+  async removeLastBurnedStackEventMatching(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    chips: number,
+    source: "Rebuy" | "Out"
+  ): Promise<InGameUserState | null> {
     logger.info(
-      { playerId, tournamentId, chips },
-      `${LOG_PREFIX} InGameUserStateCache.removeLastRebuyBurnedStackEventMatching entry`
+      { playerId, tournamentId, chips, source },
+      `${LOG_PREFIX} InGameUserStateCache.removeLastBurnedStackEventMatching entry`
     );
     if (!Number.isInteger(chips) || chips < 0) {
       return null;
@@ -681,15 +694,15 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     let idx = -1;
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
-      if (e != null && e.source === "Rebuy" && e.chips === chips) {
+      if (e != null && e.source === source && e.chips === chips) {
         idx = i;
         break;
       }
     }
     if (idx < 0) {
       logger.info(
-        { chips },
-        `${LOG_PREFIX} InGameUserStateCache.removeLastRebuyBurnedStackEventMatching: no match`
+        { chips, source },
+        `${LOG_PREFIX} InGameUserStateCache.removeLastBurnedStackEventMatching: no match`
       );
       return null;
     }
@@ -1140,8 +1153,8 @@ function parseHashToState(
     logger.info({ hash }, `${LOG_PREFIX} parseHashToState failed: missing required field 'bountyCount'`);
     return null;
   }
-  const bountyCount = parseInt(hash.bountyCount, 10);
-  if (Number.isNaN(bountyCount)) {
+  const bountyCount = parseFloat(hash.bountyCount);
+  if (!Number.isFinite(bountyCount) || bountyCount < 0) {
     logger.info({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid bountyCount`);
     return null;
   }

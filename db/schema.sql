@@ -46,7 +46,7 @@ create table if not exists tournament_result_players (
     entry_payment_method      text,
     reentry_by_payment_method text,
     total_reentry_count       integer  not null default 0,
-    bounty_count              integer  not null default 0,
+    bounty_count              double precision not null default 0,
     bonuses                   text,
     custom_bonus_chips        text,
     bounty_kills              text,

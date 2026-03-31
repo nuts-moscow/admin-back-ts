@@ -71,6 +71,7 @@ export interface InGameUserState {
   playerId: PlayerId;
   status: InGamePlayerStatus;
   tableId: TableId | null;
+  /** Whole bounties plus fractional shares when a single elimination is split across N killers. */
   bountyCount: number;
   entryPaymentMethod: EntryPaymentMethod | null;
   reentryByPaymentMethod: ReentryByPaymentMethod | null;
