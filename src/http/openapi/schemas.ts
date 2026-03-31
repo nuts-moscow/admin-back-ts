@@ -75,6 +75,13 @@ export const InGameUserStateSchema = z
           "Re-entries without a recorded payment method yet (totalReentryCount minus sum of reentryByPaymentMethod counts, including Free)",
         example: 0,
       }),
+    bountyEliminationEventIds: z
+      .array(z.string())
+      .openapi({
+        description:
+          "Pending POST /bounty/eliminate event IDs for this tournament where this player is the eliminated victim or one of the killers; undo with POST .../bounty/eliminate/undo. Empty for completed tournaments (archived results).",
+        example: [],
+      }),
     freeEntryCount: z.number().openapi({ description: "Free entry count", example: 0 }),
     freeReentryCount: z.number().openapi({ description: "Free re-entry count", example: 0 }),
     tournamentFreeEntryCount: z

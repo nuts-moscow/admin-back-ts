@@ -78,16 +78,20 @@ export function flattenReentryPairsForApi(
  * bonuses: [["EarlyBird", 2], ["BonusOfTheDay", 1], ["Diller", 1]] -> ["EarlyBird", "EarlyBird", "BonusOfTheDay", "Diller"]
  * playerName: from Postgres players table (pass from caller)
  * unpaidReentryCount: totalReentryCount minus re-entries with any recorded payment (Cache, CreditCard, Free)
+ * bountyEliminationEventIds: pending POST /bounty/eliminate events where this player is victim or killer (undo via eventId)
  */
 export function toApiResponse(
   state: InGameUserState,
-  playerName: string | null = null
+  playerName: string | null = null,
+  bountyEliminationEventIds: string[] = []
 ): Omit<InGameUserState, "reentryByPaymentMethod" | "bonuses" | "customBonusChips"> & {
+  burnedStackChipsTotal: number;
   reentryByPaymentMethod: string[] | null;
   bonuses: string[] | null;
   customBonusChips: number[];
   playerName: string | null;
   unpaidReentryCount: number;
+  bountyEliminationEventIds: string[];
 } {
   const pairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
   const recorded = recordedReentryCountFromPairs(pairs);
@@ -102,5 +106,6 @@ export function toApiResponse(
     playerName,
     totalReentryCount: state.totalReentryCount,
     unpaidReentryCount,
+    bountyEliminationEventIds: [...bountyEliminationEventIds],
   };
 }

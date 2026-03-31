@@ -1,12 +1,17 @@
 import type { BunRequest } from "bun";
+import type { BountyEliminationEventRecord } from "../../cache/BountyEliminationEventsCache";
 import {
   BountyEliminationType,
   EntryPaymentMethod,
   InGameBonus,
+  type InGameUserState,
 } from "../../domain/cache/InGameUserState";
 import { playerRepository } from "../../postgres";
 import { toApiResponse } from "../serializers/InGameUserStateSerializer";
-import { InGameUserStateService } from "../services/InGameUserStateService";
+import {
+  eliminationEventIdsForPlayer,
+  InGameUserStateService,
+} from "../services/InGameUserStateService";
 
 const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
   Object.values(EntryPaymentMethod)
@@ -34,6 +39,21 @@ function parseEarlyBirdFlagFromBody(body: unknown): boolean {
 
 export function inGameUserStateRoutes() {
   const service = new InGameUserStateService();
+
+  async function playerStateResponse(
+    tournamentId: string,
+    state: InGameUserState,
+    playerName: string | null,
+    preloaded?: BountyEliminationEventRecord[]
+  ) {
+    const events =
+      preloaded ?? (await service.getBountyEliminationEvents(tournamentId));
+    return toApiResponse(
+      state,
+      playerName,
+      eliminationEventIdsForPlayer(state.playerId, events)
+    );
+  }
 
   const postReturnToGame = async (
     req: Request & { params: Record<string, string> }
@@ -63,7 +83,7 @@ export function inGameUserStateRoutes() {
       );
     }
     const playerName = await playerRepository.getNicknameById(playerId);
-    return Response.json(toApiResponse(result.state, playerName));
+    return Response.json(await playerStateResponse(tournamentId, result.state, playerName));
   };
 
   return {
@@ -100,7 +120,10 @@ export function inGameUserStateRoutes() {
           );
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName), { status: 201 });
+        return Response.json(
+          await playerStateResponse(tournamentId, state, playerName),
+          { status: 201 }
+        );
       },
       GET: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId">
@@ -111,7 +134,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/bounty/eliminate": {
@@ -332,7 +355,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/bonuses": {
@@ -367,7 +390,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/bonuses/remove": {
@@ -407,7 +430,7 @@ export function inGameUserStateRoutes() {
           );
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/bonuses/custom": {
@@ -446,7 +469,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/bonuses/custom/remove": {
@@ -491,7 +514,7 @@ export function inGameUserStateRoutes() {
           );
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/rebuy-count": {
@@ -556,6 +579,7 @@ export function inGameUserStateRoutes() {
           return Response.json(resultPlayers);
         }
         const states = await service.getAllByTournament(tournamentId);
+        const eliminationEvents = await service.getBountyEliminationEvents(tournamentId);
         const enriched = await Promise.all(
           states.map(async (s) => {
             const [player, bountyKills, eliminatedBy] = await Promise.all([
@@ -564,7 +588,11 @@ export function inGameUserStateRoutes() {
               service.getEliminatedBy(tournamentId, s.playerId),
             ]);
             return {
-              ...toApiResponse(s, player?.nickname ?? null),
+              ...toApiResponse(
+                s,
+                player?.nickname ?? null,
+                eliminationEventIdsForPlayer(s.playerId, eliminationEvents)
+              ),
               signAgreement: player?.signAgreement ?? false,
               bountyKills,
               eliminatedBy,
@@ -607,7 +635,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/game-start": {
@@ -677,7 +705,9 @@ export function inGameUserStateRoutes() {
           if (withBird) stateForResponse = withBird;
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(stateForResponse, playerName));
+        return Response.json(
+          await playerStateResponse(tournamentId, stateForResponse, playerName)
+        );
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/return-to-game": {
@@ -696,7 +726,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/in-game-payment": {
@@ -752,7 +782,9 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(result.state, playerName));
+        return Response.json(
+          await playerStateResponse(tournamentId, result.state, playerName)
+        );
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/entry-payment": {
@@ -800,7 +832,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/table": {
@@ -813,7 +845,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/table">
@@ -859,7 +891,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/reentry-payment": {
@@ -916,7 +948,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
       PUT: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/reentry-payment">
@@ -980,7 +1012,9 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(putState, playerName));
+        return Response.json(
+          await playerStateResponse(tournamentId, putState, playerName)
+        );
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/free-entries": {
@@ -1009,7 +1043,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
     "/api/tournaments/:tournamentId/players/:playerId/free-reentries": {
@@ -1038,7 +1072,7 @@ export function inGameUserStateRoutes() {
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
-        return Response.json(toApiResponse(state, playerName));
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
   };

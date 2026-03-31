@@ -33,6 +33,10 @@ export interface BountyEliminationEventsCache {
     tournamentId: TournamentId,
     eventId: string
   ): Promise<BountyEliminationEventRecord | null>;
+  /**
+   * All pending elimination events for the tournament (for undo), sorted by eventId.
+   */
+  listAll(tournamentId: TournamentId): Promise<BountyEliminationEventRecord[]>;
   delete(tournamentId: TournamentId, eventId: string): Promise<void>;
   deleteAllForTournament(tournamentId: TournamentId): Promise<void>;
 }
@@ -72,6 +76,31 @@ class BountyEliminationEventsCacheImpl implements BountyEliminationEventsCache {
     } catch (err) {
       logger.info({ err, eventId }, `${LOG_PREFIX} get failed`);
       return null;
+    }
+  }
+
+  async listAll(tournamentId: TournamentId): Promise<BountyEliminationEventRecord[]> {
+    try {
+      const keys = await RedisClient.instance.keys(eventsPattern(tournamentId));
+      const out: BountyEliminationEventRecord[] = [];
+      for (const k of keys) {
+        const raw = await RedisClient.instance.get(k);
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw) as BountyEliminationEventRecord;
+          if (parsed && typeof parsed.eventId === "string" && parsed.eventId.length > 0) {
+            out.push(parsed);
+          }
+        } catch {
+          /* skip corrupt entry */
+        }
+      }
+      out.sort((a, b) => a.eventId.localeCompare(b.eventId));
+      logger.info({ tournamentId, count: out.length }, `${LOG_PREFIX} listAll`);
+      return out;
+    } catch (err) {
+      logger.info({ err, tournamentId }, `${LOG_PREFIX} listAll failed`);
+      return [];
     }
   }
 

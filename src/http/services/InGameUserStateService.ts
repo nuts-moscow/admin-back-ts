@@ -185,6 +185,13 @@ export class InGameUserStateService {
     return BountyKillsCache.getEliminatedBy(tournamentId, victimPlayerId);
   }
 
+  /** Pending bounty elimination records (Redis); sorted by eventId. */
+  async getBountyEliminationEvents(
+    tournamentId: TournamentId
+  ): Promise<BountyEliminationEventRecord[]> {
+    return BountyEliminationEventsCache.listAll(tournamentId);
+  }
+
   /** Returns count of players at table (excluding playerId if they're moving to another table) */
   async getPlayerCountAtTable(
     tournamentId: TournamentId,
@@ -476,6 +483,7 @@ export class InGameUserStateService {
       signAgreement: boolean;
       bountyKills: string[];
       eliminatedBy: string[];
+      bountyEliminationEventIds: string[];
     }> | null
   > {
     const id = parseInt(tournamentId, 10);
@@ -532,6 +540,7 @@ export class InGameUserStateService {
           signAgreement: player?.signAgreement ?? false,
           bountyKills: bountyKills ?? [],
           eliminatedBy: eliminatedBy ?? [],
+          bountyEliminationEventIds: [],
         };
       })
     );
@@ -1477,4 +1486,19 @@ export class InGameUserStateService {
     }
     return { ok: true };
   }
+}
+
+/** Event IDs for POST .../bounty/eliminate/undo involving this player (victim or killer). */
+export function eliminationEventIdsForPlayer(
+  playerId: PlayerId,
+  events: BountyEliminationEventRecord[]
+): string[] {
+  return events
+    .filter(
+      (e) =>
+        e.eliminatedPlayerId === playerId ||
+        e.killerPlayerIds.includes(playerId)
+    )
+    .map((e) => e.eventId)
+    .sort((a, b) => a.localeCompare(b));
 }
