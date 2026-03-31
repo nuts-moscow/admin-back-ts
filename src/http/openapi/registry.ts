@@ -1151,6 +1151,51 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: "post",
+  path: "/v2/api/tournaments/{tournamentId}/players/{playerId}/return-to-game",
+  tags: ["Tournament Players"],
+  operationId: "returnPlayerToGame",
+  summary: "Return busted player to game",
+  description:
+    "Return busted player (Out) to in-game without a table: status InGamePaid or InGameNotPaid by entry payment, +1 unpaid rebuy, clear tableId and placement; placements of later bust-outs are decremented on the server.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Updated player state for the returning player",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid status or business rules",
+      content: {
+        "text/plain": {
+          schema: z.string(),
+        },
+      },
+    },
+    404: {
+      description: "Player not found in tournament",
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+    },
+    500: {
+      description: "Update failed",
+      content: {
+        "application/json": {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
   path: `${basePath}/players/{playerId}/in-game-payment`,
   tags: ["Tournament Players"],
   operationId: "inGamePayment",

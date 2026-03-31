@@ -996,6 +996,136 @@ export class InGameUserStateService {
   }
 
   /**
+   * Returns a busted player (Out) to in-game without a table: InGamePaid if entry was paid else
+   * InGameNotPaid, +1 unpaid rebuy (totalReentryCount), placement and tableId cleared.
+   * Out players who had a higher elimination placement get placement decremented by 1.
+   */
+  async returnBustedPlayerToGame(
+    tournamentId: TournamentId,
+    playerId: PlayerId
+  ): Promise<
+    | { ok: true; state: InGameUserState }
+    | { ok: false; error: "not_found" | "invalid_status" | "internal" }
+  > {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) {
+      return { ok: false, error: "not_found" };
+    }
+    if (state.status !== InGamePlayerStatus.Out) {
+      return { ok: false, error: "invalid_status" };
+    }
+
+    const oldPlacement = state.placement;
+    const shifted: { playerId: PlayerId; fromPlacement: number }[] = [];
+
+    if (oldPlacement !== null) {
+      const allStates = await InGameUserStateCache.getAllByTournament(tournamentId);
+      const toShift = allStates.filter(
+        (s) =>
+          s.playerId !== playerId &&
+          s.status === InGamePlayerStatus.Out &&
+          s.placement != null &&
+          s.placement > oldPlacement
+      );
+      toShift.sort((a, b) => (b.placement ?? 0) - (a.placement ?? 0));
+
+      for (const s of toShift) {
+        const from = s.placement as number;
+        const to = from - 1;
+        const updated = await InGameUserStateCache.updateStatusAndPlacement(
+          s.playerId,
+          tournamentId,
+          InGamePlayerStatus.Out,
+          to
+        );
+        if (!updated) {
+          for (let i = shifted.length - 1; i >= 0; i--) {
+            const u = shifted[i]!;
+            await InGameUserStateCache.updateStatusAndPlacement(
+              u.playerId,
+              tournamentId,
+              InGamePlayerStatus.Out,
+              u.fromPlacement
+            );
+          }
+          return { ok: false, error: "internal" };
+        }
+        shifted.push({ playerId: s.playerId, fromPlacement: from });
+      }
+    }
+
+    const afterReentry = await InGameUserStateCache.addReentryCount(
+      playerId,
+      tournamentId,
+      1
+    );
+    if (!afterReentry) {
+      for (let i = shifted.length - 1; i >= 0; i--) {
+        const u = shifted[i]!;
+        await InGameUserStateCache.updateStatusAndPlacement(
+          u.playerId,
+          tournamentId,
+          InGamePlayerStatus.Out,
+          u.fromPlacement
+        );
+      }
+      return { ok: false, error: "internal" };
+    }
+
+    const newStatus =
+      state.entryPaymentMethod != null
+        ? InGamePlayerStatus.InGamePaid
+        : InGamePlayerStatus.InGameNotPaid;
+
+    const afterStatus = await InGameUserStateCache.updateStatusAndPlacement(
+      playerId,
+      tournamentId,
+      newStatus,
+      null
+    );
+    if (!afterStatus) {
+      await InGameUserStateCache.addReentryCount(playerId, tournamentId, -1);
+      for (let i = shifted.length - 1; i >= 0; i--) {
+        const u = shifted[i]!;
+        await InGameUserStateCache.updateStatusAndPlacement(
+          u.playerId,
+          tournamentId,
+          InGamePlayerStatus.Out,
+          u.fromPlacement
+        );
+      }
+      return { ok: false, error: "internal" };
+    }
+
+    const final = await InGameUserStateCache.updateTableId(
+      playerId,
+      tournamentId,
+      null
+    );
+    if (!final) {
+      await InGameUserStateCache.updateStatusAndPlacement(
+        playerId,
+        tournamentId,
+        InGamePlayerStatus.Out,
+        oldPlacement
+      );
+      await InGameUserStateCache.addReentryCount(playerId, tournamentId, -1);
+      for (let i = shifted.length - 1; i >= 0; i--) {
+        const u = shifted[i]!;
+        await InGameUserStateCache.updateStatusAndPlacement(
+          u.playerId,
+          tournamentId,
+          InGamePlayerStatus.Out,
+          u.fromPlacement
+        );
+      }
+      return { ok: false, error: "internal" };
+    }
+
+    return { ok: true, state: final };
+  }
+
+  /**
    * Undoes one "Rebuy + burned stack" event: −1 totalReentryCount and removes the last matching
    * Rebuy-only burnedStackEvents entry with given chips (LIFO). Does not alter Out-sourced burns.
    */

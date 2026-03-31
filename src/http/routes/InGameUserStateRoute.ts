@@ -35,6 +35,37 @@ function parseEarlyBirdFlagFromBody(body: unknown): boolean {
 export function inGameUserStateRoutes() {
   const service = new InGameUserStateService();
 
+  const postReturnToGame = async (
+    req: Request & { params: Record<string, string> }
+  ) => {
+    const tournamentId = req.params.tournamentId;
+    const playerId = req.params.playerId;
+    if (!tournamentId || !playerId) {
+      return new Response(null, { status: 400 });
+    }
+    const result = await service.returnBustedPlayerToGame(tournamentId, playerId);
+    if (!result.ok) {
+      if (result.error === "not_found") {
+        return new Response(
+          JSON.stringify({ error: "Player not found in tournament" }),
+          { status: 404, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      if (result.error === "invalid_status") {
+        return new Response(
+          "Player must be Out to return to game",
+          { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ error: "Failed to return player to game" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    const playerName = await playerRepository.getNicknameById(playerId);
+    return Response.json(toApiResponse(result.state, playerName));
+  };
+
   return {
     "/api/tournaments/:tournamentId/players/:playerId": {
       DELETE: async (
@@ -640,6 +671,12 @@ export function inGameUserStateRoutes() {
         const playerName = await playerRepository.getNicknameById(playerId);
         return Response.json(toApiResponse(stateForResponse, playerName));
       },
+    },
+    "/api/tournaments/:tournamentId/players/:playerId/return-to-game": {
+      POST: postReturnToGame,
+    },
+    "/v2/api/tournaments/:tournamentId/players/:playerId/return-to-game": {
+      POST: postReturnToGame,
     },
     "/api/tournaments/:tournamentId/players/:playerId/rollback-game-start": {
       POST: async (
