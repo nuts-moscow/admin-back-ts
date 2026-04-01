@@ -405,6 +405,41 @@ export const BountyCountBodySchema = z
   })
   .openapi("BountyCountBody");
 
+/** Request body: admin remove bounty and/or re-entry counts (at least one field required with valid value) */
+export const BountyRemoveBodySchema = z
+  .object({
+    bountyCountToRemove: z
+      .number()
+      .finite()
+      .positive()
+      .optional()
+      .openapi({
+        description:
+          "Amount of bounty to subtract (may be fractional). Omit if only adjusting re-entries.",
+        example: 1,
+      }),
+    reentryCountToRemove: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .openapi({
+        description:
+          "Number of re-entries to subtract from totalReentryCount. Omit if only adjusting bounty.",
+        example: 1,
+      }),
+  })
+  .refine(
+    (data) =>
+      (data.bountyCountToRemove != null && data.bountyCountToRemove > 0) ||
+      (data.reentryCountToRemove != null && data.reentryCountToRemove >= 1),
+    {
+      message:
+        "At least one of bountyCountToRemove (finite > 0) or reentryCountToRemove (integer >= 1) is required",
+    }
+  )
+  .openapi("BountyRemoveBody");
+
 /** Request body: re-entry count */
 export const ReentryCountBodySchema = z
   .object({

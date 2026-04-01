@@ -358,6 +358,58 @@ export function inGameUserStateRoutes() {
         return Response.json(await playerStateResponse(tournamentId, state, playerName));
       },
     },
+    "/api/tournaments/:tournamentId/players/:playerId/bounty/remove": {
+      POST: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bounty/remove">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: {
+          bountyCountToRemove?: unknown;
+          reentryCountToRemove?: unknown;
+        };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        const result = await service.applyBountyReentryRemoval(
+          playerId,
+          tournamentId,
+          {
+            bountyCountToRemove:
+              typeof body.bountyCountToRemove === "number"
+                ? body.bountyCountToRemove
+                : undefined,
+            reentryCountToRemove:
+              typeof body.reentryCountToRemove === "number"
+                ? body.reentryCountToRemove
+                : undefined,
+          }
+        );
+
+        if (!result.ok) {
+          const status =
+            result.kind === "not_found"
+              ? 404
+              : result.kind === "conflict"
+                ? 409
+                : 400;
+          return new Response(JSON.stringify({ error: result.error }), {
+            status,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(
+          await playerStateResponse(tournamentId, result.state, playerName)
+        );
+      },
+    },
     "/api/tournaments/:tournamentId/players/:playerId/bonuses": {
       POST: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/bonuses">

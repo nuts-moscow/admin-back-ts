@@ -3,6 +3,7 @@ import {
   AddPlayerToTournamentBodySchema,
   BonusMutationBodySchema,
   BountyCountBodySchema,
+  BountyRemoveBodySchema,
   BountyEliminateBodySchema,
   BountyEliminateResponseSchema,
   BountyEliminateUndoBodySchema,
@@ -803,6 +804,57 @@ openApiRegistry.registerPath({
     },
     404: {
       description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: `${basePath}/players/{playerId}/bounty/remove`,
+  tags: ["Tournament Players"],
+  operationId: "removeBountyAndOrReentry",
+  summary: "Remove bounty and/or re-entry count (admin)",
+  description:
+    "Subtracts bountyCount and/or totalReentryCount for corrections. Does not modify bountyKills, elimination event history, or reentryByPaymentMethod. If recorded re-entry payments sum equals totalReentryCount, decrease payments first or the request returns 409. Full consistency with eliminations: use POST .../bounty/eliminate/undo with eventId.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: BountyRemoveBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid request body (missing or invalid deltas)",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not in tournament",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    409: {
+      description:
+        "Would make bountyCount or totalReentryCount inconsistent (e.g. bounty too low, or re-entries below recorded payments)",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
     },
   },
 });

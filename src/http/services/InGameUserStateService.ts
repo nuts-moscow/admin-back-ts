@@ -168,6 +168,146 @@ export class InGameUserStateService {
     );
   }
 
+  private static readonly BOUNTY_REMOVE_EPSILON = 1e-9;
+
+  /**
+   * Admin correction: decrease bountyCount and/or totalReentryCount.
+   * Does not sync bountyKills or elimination events; does not change reentryByPaymentMethod.
+   */
+  async applyBountyReentryRemoval(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    body: { bountyCountToRemove?: number; reentryCountToRemove?: number }
+  ): Promise<
+    | { ok: true; state: InGameUserState }
+    | {
+        ok: false;
+        kind: "not_found" | "bad_request" | "conflict";
+        error: string;
+      }
+  > {
+    const { bountyCountToRemove: bRaw, reentryCountToRemove: rRaw } = body;
+    const hasBountyField = bRaw !== undefined && bRaw !== null;
+    const hasReentryField = rRaw !== undefined && rRaw !== null;
+
+    if (!hasBountyField && !hasReentryField) {
+      return {
+        ok: false,
+        kind: "bad_request",
+        error:
+          "At least one of bountyCountToRemove or reentryCountToRemove is required",
+      };
+    }
+
+    let bountyDelta = 0;
+    if (hasBountyField) {
+      if (typeof bRaw !== "number" || !Number.isFinite(bRaw) || bRaw <= 0) {
+        return {
+          ok: false,
+          kind: "bad_request",
+          error:
+            "bountyCountToRemove must be a finite number greater than 0 when provided",
+        };
+      }
+      bountyDelta = bRaw;
+    }
+
+    let reentryDelta = 0;
+    if (hasReentryField) {
+      if (typeof rRaw !== "number" || !Number.isInteger(rRaw) || rRaw < 1) {
+        return {
+          ok: false,
+          kind: "bad_request",
+          error:
+            "reentryCountToRemove must be an integer >= 1 when provided",
+        };
+      }
+      reentryDelta = rRaw;
+    }
+
+    if (bountyDelta <= 0 && reentryDelta <= 0) {
+      return {
+        ok: false,
+        kind: "bad_request",
+        error:
+          "At least one positive bountyCountToRemove or reentryCountToRemove is required",
+      };
+    }
+
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state) {
+      return { ok: false, kind: "not_found", error: "Player not found in tournament" };
+    }
+
+    if (bountyDelta > 0) {
+      if (
+        state.bountyCount + InGameUserStateService.BOUNTY_REMOVE_EPSILON <
+        bountyDelta
+      ) {
+        return {
+          ok: false,
+          kind: "conflict",
+          error: "Cannot remove more bounty than the player currently has",
+        };
+      }
+    }
+
+    if (reentryDelta > 0) {
+      const recorded = recordedReentryCountFromPairs(state.reentryByPaymentMethod);
+      if (state.totalReentryCount < reentryDelta) {
+        return {
+          ok: false,
+          kind: "conflict",
+          error: "Cannot remove more re-entries than totalReentryCount",
+        };
+      }
+      const newTotal = state.totalReentryCount - reentryDelta;
+      if (newTotal < recorded) {
+        return {
+          ok: false,
+          kind: "conflict",
+          error:
+            "Removing re-entries would leave fewer total re-entries than recorded payment methods; adjust reentry payments first",
+        };
+      }
+    }
+
+    let latest = state;
+    if (bountyDelta > 0) {
+      const afterBounty = await InGameUserStateCache.updateBountyCount(
+        playerId,
+        tournamentId,
+        -bountyDelta
+      );
+      if (!afterBounty) {
+        return {
+          ok: false,
+          kind: "conflict",
+          error: "Failed to update bounty count",
+        };
+      }
+      latest = afterBounty;
+    }
+
+    if (reentryDelta > 0) {
+      const afterReentry = await InGameUserStateCache.addReentryCount(
+        playerId,
+        tournamentId,
+        -reentryDelta
+      );
+      if (!afterReentry) {
+        return {
+          ok: false,
+          kind: "conflict",
+          error: "Failed to decrement re-entry count",
+        };
+      }
+      latest = afterReentry;
+    }
+
+    return { ok: true, state: latest };
+  }
+
   async getAllByTournament(tournamentId: TournamentId): Promise<InGameUserState[]> {
     return InGameUserStateCache.getAllByTournament(tournamentId);
   }
