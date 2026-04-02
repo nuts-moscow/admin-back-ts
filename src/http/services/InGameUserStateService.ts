@@ -796,11 +796,14 @@ export class InGameUserStateService {
     if (!player) return false;
     const freeEntryCount = player.freeEntryCount ?? 0;
     const freeReentryCount = player.freeReentryCount ?? 0;
+    const structure = await tournamentStructureCache.get(tournamentId);
+    const entryFreeOnly = isEntryFreeOnly(structure);
     return InGameUserStateCache.addPlayerToTournament(
       playerId,
       tournamentId,
       freeEntryCount,
-      freeReentryCount
+      freeReentryCount,
+      entryFreeOnly
     );
   }
 

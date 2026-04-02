@@ -123,6 +123,17 @@ function applyCorePlayerTournamentGrants(playerId: PlayerId, state: InGameUserSt
   return state;
 }
 
+/** One tournament-scoped free entry when structure has entryFreeOnly (core grants may already set count to 1). */
+function ensureTournamentFreeEntryForEntryFreeOnlyFormat(
+  state: InGameUserState,
+  entryFreeOnly: boolean
+): InGameUserState {
+  if (!entryFreeOnly) return state;
+  const n = state.tournamentFreeEntryCount ?? 0;
+  if (n >= 1) return state;
+  return { ...state, tournamentFreeEntryCount: 1 };
+}
+
 /** Cache for in-game user state by tournament and player */
 export interface InGameUserStateCache {
   /**
@@ -160,13 +171,15 @@ export interface InGameUserStateCache {
    * Adds player to tournament with init state (First20 when applicable). EarlyBird is not set here — use game-start with EarlyBirdFlag.
    * @param freeEntryCount - Free entry count from profile (default 0)
    * @param freeReentryCount - Free reentry count from profile (default 0)
+   * @param entryFreeOnly - When true (tournament structure), grants at least 1 tournament-scoped free entry (tournamentFreeEntryCount), same bucket as core-player grants
    * @returns true if stored, false on error
    */
   addPlayerToTournament(
     playerId: PlayerId,
     tournamentId: TournamentId,
     freeEntryCount?: number,
-    freeReentryCount?: number
+    freeReentryCount?: number,
+    entryFreeOnly?: boolean
   ): Promise<boolean>;
 
   /** Adds EarlyBird once if missing (e.g. game-start with EarlyBirdFlag). */
@@ -534,10 +547,11 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     playerId: PlayerId,
     tournamentId: TournamentId,
     freeEntryCount: number = 0,
-    freeReentryCount: number = 0
+    freeReentryCount: number = 0,
+    entryFreeOnly: boolean = false
   ): Promise<boolean> {
     logger.info(
-      { playerId, tournamentId, freeEntryCount, freeReentryCount },
+      { playerId, tournamentId, freeEntryCount, freeReentryCount, entryFreeOnly },
       `${LOG_PREFIX} InGameUserStateCache.addPlayerToTournament entry`
     );
     const existing = await this.getAllByTournament(tournamentId);
@@ -547,6 +561,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         : Math.max(...existing.map((s) => s.tournamentPlayerId)) + 1;
     let state = initInGameUserState(playerId, nextId, freeEntryCount, freeReentryCount);
     state = applyCorePlayerTournamentGrants(playerId, state);
+    state = ensureTournamentFreeEntryForEntryFreeOnlyFormat(state, entryFreeOnly);
     const bonuses: BonusesByType = [];
     if (nextId <= 20) {
       bonuses.push([InGameBonus.First20, 1]);
