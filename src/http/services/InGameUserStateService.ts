@@ -913,9 +913,18 @@ export class InGameUserStateService {
           entryPaymentMethod,
           effective
         );
+        const stateForRestore = await InGameUserStateCache.get(playerId, tournamentId);
+        const playerRow = await playerRepository.findById(playerId);
+        if (!stateForRestore || !playerRow) return null;
+        const profileConsumedForFreeEntry = Math.max(
+          0,
+          playerRow.freeEntryCount - stateForRestore.freeEntryCount
+        );
+        const restoreTournamentSlot = profileConsumedForFreeEntry === 0;
         const after = await InGameUserStateCache.addBackOneFreeEntry(
           playerId,
-          tournamentId
+          tournamentId,
+          restoreTournamentSlot
         );
         return after;
       }

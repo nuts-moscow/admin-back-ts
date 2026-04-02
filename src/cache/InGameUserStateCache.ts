@@ -80,7 +80,7 @@ function sumReentryPairCounts(pairs: ReentryByPaymentMethod | null): number {
   return n;
 }
 
-/** Decrement freeReentryCount first, then tournamentFreeReentryCount; clamp to 0. */
+/** Decrement tournamentFreeReentryCount first, then profile freeReentryCount; clamp to 0. */
 function applyFreeReentryDelta(
   state: InGameUserState,
   delta: number
@@ -88,12 +88,12 @@ function applyFreeReentryDelta(
   let free = Math.max(0, state.freeReentryCount);
   let tournament = Math.max(0, state.tournamentFreeReentryCount ?? 0);
   if (delta > 0) {
-    while (delta > 0 && free > 0) {
-      free--;
-      delta--;
-    }
     while (delta > 0 && tournament > 0) {
       tournament--;
+      delta--;
+    }
+    while (delta > 0 && free > 0) {
+      free--;
       delta--;
     }
   } else if (delta < 0) {
@@ -381,7 +381,7 @@ export interface InGameUserStateCache {
   syncPlayerFreeReentryCount(playerId: PlayerId, newCount: number): Promise<void>;
 
   /**
-   * Decrements one free entry (freeEntryCount first, then tournamentFreeEntryCount). Use when player pays entry with Free.
+   * Decrements one free entry (tournamentFreeEntryCount first, then profile freeEntryCount). Use when player pays entry with Free.
    */
   deductOneFreeEntry(
     playerId: PlayerId,
@@ -389,11 +389,13 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
-   * Increments freeEntryCount by 1. Use when player switches entry payment from Free to paid.
+   * Restores one free entry slot when switching from Free to paid: tournament bucket or profile
+   * mirror in state, matching tournament-first deduct (use restoreTournamentSlot from service).
    */
   addBackOneFreeEntry(
     playerId: PlayerId,
-    tournamentId: TournamentId
+    tournamentId: TournamentId,
+    restoreTournamentSlot: boolean
   ): Promise<InGameUserState | null>;
 
   /**
@@ -1145,11 +1147,6 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   ): Promise<InGameUserState | null> {
     const state = await this.get(playerId, tournamentId);
     if (!state) return null;
-    if (state.freeEntryCount > 0) {
-      const newState: InGameUserState = { ...state, freeEntryCount: state.freeEntryCount - 1 };
-      const ok = await this.set(playerId, tournamentId, newState);
-      return ok ? newState : null;
-    }
     if ((state.tournamentFreeEntryCount ?? 0) > 0) {
       const newState: InGameUserState = {
         ...state,
@@ -1158,16 +1155,27 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       const ok = await this.set(playerId, tournamentId, newState);
       return ok ? newState : null;
     }
+    if (state.freeEntryCount > 0) {
+      const newState: InGameUserState = { ...state, freeEntryCount: state.freeEntryCount - 1 };
+      const ok = await this.set(playerId, tournamentId, newState);
+      return ok ? newState : null;
+    }
     return null;
   }
 
   async addBackOneFreeEntry(
     playerId: PlayerId,
-    tournamentId: TournamentId
+    tournamentId: TournamentId,
+    restoreTournamentSlot: boolean
   ): Promise<InGameUserState | null> {
     const state = await this.get(playerId, tournamentId);
     if (!state) return null;
-    const newState: InGameUserState = { ...state, freeEntryCount: state.freeEntryCount + 1 };
+    const newState: InGameUserState = restoreTournamentSlot
+      ? {
+          ...state,
+          tournamentFreeEntryCount: (state.tournamentFreeEntryCount ?? 0) + 1,
+        }
+      : { ...state, freeEntryCount: state.freeEntryCount + 1 };
     const ok = await this.set(playerId, tournamentId, newState);
     return ok ? newState : null;
   }

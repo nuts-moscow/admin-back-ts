@@ -143,22 +143,40 @@ export async function runTournamentCompletion(
     return { ok: false, error: "elimination_snapshot_save_failed" };
   }
 
-  // Step 3: Update players' free entry/reentry counts (deduct used)
+  // Step 3: Update players' profile free counts — only what was consumed from permanent
+  // buckets (profile). Tournament grants are spent in Redis first; DB still holds pre-tournament
+  // profile values until we deduct the difference: dbCount - state.free*Count (capped by used Free lines).
   for (const state of states) {
-    const usedFreeEntry =
-      state.entryPaymentMethod === "Free" ? 1 : 0;
+    const player = await playerRepository.findById(state.playerId);
+    if (!player) continue;
+
+    const usedFreeEntry = state.entryPaymentMethod === "Free" ? 1 : 0;
     const usedFreeReentry = countFreeInReentry(state.reentryByPaymentMethod);
+
     if (usedFreeEntry > 0) {
-      await playerRepository.updateFreeEntryCountByDelta(
-        state.playerId,
-        -usedFreeEntry
+      const consumedFromProfile = Math.min(
+        usedFreeEntry,
+        Math.max(0, player.freeEntryCount - state.freeEntryCount)
       );
+      if (consumedFromProfile > 0) {
+        await playerRepository.updateFreeEntryCountByDelta(
+          state.playerId,
+          -consumedFromProfile
+        );
+      }
     }
+
     if (usedFreeReentry > 0) {
-      await playerRepository.updateFreeReentryCountByDelta(
-        state.playerId,
-        -usedFreeReentry
+      const consumedFromProfile = Math.min(
+        usedFreeReentry,
+        Math.max(0, player.freeReentryCount - state.freeReentryCount)
       );
+      if (consumedFromProfile > 0) {
+        await playerRepository.updateFreeReentryCountByDelta(
+          state.playerId,
+          -consumedFromProfile
+        );
+      }
     }
   }
 
