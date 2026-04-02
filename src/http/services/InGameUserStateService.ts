@@ -8,6 +8,7 @@ import {
 import {
   playerRepository,
   tournamentCashSnapshotRepository,
+  tournamentEliminationSnapshotRepository,
   tournamentRepository,
   tournamentResultRepository,
 } from "../../postgres";
@@ -37,6 +38,7 @@ import {
   sumBurnedStackChips,
 } from "../../domain/cache/InGameUserState";
 import {
+  flattenBonusesForApi,
   flattenReentryPairsForApi,
   parseReentryByPaymentMethodStoredJson,
   parseReentryPaymentLinesStoredJson,
@@ -686,6 +688,9 @@ export class InGameUserStateService {
 
     const rows = await tournamentResultRepository.findByTournamentId(id);
     const N = rows.length;
+    const eliminationSnapshot =
+      await tournamentEliminationSnapshotRepository.findByTournamentId(id);
+    const allEliminationEvents = eliminationSnapshot ?? [];
     // Reverse placement when reading: DB has 1=winner, 2=second... → API returns 1=first out, N=winner
     const result = await Promise.all(
       rows.map(async (row) => {
@@ -698,7 +703,8 @@ export class InGameUserStateService {
           row.reentryPaymentLines
         );
         const reentryByPaymentMethod = flattenReentryPairsForApi(reentryPairs);
-        const bonuses = parseJsonStringArray(row.bonuses);
+        const bonuses =
+          flattenBonusesForApi(parseStoredBonusesJson(row.bonuses)) ?? [];
         const customBonusChips = parseStoredCustomBonusChipsJson(
           row.customBonusChips
         );
@@ -732,7 +738,7 @@ export class InGameUserStateService {
           tournamentFreeEntryCount: 0,
           tournamentFreeReentryCount: 0,
           placement,
-          bonuses,
+          bonuses: bonuses.length > 0 ? bonuses : null,
           customBonusChips,
           burnedStackEvents,
           burnedStackChipsTotal: sumBurnedStackChips(burnedStackEvents),
@@ -740,7 +746,10 @@ export class InGameUserStateService {
           unpaidReentryCount,
           signAgreement: player?.signAgreement ?? false,
           bountyKills: bountyKills ?? [],
-          bountyEliminationEvents: [],
+          bountyEliminationEvents: eliminationEventsForPlayer(
+            row.playerId,
+            allEliminationEvents
+          ),
         };
       })
     );

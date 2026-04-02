@@ -36,6 +36,12 @@ create table if not exists tournament_cash_snapshots (
     cash_desk      jsonb    not null
 );
 
+-- Bounty/elimination events at completion (same shape as BountyEliminationEventRecord[])
+create table if not exists tournament_elimination_snapshots (
+    tournament_id  integer  not null primary key references tournaments(id) on delete cascade,
+    events           jsonb    not null default '[]'
+);
+
 -- Final results per player when tournament is completed (placement: 1 = winner)
 create table if not exists tournament_result_players (
     tournament_id             integer  not null references tournaments(id) on delete cascade,

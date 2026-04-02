@@ -2,6 +2,7 @@ import type { BountyEliminationEventForPlayer } from "../../domain/cache/BountyE
 import {
   EntryPaymentMethod,
   type BonusesByType,
+  type InGameBonus,
   type InGameUserState,
   type ReentryByPaymentMethod,
   type ReentryPaymentLine,
@@ -23,6 +24,13 @@ function flattenPairs<T extends string>(
     }
   }
   return result.length > 0 ? result : null;
+}
+
+/** Flatten bonus type+count pairs to API list (same as bonuses in toApiResponse). */
+export function flattenBonusesForApi(
+  pairs: BonusesByType | null
+): InGameBonus[] | null {
+  return flattenPairs(pairs);
 }
 
 /**

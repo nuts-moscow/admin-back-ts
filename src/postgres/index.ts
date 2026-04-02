@@ -1,6 +1,7 @@
 export { playerRepository } from "./PlayerRepository";
 export { PostgresClient } from "./PostgresClient";
 export { tournamentCashSnapshotRepository } from "./TournamentCashSnapshotRepository";
+export { tournamentEliminationSnapshotRepository } from "./TournamentEliminationSnapshotRepository";
 export { tournamentResultRepository } from "./TournamentResultRepository";
 export { tournamentStructureRepository } from "./TournamentStructureRepository";
 export { tournamentRepository } from "./TournamentRepository";

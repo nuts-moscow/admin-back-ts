@@ -10,6 +10,7 @@ import { logger } from "../../logger";
 import {
   playerRepository,
   tournamentCashSnapshotRepository,
+  tournamentEliminationSnapshotRepository,
   tournamentResultRepository,
   tournamentRepository,
 } from "../../postgres";
@@ -47,6 +48,10 @@ export async function runTournamentCompletion(
     await tournamentStructureCache.delete(tournamentIdStr);
     return { ok: true };
   }
+
+  const eliminationEvents = await BountyEliminationEventsCache.listAll(
+    tournamentIdStr
+  );
 
   // Step 1: Save cash desk snapshot (merge stackSize from structure for later chip-pool API on completed tournaments)
   const cashDesk = await inGameUserStateService.getCashDesk(tournamentIdStr);
@@ -123,6 +128,15 @@ export async function runTournamentCompletion(
   );
   if (!resultsSaved) {
     return { ok: false, error: "results_save_failed" };
+  }
+
+  const eliminationSnapshotSaved =
+    await tournamentEliminationSnapshotRepository.save(
+      tournamentId,
+      eliminationEvents
+    );
+  if (!eliminationSnapshotSaved) {
+    return { ok: false, error: "elimination_snapshot_save_failed" };
   }
 
   // Step 3: Update players' free entry/reentry counts (deduct used)
