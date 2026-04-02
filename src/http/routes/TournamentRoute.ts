@@ -47,6 +47,7 @@ function validateStructureBody(body: unknown): {
     stackSize: number;
     freezeOutEnabled: boolean;
     maxReentries: number;
+    entryFreeOnly: boolean;
     blinds: BlindType[];
   };
 } | { ok: false; error: string } {
@@ -86,6 +87,14 @@ function validateStructureBody(body: unknown): {
       error: "maxReentries must be a non-negative integer or omitted (default 5)",
     };
   }
+  let entryFreeOnly: boolean;
+  if (o.entryFreeOnly === undefined || o.entryFreeOnly === null) {
+    entryFreeOnly = false;
+  } else if (typeof o.entryFreeOnly === "boolean") {
+    entryFreeOnly = o.entryFreeOnly;
+  } else {
+    return { ok: false, error: "entryFreeOnly must be a boolean" };
+  }
   const blinds = parseBlinds(o.blinds);
   if (blinds === null) {
     return { ok: false, error: "blinds must be an array of Blind or Break objects" };
@@ -98,6 +107,7 @@ function validateStructureBody(body: unknown): {
       stackSize: o.stackSize,
       freezeOutEnabled,
       maxReentries,
+      entryFreeOnly,
       blinds,
     },
   };
@@ -110,6 +120,7 @@ function structureResponseFromEntity(s: {
   stackSize: number;
   freezeOutEnabled: boolean;
   maxReentries: number;
+  entryFreeOnly: boolean;
   blindsStructure: BlindType[];
 }) {
   return {
@@ -119,6 +130,7 @@ function structureResponseFromEntity(s: {
     stackSize: s.stackSize,
     freezeOutEnabled: s.freezeOutEnabled,
     maxReentries: s.maxReentries,
+    entryFreeOnly: s.entryFreeOnly,
     allowedReentryCount: effectiveAllowedReentryCount(
       s.freezeOutEnabled,
       s.maxReentries

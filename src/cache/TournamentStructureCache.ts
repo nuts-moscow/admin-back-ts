@@ -17,6 +17,8 @@ export interface TournamentStructureData {
   stackSize: number;
   freezeOutEnabled: boolean;
   maxReentries: number;
+  /** Initial entry must use Free when true. */
+  entryFreeOnly: boolean;
   blindsStructure: BlindType[];
 }
 
@@ -44,12 +46,14 @@ function parseStructure(raw: string | null): TournamentStructureData | null {
       rawMax >= 0
         ? rawMax
         : DEFAULT_MAX_REENTRIES;
+    const entryFreeOnly = o.entryFreeOnly === true;
     return {
       name: o.name,
       playersLimit: o.playersLimit,
       stackSize: o.stackSize,
       freezeOutEnabled,
       maxReentries,
+      entryFreeOnly,
       blindsStructure: o.blindsStructure as BlindType[],
     };
   } catch {

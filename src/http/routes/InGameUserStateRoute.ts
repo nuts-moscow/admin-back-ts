@@ -804,6 +804,16 @@ export function inGameUserStateRoutes() {
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
+          if (result.error === "paid_entry_not_allowed") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "This tournament requires a free initial entry; Cache and CreditCard are not allowed for the buy-in",
+                code: "paid_entry_not_allowed",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
           return new Response(null, { status: 404 });
         }
         let stateForResponse = result.state;
@@ -902,6 +912,16 @@ export function inGameUserStateRoutes() {
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
+          if (result.error === "paid_entry_not_allowed") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "This tournament requires a free initial entry; Cache and CreditCard are not allowed for the buy-in",
+                code: "paid_entry_not_allowed",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
@@ -953,6 +973,16 @@ export function inGameUserStateRoutes() {
             return new Response(
               JSON.stringify({
                 error: "entryPaidAmount must be between 0 and tournament entry price",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (state.error === "paid_entry_not_allowed") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "This tournament requires a free initial entry; Cache and CreditCard are not allowed for the buy-in",
+                code: "paid_entry_not_allowed",
               }),
               { status: 400, headers: { "Content-Type": "application/json" } }
             );

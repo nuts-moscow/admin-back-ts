@@ -11,3 +11,12 @@ export function effectiveAllowedReentryCount(
 ): number {
   return freezeOutEnabled ? 0 : maxReentries;
 }
+
+/**
+ * When true, initial entry payment must be Free (Cache/CreditCard disallowed). Re-entries unchanged.
+ */
+export function isEntryFreeOnly(structure: {
+  entryFreeOnly?: boolean;
+} | null): boolean {
+  return structure?.entryFreeOnly === true;
+}

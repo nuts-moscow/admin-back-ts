@@ -16,6 +16,7 @@ export interface MakeTournamentStructureBody {
   stackSize: number;
   freezeOutEnabled: boolean;
   maxReentries: number;
+  entryFreeOnly: boolean;
   blinds: BlindType[];
 }
 
@@ -59,6 +60,7 @@ export class TournamentService {
       stackSize: input.stackSize,
       freezeOutEnabled: input.freezeOutEnabled,
       maxReentries: input.maxReentries,
+      entryFreeOnly: input.entryFreeOnly,
       blinds: input.blinds,
     });
     if (!structure) return { ok: false, error: "failed" };
@@ -75,6 +77,7 @@ export class TournamentService {
       stackSize: input.stackSize,
       freezeOutEnabled: input.freezeOutEnabled,
       maxReentries: input.maxReentries,
+      entryFreeOnly: input.entryFreeOnly,
       blinds: input.blinds,
     });
     if (!structure) return { ok: false, error: "not_found" };
@@ -96,6 +99,7 @@ export class TournamentService {
         stackSize: input.structure.stackSize,
         freezeOutEnabled: input.structure.freezeOutEnabled,
         maxReentries: input.structure.maxReentries,
+        entryFreeOnly: input.structure.entryFreeOnly,
         blindsStructure: input.structure.blinds,
       }
     );
@@ -255,6 +259,7 @@ export class TournamentService {
       stackSize: structure.stackSize,
       freezeOutEnabled: structure.freezeOutEnabled,
       maxReentries: structure.maxReentries,
+      entryFreeOnly: structure.entryFreeOnly,
       blindsStructure: structure.blinds,
     });
     if (!stored) return { ok: false, error: "failed" };

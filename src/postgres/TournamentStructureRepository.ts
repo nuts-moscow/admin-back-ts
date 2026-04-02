@@ -10,6 +10,7 @@ export interface MakeTournamentStructureInput {
   stackSize: number;
   freezeOutEnabled: boolean;
   maxReentries: number;
+  entryFreeOnly: boolean;
   blinds: BlindType[];
 }
 
@@ -19,6 +20,7 @@ export interface UpdateTournamentStructureInput {
   stackSize: number;
   freezeOutEnabled: boolean;
   maxReentries: number;
+  entryFreeOnly: boolean;
   blinds: BlindType[];
 }
 
@@ -67,6 +69,7 @@ function rowToStructure(row: Record<string, unknown>): TournamentStructure {
     stackSize: Number(row.stack_size ?? 0),
     freezeOutEnabled: row.freeze_out_enabled === true,
     maxReentries,
+    entryFreeOnly: row.entry_free_only === true,
     blindsStructure: parseBlinds(String(row.blinds ?? "[]")),
   };
 }
@@ -83,15 +86,16 @@ class TournamentStructureRepositoryImpl implements TournamentStructureRepository
     try {
       const blindsJson = JSON.stringify(input.blinds);
       const result = await PostgresClient.instance.query(
-        `INSERT INTO tournament_structures (name, players_limit, stack_size, freeze_out_enabled, max_reentries, blinds)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, blinds`,
+        `INSERT INTO tournament_structures (name, players_limit, stack_size, freeze_out_enabled, max_reentries, entry_free_only, blinds)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, entry_free_only, blinds`,
         [
           input.name,
           input.playersLimit,
           input.stackSize,
           input.freezeOutEnabled,
           input.maxReentries,
+          input.entryFreeOnly,
           blindsJson,
         ]
       );
@@ -112,15 +116,16 @@ class TournamentStructureRepositoryImpl implements TournamentStructureRepository
       const blindsJson = JSON.stringify(input.blinds);
       const result = await PostgresClient.instance.query(
         `UPDATE tournament_structures
-         SET name = $1, players_limit = $2, stack_size = $3, freeze_out_enabled = $4, max_reentries = $5, blinds = $6
-         WHERE id = $7
-         RETURNING id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, blinds`,
+         SET name = $1, players_limit = $2, stack_size = $3, freeze_out_enabled = $4, max_reentries = $5, entry_free_only = $6, blinds = $7
+         WHERE id = $8
+         RETURNING id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, entry_free_only, blinds`,
         [
           input.name,
           input.playersLimit,
           input.stackSize,
           input.freezeOutEnabled,
           input.maxReentries,
+          input.entryFreeOnly,
           blindsJson,
           id,
         ]
@@ -137,7 +142,7 @@ class TournamentStructureRepositoryImpl implements TournamentStructureRepository
   async findById(id: number): Promise<TournamentStructure | null> {
     try {
       const result = await PostgresClient.instance.query(
-        "SELECT id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, blinds FROM tournament_structures WHERE id = $1",
+        "SELECT id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, entry_free_only, blinds FROM tournament_structures WHERE id = $1",
         [id]
       );
       const row = result.rows[0];
@@ -154,7 +159,7 @@ class TournamentStructureRepositoryImpl implements TournamentStructureRepository
       const offset = Math.max(0, options?.offset ?? 0);
       const limit = options?.limit != null ? Math.max(1, Math.min(1000, options.limit)) : 100;
       const result = await PostgresClient.instance.query(
-        `SELECT id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, blinds
+        `SELECT id, name, players_limit, stack_size, freeze_out_enabled, max_reentries, entry_free_only, blinds
          FROM tournament_structures ORDER BY id ASC OFFSET $1 LIMIT $2`,
         [offset, limit]
       );

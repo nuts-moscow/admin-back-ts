@@ -40,6 +40,7 @@ import {
 import {
   DEFAULT_MAX_REENTRIES,
   effectiveAllowedReentryCount,
+  isEntryFreeOnly,
 } from "../../domain/tournamentReentryPolicy";
 import {
   flattenBonusesForApi,
@@ -145,6 +146,15 @@ export type TournamentChipPoolSummaryResult =
   | { ok: false; error: TournamentChipPoolSummaryError };
 
 export class InGameUserStateService {
+  private async rejectsPaidEntryForStructure(
+    tournamentId: TournamentId,
+    method: EntryPaymentMethod | null
+  ): Promise<boolean> {
+    if (method === null || method === EntryPaymentMethod.Free) return false;
+    const structure = await tournamentStructureCache.get(tournamentId);
+    return isEntryFreeOnly(structure);
+  }
+
   async getUser(
     playerId: PlayerId,
     tournamentId: TournamentId
@@ -851,10 +861,18 @@ export class InGameUserStateService {
   ): Promise<
     | InGameUserState
     | null
-    | { error: "insufficient_free_entries" | "invalid_entry_amount" }
+    | {
+        error:
+          | "insufficient_free_entries"
+          | "invalid_entry_amount"
+          | "paid_entry_not_allowed";
+      }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) return null;
+    if (await this.rejectsPaidEntryForStructure(tournamentId, entryPaymentMethod)) {
+      return { error: "paid_entry_not_allowed" };
+    }
     const tid = parseInt(tournamentId, 10);
     const tournament = Number.isNaN(tid) ? null : await tournamentRepository.findById(tid);
     const entryPrice = tournament?.entryPrice ?? 0;
@@ -973,7 +991,8 @@ export class InGameUserStateService {
           | "not_found"
           | "invalid_status"
           | "insufficient_free_entries"
-          | "invalid_entry_amount";
+          | "invalid_entry_amount"
+          | "paid_entry_not_allowed";
       }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
@@ -997,6 +1016,9 @@ export class InGameUserStateService {
       paidArg
     );
     if (afterPayment && "error" in afterPayment) {
+      if (afterPayment.error === "paid_entry_not_allowed") {
+        return { error: "paid_entry_not_allowed" };
+      }
       if (afterPayment.error === "invalid_entry_amount") {
         return { error: "invalid_entry_amount" };
       }
@@ -1028,7 +1050,14 @@ export class InGameUserStateService {
     entryPaidAmount?: number | null
   ): Promise<
     | { state: InGameUserState }
-    | { error: "not_found" | "invalid_status" | "invalid_amount" | "insufficient_free_entries" }
+    | {
+        error:
+          | "not_found"
+          | "invalid_status"
+          | "invalid_amount"
+          | "insufficient_free_entries"
+          | "paid_entry_not_allowed";
+      }
   > {
     logger.info(
       { tournamentId, playerId, entryPaymentMethod, tableId },
@@ -1074,6 +1103,9 @@ export class InGameUserStateService {
           newStatus
         );
       } else {
+        if (await this.rejectsPaidEntryForStructure(tournamentId, entryPaymentMethod)) {
+          return { error: "paid_entry_not_allowed" };
+        }
         const tidNum = parseInt(tournamentId, 10);
         const tournamentRow = Number.isNaN(tidNum)
           ? null

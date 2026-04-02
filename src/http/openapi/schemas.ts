@@ -695,6 +695,13 @@ export const MakeTournamentStructureBodySchema = z
         description: "Max re-entries per player when not freeze-out; omit to use default 5",
         example: 5,
       }),
+    entryFreeOnly: z
+      .boolean()
+      .default(false)
+      .openapi({
+        description:
+          "When true, initial entry must use Free payment; re-entries are unchanged",
+      }),
     blinds: z.array(BlindTypeSchema).openapi({ description: "Blinds and breaks" }),
   })
   .openapi("MakeTournamentStructureBody");
@@ -728,6 +735,11 @@ export const TournamentStructureResponseSchema = z
       .openapi({
         description: "Effective cap: 0 if freeze-out, else maxReentries",
       }),
+    entryFreeOnly: z
+      .boolean()
+      .openapi({
+        description: "Initial buy-in must be Free when true; re-entries unchanged",
+      }),
     blindsStructure: z.array(BlindTypeSchema),
   })
   .openapi("TournamentStructureResponse");
@@ -751,6 +763,7 @@ const TournamentStructureDataSchema = z
     freezeOutEnabled: z.boolean(),
     maxReentries: z.number().int().min(0),
     allowedReentryCount: z.number().int().min(0),
+    entryFreeOnly: z.boolean(),
     blindsStructure: z.array(BlindTypeSchema),
   })
   .openapi("TournamentStructureData");

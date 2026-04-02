@@ -65,6 +65,7 @@ export async function runTournamentCompletion(
     stackSize: structure?.stackSize ?? null,
     freezeOutEnabled: structure?.freezeOutEnabled ?? false,
     maxReentries: structure?.maxReentries ?? DEFAULT_MAX_REENTRIES,
+    entryFreeOnly: structure?.entryFreeOnly ?? false,
   };
   const saved = await tournamentCashSnapshotRepository.save(
     tournamentId,

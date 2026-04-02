@@ -258,7 +258,7 @@ openApiRegistry.registerPath({
   operationId: "getTournament",
   summary: "Get tournament by ID",
   description:
-    "Returns tournament with its structure from cache (structure may be null if not set). Structure includes maxReentries and allowedReentryCount when present.",
+    "Returns tournament with its structure from cache (structure may be null if not set). Structure includes maxReentries, allowedReentryCount, and entryFreeOnly when present.",
   request: {
     params: TournamentIdParamSchema,
   },

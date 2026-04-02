@@ -22,4 +22,6 @@ export interface TournamentStructure {
   freezeOutEnabled: boolean;
   /** Max re-entries per player when not freeze-out. */
   maxReentries: number;
+  /** When true, initial entry must be paid with Free only (re-entries unchanged). */
+  entryFreeOnly: boolean;
 }
