@@ -28,6 +28,7 @@ import {
   type BountyEliminationTypeValue,
   type BurnedStackEvent,
   type InGameUserState,
+  type ReentryPaymentLine,
   type PlayerId,
   type ReentryByPaymentMethod,
   type TableId,
@@ -38,6 +39,8 @@ import {
 import {
   flattenReentryPairsForApi,
   parseReentryByPaymentMethodStoredJson,
+  parseReentryPaymentLinesStoredJson,
+  recordedReentryCountForState,
   recordedReentryCountFromPairs,
 } from "../serializers/InGameUserStateSerializer";
 
@@ -50,6 +53,33 @@ function countFreeInReentryByPaymentMethod(
     if (method === EntryPaymentMethod.Free) n += count;
   }
   return n;
+}
+
+function buildReentryPaymentLines(
+  payments: EntryPaymentMethod[],
+  paidAmounts: number[] | undefined,
+  reentryPrice: number
+):
+  | ReentryPaymentLine[]
+  | { error: "invalid_reentry_amount" | "paid_amounts_length" } {
+  if (paidAmounts != null && paidAmounts.length !== payments.length) {
+    return { error: "paid_amounts_length" };
+  }
+  const out: ReentryPaymentLine[] = [];
+  for (let i = 0; i < payments.length; i++) {
+    const m = payments[i]!;
+    if (m === EntryPaymentMethod.Free) {
+      out.push({ method: m, paidAmount: 0 });
+      continue;
+    }
+    const raw =
+      paidAmounts != null ? Math.trunc(paidAmounts[i]!) : reentryPrice;
+    if (raw < 0 || raw > reentryPrice) {
+      return { error: "invalid_reentry_amount" };
+    }
+    out.push({ method: m, paidAmount: raw });
+  }
+  return out;
 }
 
 function parseJsonStringArray(json: string | null): string[] | null {
@@ -253,7 +283,7 @@ export class InGameUserStateService {
     }
 
     if (reentryDelta > 0) {
-      const recorded = recordedReentryCountFromPairs(state.reentryByPaymentMethod);
+      const recorded = recordedReentryCountForState(state);
       if (state.totalReentryCount < reentryDelta) {
         return {
           ok: false,
@@ -540,7 +570,10 @@ export class InGameUserStateService {
     for (const state of states) {
       if (state.entryPaymentMethod) {
         const method = state.entryPaymentMethod;
-        const amount = method === EntryPaymentMethod.Free ? 0 : entryPrice;
+        const amount =
+          method === EntryPaymentMethod.Free
+            ? 0
+            : state.entryPaidAmount ?? entryPrice;
         if (method === EntryPaymentMethod.Cache) {
           cash.entries.quantity += 1;
           cash.entries.amount += amount;
@@ -553,19 +586,37 @@ export class InGameUserStateService {
         }
       }
 
-      const reentryPairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
-      if (reentryPairs) {
-        for (const [method, count] of reentryPairs) {
-          const amount = method === EntryPaymentMethod.Free ? 0 : count * reentryPrice;
+      const lines = state.reentryPaymentLines;
+      if (lines != null && lines.length > 0) {
+        for (const line of lines) {
+          const method = line.method;
+          const amt = method === EntryPaymentMethod.Free ? 0 : line.paidAmount;
           if (method === EntryPaymentMethod.Cache) {
-            cash.rebuys.quantity += count;
-            cash.rebuys.amount += amount;
+            cash.rebuys.quantity += 1;
+            cash.rebuys.amount += amt;
           } else if (method === EntryPaymentMethod.CreditCard) {
-            card.rebuys.quantity += count;
-            card.rebuys.amount += amount;
+            card.rebuys.quantity += 1;
+            card.rebuys.amount += amt;
           } else {
-            free.rebuys.quantity += count;
+            free.rebuys.quantity += 1;
             free.rebuys.amount += 0;
+          }
+        }
+      } else {
+        const reentryPairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
+        if (reentryPairs) {
+          for (const [method, count] of reentryPairs) {
+            const amount = method === EntryPaymentMethod.Free ? 0 : count * reentryPrice;
+            if (method === EntryPaymentMethod.Cache) {
+              cash.rebuys.quantity += count;
+              cash.rebuys.amount += amount;
+            } else if (method === EntryPaymentMethod.CreditCard) {
+              card.rebuys.quantity += count;
+              card.rebuys.amount += amount;
+            } else {
+              free.rebuys.quantity += count;
+              free.rebuys.amount += 0;
+            }
           }
         }
       }
@@ -608,7 +659,9 @@ export class InGameUserStateService {
       tableId: string | null;
       bountyCount: number;
       entryPaymentMethod: string | null;
+      entryPaidAmount: number | null;
       reentryByPaymentMethod: string[] | null;
+      reentryPaidAmounts: number[] | null;
       totalReentryCount: number;
       freeEntryCount: number;
       freeReentryCount: number;
@@ -641,12 +694,17 @@ export class InGameUserStateService {
         const reentryPairs = parseReentryByPaymentMethodStoredJson(
           row.reentryByPaymentMethod
         );
+        const reentryLinesFromDb = parseReentryPaymentLinesStoredJson(
+          row.reentryPaymentLines
+        );
         const reentryByPaymentMethod = flattenReentryPairsForApi(reentryPairs);
         const bonuses = parseJsonStringArray(row.bonuses);
         const customBonusChips = parseStoredCustomBonusChipsJson(
           row.customBonusChips
         );
-        const recordedReentry = recordedReentryCountFromPairs(reentryPairs);
+        const recordedReentry = reentryLinesFromDb?.length
+          ? reentryLinesFromDb.length
+          : recordedReentryCountFromPairs(reentryPairs);
         const unpaidReentryCount = Math.max(
           0,
           row.totalReentryCount - recordedReentry
@@ -663,7 +721,11 @@ export class InGameUserStateService {
           tableId: null,
           bountyCount: row.bountyCount,
           entryPaymentMethod: row.entryPaymentMethod,
+          entryPaidAmount:
+            row.entryPaidAmount != null ? Number(row.entryPaidAmount) : null,
           reentryByPaymentMethod,
+          reentryPaidAmounts:
+            reentryLinesFromDb?.map((l) => l.paidAmount) ?? null,
           totalReentryCount: row.totalReentryCount,
           freeEntryCount: 0,
           freeReentryCount: 0,
@@ -735,12 +797,18 @@ export class InGameUserStateService {
   async updateEntryPaymentMethod(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    entryPaymentMethod: EntryPaymentMethod | null
+    entryPaymentMethod: EntryPaymentMethod | null,
+    entryPaidAmount?: number | null
   ): Promise<
-    InGameUserState | null | { error: "insufficient_free_entries" }
+    | InGameUserState
+    | null
+    | { error: "insufficient_free_entries" | "invalid_entry_amount" }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) return null;
+    const tid = parseInt(tournamentId, 10);
+    const tournament = Number.isNaN(tid) ? null : await tournamentRepository.findById(tid);
+    const entryPrice = tournament?.entryPrice ?? 0;
     const previousFree = state.entryPaymentMethod === EntryPaymentMethod.Free;
 
     if (entryPaymentMethod === EntryPaymentMethod.Free) {
@@ -750,7 +818,8 @@ export class InGameUserStateService {
       await InGameUserStateCache.updateEntryPaymentMethod(
         playerId,
         tournamentId,
-        EntryPaymentMethod.Free
+        EntryPaymentMethod.Free,
+        null
       );
       const after = await InGameUserStateCache.deductOneFreeEntry(
         playerId,
@@ -759,23 +828,56 @@ export class InGameUserStateService {
       return after;
     }
 
-    if (previousFree) {
-      await InGameUserStateCache.updateEntryPaymentMethod(
+    if (entryPaymentMethod != null) {
+      if (previousFree) {
+        const effective =
+          entryPaidAmount !== undefined && entryPaidAmount !== null
+            ? Math.trunc(entryPaidAmount)
+            : entryPrice;
+        if (effective < 0 || effective > entryPrice) {
+          return { error: "invalid_entry_amount" };
+        }
+        await InGameUserStateCache.updateEntryPaymentMethod(
+          playerId,
+          tournamentId,
+          entryPaymentMethod,
+          effective
+        );
+        const after = await InGameUserStateCache.addBackOneFreeEntry(
+          playerId,
+          tournamentId
+        );
+        return after;
+      }
+      const explicit =
+        entryPaidAmount !== undefined && entryPaidAmount !== null;
+      if (explicit) {
+        const effective = Math.trunc(entryPaidAmount as number);
+        if (effective < 0 || effective > entryPrice) {
+          return { error: "invalid_entry_amount" };
+        }
+        return InGameUserStateCache.updateEntryPaymentMethod(
+          playerId,
+          tournamentId,
+          entryPaymentMethod,
+          effective
+        );
+      }
+      const defaultIfNeverPaid =
+        state.entryPaidAmount == null ? entryPrice : undefined;
+      return InGameUserStateCache.updateEntryPaymentMethod(
         playerId,
         tournamentId,
-        entryPaymentMethod
+        entryPaymentMethod,
+        defaultIfNeverPaid
       );
-      const after = await InGameUserStateCache.addBackOneFreeEntry(
-        playerId,
-        tournamentId
-      );
-      return after;
     }
 
     return InGameUserStateCache.updateEntryPaymentMethod(
       playerId,
       tournamentId,
-      entryPaymentMethod
+      null,
+      null
     );
   }
 
@@ -797,6 +899,7 @@ export class InGameUserStateService {
     const afterPayment = await this.updateEntryPaymentMethod(
       playerId,
       tournamentId,
+      null,
       null
     );
     if (!afterPayment || (typeof afterPayment === "object" && "error" in afterPayment)) return null;
@@ -811,10 +914,17 @@ export class InGameUserStateService {
   async inGamePayment(
     tournamentId: TournamentId,
     playerId: PlayerId,
-    entryPaymentMethod: EntryPaymentMethod
+    entryPaymentMethod: EntryPaymentMethod,
+    entryPaidAmount?: number | null
   ): Promise<
     | { state: InGameUserState }
-    | { error: "not_found" | "invalid_status" | "insufficient_free_entries" }
+    | {
+        error:
+          | "not_found"
+          | "invalid_status"
+          | "insufficient_free_entries"
+          | "invalid_entry_amount";
+      }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) return { error: "not_found" };
@@ -825,12 +935,20 @@ export class InGameUserStateService {
     if (!allowedForPayment.has(state.status)) {
       return { error: "invalid_status" };
     }
+    const paidArg =
+      entryPaymentMethod === EntryPaymentMethod.Free
+        ? undefined
+        : entryPaidAmount;
     const afterPayment = await this.updateEntryPaymentMethod(
       playerId,
       tournamentId,
-      entryPaymentMethod
+      entryPaymentMethod,
+      paidArg
     );
     if (afterPayment && "error" in afterPayment) {
+      if (afterPayment.error === "invalid_entry_amount") {
+        return { error: "invalid_entry_amount" };
+      }
       return { error: "insufficient_free_entries" };
     }
     if (!afterPayment) return { error: "not_found" };
@@ -855,9 +973,11 @@ export class InGameUserStateService {
     tournamentId: TournamentId,
     playerId: PlayerId,
     entryPaymentMethod?: EntryPaymentMethod,
-    tableId?: TableId | null
+    tableId?: TableId | null,
+    entryPaidAmount?: number | null
   ): Promise<
-    { state: InGameUserState } | { error: "not_found" | "invalid_status" }
+    | { state: InGameUserState }
+    | { error: "not_found" | "invalid_status" | "invalid_amount" | "insufficient_free_entries" }
   > {
     logger.info(
       { tournamentId, playerId, entryPaymentMethod, tableId },
@@ -881,20 +1001,59 @@ export class InGameUserStateService {
         : InGamePlayerStatus.InGameNotPaid;
     let currentState: InGameUserState | null;
     if (entryPaymentMethod != null) {
-      const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
-        playerId,
-        tournamentId,
-        entryPaymentMethod
-      );
-      if (!afterPayment) {
-        logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found after payment update");
-        return { error: "not_found" };
+      if (entryPaymentMethod === EntryPaymentMethod.Free) {
+        const afterFree = await this.updateEntryPaymentMethod(
+          playerId,
+          tournamentId,
+          EntryPaymentMethod.Free
+        );
+        if (!afterFree) {
+          logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found after free entry payment");
+          return { error: "not_found" };
+        }
+        if ("error" in afterFree) {
+          if (afterFree.error === "insufficient_free_entries") {
+            return { error: "insufficient_free_entries" };
+          }
+          return { error: "not_found" };
+        }
+        currentState = await InGameUserStateCache.updateStatus(
+          playerId,
+          tournamentId,
+          newStatus
+        );
+      } else {
+        const tidNum = parseInt(tournamentId, 10);
+        const tournamentRow = Number.isNaN(tidNum)
+          ? null
+          : await tournamentRepository.findById(tidNum);
+        if (!tournamentRow) {
+          logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found no tournament");
+          return { error: "not_found" };
+        }
+        const effective =
+          entryPaidAmount !== undefined && entryPaidAmount !== null
+            ? Math.trunc(entryPaidAmount)
+            : tournamentRow.entryPrice;
+        if (effective < 0 || effective > tournamentRow.entryPrice) {
+          return { error: "invalid_amount" };
+        }
+        const afterPayment = await InGameUserStateCache.updateEntryPaymentMethod(
+          playerId,
+          tournamentId,
+          entryPaymentMethod,
+          effective
+        );
+        if (!afterPayment) {
+          logger.info({ tournamentId, playerId }, "[InGameUserStateService] playerGameStart result: not_found after payment update");
+          return { error: "not_found" };
+        }
+        currentState = await InGameUserStateCache.updateStatus(
+          playerId,
+          tournamentId,
+          newStatus
+        );
       }
-      currentState = await InGameUserStateCache.updateStatus(
-        playerId,
-        tournamentId,
-        newStatus
-      );
     } else {
       currentState = await InGameUserStateCache.updateStatus(
         playerId,
@@ -932,12 +1091,27 @@ export class InGameUserStateService {
   async addReentryPayment(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    payments: EntryPaymentMethod[]
+    payments: EntryPaymentMethod[],
+    paidAmounts?: number[] | null
   ): Promise<
-    InGameUserState | null | { error: "insufficient_free_reentries" }
+    | InGameUserState
+    | null
+    | { error: "insufficient_free_reentries" | "invalid_reentry_amount" | "paid_amounts_length" }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) return null;
+    const tid = parseInt(tournamentId, 10);
+    const tournamentRow = Number.isNaN(tid)
+      ? null
+      : await tournamentRepository.findById(tid);
+    if (!tournamentRow) return null;
+    const built = buildReentryPaymentLines(
+      payments,
+      paidAmounts ?? undefined,
+      tournamentRow.reentryPrice
+    );
+    if ("error" in built) return built;
+
     const currentFree = countFreeInReentryByPaymentMethod(
       state.reentryByPaymentMethod
     );
@@ -950,22 +1124,44 @@ export class InGameUserStateService {
     return InGameUserStateCache.addReentryPayment(
       playerId,
       tournamentId,
-      payments
+      built,
+      tournamentRow.reentryPrice
     );
   }
 
   async setReentryPaymentMethods(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    payments: EntryPaymentMethod[]
+    payments: EntryPaymentMethod[],
+    paidAmounts?: number[] | null
   ): Promise<
-    InGameUserState | null | { error: "insufficient_free_reentries" | "invalid_length" }
+    | InGameUserState
+    | null
+    | {
+        error:
+          | "insufficient_free_reentries"
+          | "invalid_length"
+          | "invalid_reentry_amount"
+          | "paid_amounts_length";
+      }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) return null;
     if (payments.length !== state.totalReentryCount) {
       return { error: "invalid_length" };
     }
+    const tid = parseInt(tournamentId, 10);
+    const tournamentRow = Number.isNaN(tid)
+      ? null
+      : await tournamentRepository.findById(tid);
+    if (!tournamentRow) return null;
+    const built = buildReentryPaymentLines(
+      payments,
+      paidAmounts ?? undefined,
+      tournamentRow.reentryPrice
+    );
+    if ("error" in built) return built;
+
     const freeCount = payments.filter((p) => p === EntryPaymentMethod.Free).length;
     const available =
       state.freeReentryCount + (state.tournamentFreeReentryCount ?? 0);
@@ -975,7 +1171,7 @@ export class InGameUserStateService {
     return InGameUserStateCache.setReentryPaymentMethods(
       playerId,
       tournamentId,
-      payments
+      built
     );
   }
 

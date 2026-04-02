@@ -693,7 +693,11 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/game-start">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let body: { entryPaymentMethod?: string; tableId?: string | null } = {};
+        let body: {
+          entryPaymentMethod?: string;
+          tableId?: string | null;
+          entryPaidAmount?: unknown;
+        } = {};
         let earlyBirdFlag = false;
         try {
           const raw = await req.json();
@@ -707,6 +711,10 @@ export function inGameUserStateRoutes() {
             typeof body.entryPaymentMethod === "string" &&
             VALID_ENTRY_PAYMENT_METHODS.has(body.entryPaymentMethod)
             ? (body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod])
+            : undefined;
+        const entryPaidAmountParsed =
+          typeof body.entryPaidAmount === "number" && Number.isInteger(body.entryPaidAmount)
+            ? body.entryPaidAmount
             : undefined;
         const tableId =
           body.tableId != null && typeof body.tableId === "string" && body.tableId !== ""
@@ -733,13 +741,30 @@ export function inGameUserStateRoutes() {
           tournamentId,
           playerId,
           entryPaymentMethod,
-          tableId
+          tableId,
+          entryPaidAmountParsed
         );
         if ("error" in result) {
           if (result.error === "invalid_status") {
             return new Response(
               JSON.stringify({
                 error: "Player must be in Registered status to start game",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (result.error === "invalid_amount") {
+            return new Response(
+              JSON.stringify({
+                error: "entryPaidAmount must be between 0 and tournament entry price",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (result.error === "insufficient_free_entries") {
+            return new Response(
+              JSON.stringify({
+                error: "Insufficient free entries to start with Free payment",
               }),
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
@@ -784,9 +809,9 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/in-game-payment">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let body: { entryPaymentMethod: string };
+        let body: { entryPaymentMethod: string; entryPaidAmount?: unknown };
         try {
-          body = (await req.json()) as { entryPaymentMethod: string };
+          body = (await req.json()) as typeof body;
         } catch {
           return new Response(
             JSON.stringify({ error: "Invalid JSON body" }),
@@ -806,10 +831,15 @@ export function inGameUserStateRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        const inGameEntryPaid =
+          typeof body.entryPaidAmount === "number" && Number.isInteger(body.entryPaidAmount)
+            ? body.entryPaidAmount
+            : undefined;
         const result = await service.inGamePayment(
           tournamentId,
           playerId,
-          body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod]
+          body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod],
+          inGameEntryPaid
         );
         if ("error" in result) {
           if (result.error === "invalid_status") {
@@ -829,6 +859,14 @@ export function inGameUserStateRoutes() {
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
+          if (result.error === "invalid_entry_amount") {
+            return new Response(
+              JSON.stringify({
+                error: "entryPaidAmount must be between 0 and tournament entry price",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
           return new Response(null, { status: 404 });
         }
         const playerName = await playerRepository.getNicknameById(playerId);
@@ -842,9 +880,9 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/entry-payment">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let body: { entryPaymentMethod: string };
+        let body: { entryPaymentMethod: string; entryPaidAmount?: unknown };
         try {
-          body = (await req.json()) as { entryPaymentMethod: string };
+          body = (await req.json()) as typeof body;
         } catch {
           return new Response(
             JSON.stringify({ error: "Invalid JSON body" }),
@@ -865,12 +903,25 @@ export function inGameUserStateRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        const entryPaidPatch =
+          typeof body.entryPaidAmount === "number" && Number.isInteger(body.entryPaidAmount)
+            ? body.entryPaidAmount
+            : undefined;
         const state = await service.updateEntryPaymentMethod(
           playerId,
           tournamentId,
-          body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod]
+          body.entryPaymentMethod as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod],
+          entryPaidPatch
         );
         if (state && "error" in state) {
+          if (state.error === "invalid_entry_amount") {
+            return new Response(
+              JSON.stringify({
+                error: "entryPaidAmount must be between 0 and tournament entry price",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
           return new Response(
             JSON.stringify({
               error: "Insufficient free entries to pay entry with Free",
@@ -949,9 +1000,9 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/reentry-payment">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let body: { payments: string[] };
+        let body: { payments: string[]; paidAmounts?: unknown };
         try {
-          body = (await req.json()) as { payments: string[] };
+          body = (await req.json()) as typeof body;
         } catch {
           return new Response(
             JSON.stringify({ error: "Invalid JSON body" }),
@@ -981,12 +1032,54 @@ export function inGameUserStateRoutes() {
             );
           }
         }
+        let postPaidAmounts: number[] | undefined;
+        if (body.paidAmounts !== undefined) {
+          if (!Array.isArray(body.paidAmounts)) {
+            return new Response(
+              JSON.stringify({ error: "paidAmounts must be an array of integers" }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (body.paidAmounts.length !== body.payments.length) {
+            return new Response(
+              JSON.stringify({
+                error: "paidAmounts length must match payments length",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          for (const a of body.paidAmounts) {
+            if (typeof a !== "number" || !Number.isInteger(a)) {
+              return new Response(
+                JSON.stringify({ error: "each paidAmounts item must be an integer" }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+              );
+            }
+          }
+          postPaidAmounts = body.paidAmounts as number[];
+        }
         const state = await service.addReentryPayment(
           playerId,
           tournamentId,
-          body.payments as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod][]
+          body.payments as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod][],
+          postPaidAmounts
         );
         if (state && "error" in state) {
+          if (state.error === "invalid_reentry_amount") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "Each paid amount must be between 0 and tournament re-entry price (0 for Free)",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (state.error === "paid_amounts_length") {
+            return new Response(
+              JSON.stringify({ error: "paidAmounts length must match payments length" }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
           return new Response(
             JSON.stringify({
               error: "Insufficient free re-entries to add reentry payment with Free",
@@ -1004,9 +1097,9 @@ export function inGameUserStateRoutes() {
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/reentry-payment">
       ) => {
         const { tournamentId, playerId } = req.params;
-        let body: { payments: string[] };
+        let body: { payments: string[]; paidAmounts?: unknown };
         try {
-          body = (await req.json()) as { payments: string[] };
+          body = (await req.json()) as typeof body;
         } catch {
           return new Response(
             JSON.stringify({ error: "Invalid JSON body" }),
@@ -1036,10 +1129,37 @@ export function inGameUserStateRoutes() {
             );
           }
         }
+        let putPaidAmounts: number[] | undefined;
+        if (body.paidAmounts !== undefined) {
+          if (!Array.isArray(body.paidAmounts)) {
+            return new Response(
+              JSON.stringify({ error: "paidAmounts must be an array of integers" }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (body.paidAmounts.length !== body.payments.length) {
+            return new Response(
+              JSON.stringify({
+                error: "paidAmounts length must match payments length",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          for (const a of body.paidAmounts) {
+            if (typeof a !== "number" || !Number.isInteger(a)) {
+              return new Response(
+                JSON.stringify({ error: "each paidAmounts item must be an integer" }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+              );
+            }
+          }
+          putPaidAmounts = body.paidAmounts as number[];
+        }
         const putState = await service.setReentryPaymentMethods(
           playerId,
           tournamentId,
-          body.payments as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod][]
+          body.payments as (typeof EntryPaymentMethod)[keyof typeof EntryPaymentMethod][],
+          putPaidAmounts
         );
         if (putState && "error" in putState) {
           if (putState.error === "invalid_length") {
@@ -1048,6 +1168,21 @@ export function inGameUserStateRoutes() {
                 error:
                   "payments length must equal player totalReentryCount",
               }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (putState.error === "invalid_reentry_amount") {
+            return new Response(
+              JSON.stringify({
+                error:
+                  "Each paid amount must be between 0 and tournament re-entry price (0 for Free)",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (putState.error === "paid_amounts_length") {
+            return new Response(
+              JSON.stringify({ error: "paidAmounts length must match payments length" }),
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }

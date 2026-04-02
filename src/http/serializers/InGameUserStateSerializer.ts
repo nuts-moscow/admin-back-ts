@@ -4,6 +4,7 @@ import {
   type BonusesByType,
   type InGameUserState,
   type ReentryByPaymentMethod,
+  type ReentryPaymentLine,
   sumBurnedStackChips,
 } from "../../domain/cache/InGameUserState";
 
@@ -38,9 +39,50 @@ export function recordedReentryCountFromPairs(
   return sum;
 }
 
+/** Recorded re-entry rows: prefers ordered lines when present. */
+export function recordedReentryCountForState(state: {
+  reentryPaymentLines: ReentryPaymentLine[] | null;
+  reentryByPaymentMethod: ReentryByPaymentMethod | null;
+}): number {
+  if (state.reentryPaymentLines != null && state.reentryPaymentLines.length > 0) {
+    return state.reentryPaymentLines.length;
+  }
+  return recordedReentryCountFromPairs(state.reentryByPaymentMethod);
+}
+
 /**
  * Parses stored JSON for reentryByPaymentMethod (pair format from Redis / tournament results).
  */
+/** Parses reentry payment lines JSON from DB / Redis string form. */
+export function parseReentryPaymentLinesStoredJson(
+  json: string | null
+): ReentryPaymentLine[] | null {
+  if (json == null || json === "") return null;
+  let arr: unknown;
+  try {
+    arr = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(arr)) return null;
+  const out: ReentryPaymentLine[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    if (item === null || typeof item !== "object" || Array.isArray(item)) return null;
+    const o = item as Record<string, unknown>;
+    const methodRaw = o.method ?? o.m;
+    if (typeof methodRaw !== "string" || !VALID_ENTRY_PAYMENT_METHODS.has(methodRaw)) {
+      return null;
+    }
+    const amtRaw = o.paidAmount ?? o.amount ?? o.paid;
+    const num =
+      typeof amtRaw === "number" ? amtRaw : typeof amtRaw === "string" ? parseInt(amtRaw, 10) : NaN;
+    if (Number.isNaN(num) || num < 0 || !Number.isInteger(num)) return null;
+    out.push({ method: methodRaw as EntryPaymentMethod, paidAmount: num });
+  }
+  return out.length > 0 ? out : null;
+}
+
 export function parseReentryByPaymentMethodStoredJson(
   json: string | null
 ): ReentryByPaymentMethod | null {
@@ -85,9 +127,14 @@ export function toApiResponse(
   state: InGameUserState,
   playerName: string | null = null,
   bountyEliminationEvents: BountyEliminationEventForPlayer[] = []
-): Omit<InGameUserState, "reentryByPaymentMethod" | "bonuses" | "customBonusChips"> & {
+): Omit<
+  InGameUserState,
+  "reentryByPaymentMethod" | "reentryPaymentLines" | "bonuses" | "customBonusChips"
+> & {
   burnedStackChipsTotal: number;
   reentryByPaymentMethod: string[] | null;
+  /** Same order as flattened reentryByPaymentMethod when lines exist; null if legacy pair-only storage. */
+  reentryPaidAmounts: number[] | null;
   bonuses: string[] | null;
   customBonusChips: number[];
   playerName: string | null;
@@ -97,13 +144,25 @@ export function toApiResponse(
   const pairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
   const recorded = recordedReentryCountFromPairs(pairs);
   const unpaidReentryCount = Math.max(0, state.totalReentryCount - recorded);
+  const reentryPaidAmounts =
+    state.reentryPaymentLines != null && state.reentryPaymentLines.length > 0
+      ? state.reentryPaymentLines.map((l) => l.paidAmount)
+      : null;
+  const {
+    reentryPaymentLines: _rpl,
+    bonuses: bon,
+    customBonusChips: cbc,
+    reentryByPaymentMethod: _rbm,
+    ...core
+  } = state;
   return {
-    ...state,
+    ...core,
     burnedStackEvents: state.burnedStackEvents.map((e) => ({ ...e })),
     burnedStackChipsTotal: sumBurnedStackChips(state.burnedStackEvents),
     reentryByPaymentMethod: flattenPairs(pairs),
-    bonuses: flattenPairs(state.bonuses as BonusesByType | null),
-    customBonusChips: [...state.customBonusChips],
+    reentryPaidAmounts,
+    bonuses: flattenPairs(bon as BonusesByType | null),
+    customBonusChips: [...cbc],
     playerName,
     totalReentryCount: state.totalReentryCount,
     unpaidReentryCount,

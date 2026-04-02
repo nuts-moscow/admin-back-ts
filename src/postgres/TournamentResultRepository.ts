@@ -8,7 +8,9 @@ export interface TournamentResultPlayerRow {
   placement: number | null;
   status: string;
   entryPaymentMethod: string | null;
+  entryPaidAmount: number | null;
   reentryByPaymentMethod: string | null;
+  reentryPaymentLines: string | null;
   totalReentryCount: number;
   bountyCount: number;
   bonuses: string | null;
@@ -40,9 +42,17 @@ function rowToResult(row: Record<string, unknown>): TournamentResultPlayerRow {
       row.entry_payment_method != null
         ? String(row.entry_payment_method)
         : null,
+    entryPaidAmount:
+      row.entry_paid_amount != null && row.entry_paid_amount !== ""
+        ? Number(row.entry_paid_amount)
+        : null,
     reentryByPaymentMethod:
       row.reentry_by_payment_method != null
         ? String(row.reentry_by_payment_method)
+        : null,
+    reentryPaymentLines:
+      row.reentry_payment_lines != null && String(row.reentry_payment_lines) !== ""
+        ? String(row.reentry_payment_lines)
         : null,
     totalReentryCount: Number(row.total_reentry_count ?? 0),
     bountyCount: Number(row.bounty_count ?? 0),
@@ -70,16 +80,19 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
         await PostgresClient.instance.query(
           `INSERT INTO tournament_result_players (
             tournament_id, player_id, tournament_player_id, placement, status,
-            entry_payment_method, reentry_by_payment_method, total_reentry_count,
+            entry_payment_method, entry_paid_amount, reentry_by_payment_method, reentry_payment_lines,
+            total_reentry_count,
             bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by,
             burned_stack_events
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           ON CONFLICT (tournament_id, player_id) DO UPDATE SET
             tournament_player_id = EXCLUDED.tournament_player_id,
             placement = EXCLUDED.placement,
             status = EXCLUDED.status,
             entry_payment_method = EXCLUDED.entry_payment_method,
+            entry_paid_amount = EXCLUDED.entry_paid_amount,
             reentry_by_payment_method = EXCLUDED.reentry_by_payment_method,
+            reentry_payment_lines = EXCLUDED.reentry_payment_lines,
             total_reentry_count = EXCLUDED.total_reentry_count,
             bounty_count = EXCLUDED.bounty_count,
             bonuses = EXCLUDED.bonuses,
@@ -94,7 +107,9 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             r.placement,
             r.status,
             r.entryPaymentMethod,
+            r.entryPaidAmount,
             r.reentryByPaymentMethod,
+            r.reentryPaymentLines,
             r.totalReentryCount,
             r.bountyCount,
             r.bonuses,
@@ -121,7 +136,8 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
     try {
       const result = await PostgresClient.instance.query(
         `SELECT tournament_id, player_id, tournament_player_id, placement, status,
-                entry_payment_method, reentry_by_payment_method, total_reentry_count,
+                entry_payment_method, entry_paid_amount, reentry_by_payment_method, reentry_payment_lines,
+                total_reentry_count,
                 bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by,
                 burned_stack_events
          FROM tournament_result_players

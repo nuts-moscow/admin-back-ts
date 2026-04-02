@@ -91,9 +91,14 @@ export async function runTournamentCompletion(
       placement,
       status: state.status,
       entryPaymentMethod: state.entryPaymentMethod,
+      entryPaidAmount: state.entryPaidAmount ?? null,
       reentryByPaymentMethod:
         state.reentryByPaymentMethod != null
           ? JSON.stringify(state.reentryByPaymentMethod)
+          : null,
+      reentryPaymentLines:
+        state.reentryPaymentLines != null && state.reentryPaymentLines.length > 0
+          ? JSON.stringify(state.reentryPaymentLines)
           : null,
       totalReentryCount: state.totalReentryCount,
       bountyCount: state.bountyCount,

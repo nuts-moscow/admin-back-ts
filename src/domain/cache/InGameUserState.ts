@@ -31,6 +31,12 @@ export type EntryPaymentMethod =
 /** Re-entry count by payment method: (method, count) */
 export type ReentryByPaymentMethod = [EntryPaymentMethod, number][];
 
+/** One recorded re-entry payment (ordered; sum of paidAmounts drives cash desk when set). */
+export interface ReentryPaymentLine {
+  method: EntryPaymentMethod;
+  paidAmount: number;
+}
+
 /** In-game bonus */
 export const InGameBonus = {
   EarlyBird: "EarlyBird",
@@ -74,7 +80,11 @@ export interface InGameUserState {
   /** Whole bounties plus fractional shares when a single elimination is split across N killers. */
   bountyCount: number;
   entryPaymentMethod: EntryPaymentMethod | null;
+  /** Factually paid entry amount (same units as tournament entry_price); null = legacy / use list price in cash desk. */
+  entryPaidAmount: number | null;
   reentryByPaymentMethod: ReentryByPaymentMethod | null;
+  /** Ordered re-entry payments; when null, cash desk uses reentryByPaymentMethod × reentry_price. */
+  reentryPaymentLines: ReentryPaymentLine[] | null;
   totalReentryCount: number;
   freeEntryCount: number;
   freeReentryCount: number;
@@ -104,7 +114,9 @@ export function initInGameUserState(
     tableId: null,
     bountyCount: 0,
     entryPaymentMethod: null,
+    entryPaidAmount: null,
     reentryByPaymentMethod: null,
+    reentryPaymentLines: null,
     totalReentryCount: 0,
     freeEntryCount,
     freeReentryCount,
@@ -115,6 +127,35 @@ export function initInGameUserState(
     customBonusChips: [],
     burnedStackEvents: [],
   };
+}
+
+/** Build aggregated pairs from ordered re-entry lines (for free-count and legacy fields). */
+export function reentryPaymentLinesToPairs(
+  lines: ReentryPaymentLine[]
+): ReentryByPaymentMethod {
+  const map = new Map<EntryPaymentMethod, number>();
+  for (const { method } of lines) {
+    map.set(method, (map.get(method) ?? 0) + 1);
+  }
+  return Array.from(map.entries());
+}
+
+/** Expand stored pairs into lines using list reentry price (legacy migration helper). */
+export function expandReentryPairsToLines(
+  pairs: ReentryByPaymentMethod | null,
+  reentryPrice: number
+): ReentryPaymentLine[] {
+  if (!pairs || pairs.length === 0) return [];
+  const out: ReentryPaymentLine[] = [];
+  for (const [method, count] of pairs) {
+    for (let i = 0; i < count; i++) {
+      out.push({
+        method,
+        paidAmount: method === EntryPaymentMethod.Free ? 0 : reentryPrice,
+      });
+    }
+  }
+  return out;
 }
 
 /** Sum of chips from all burned-stack events (rebuy + out). */

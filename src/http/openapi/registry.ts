@@ -1158,7 +1158,7 @@ openApiRegistry.registerPath({
   operationId: "playerGameStart",
   summary: "Player game start",
   description:
-    "Transitions player from Registered to InGamePaid (if entry payment provided) or InGameNotPaid (if not). Updates entry payment method and table if provided. Optional EarlyBirdFlag: if true, adds EarlyBird bonus after success.",
+    "Transitions player from Registered to InGamePaid (if entry payment provided) or InGameNotPaid (if not). Updates entry payment method and table if provided. Optional entryPaidAmount: actual charge when recording a paid method (0–entry_price); if omitted, server uses tournament entry_price. Optional EarlyBirdFlag: if true, adds EarlyBird bonus after success.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -1176,7 +1176,7 @@ openApiRegistry.registerPath({
     },
     400: {
       description:
-        "Player must be in Registered status, or table has too many players (max 10)",
+        "Player must be in Registered status, invalid entryPaidAmount, insufficient free entries for Free, or table has too many players (max 10)",
       content: {
         "application/json": {
           schema: {
@@ -1271,7 +1271,7 @@ openApiRegistry.registerPath({
   operationId: "inGamePayment",
   summary: "In-game payment",
   description:
-    "Updates entry payment method. Allowed when player is InGameNotPaid (then transitions to InGamePaid) or Out (e.g. eliminated but unpaid; only updates payment, status stays Out).",
+    "Updates entry payment method. Allowed when player is InGameNotPaid (then transitions to InGamePaid) or Out (e.g. eliminated but unpaid; only updates payment, status stays Out). Optional entryPaidAmount for discounted charge; omit to use tournament entry_price when switching to a paid method.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -1288,7 +1288,8 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid body or player must be in InGameNotPaid or Out status",
+      description:
+        "Invalid body, invalid entryPaidAmount, or player must be in InGameNotPaid or Out status",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
@@ -1307,7 +1308,8 @@ openApiRegistry.registerPath({
   tags: ["Tournament Players"],
   operationId: "updateEntryPaymentMethod",
   summary: "Update entry payment method",
-  description: "Sets the entry payment method for a player",
+  description:
+    "Sets the entry payment method for a player. Optional entryPaidAmount when recording a paid method; omit to use tournament entry_price.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -1324,7 +1326,7 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid entry payment method",
+      description: "Invalid entry payment method or entryPaidAmount",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
@@ -1409,7 +1411,8 @@ openApiRegistry.registerPath({
   tags: ["Tournament Players"],
   operationId: "addReentryPayments",
   summary: "Add re-entry payments",
-  description: "Adds re-entry payment methods for a player",
+  description:
+    "Appends re-entry payment methods (one per new re-entry). Optional paidAmounts (same length as payments): per-slot charge 0–reentry_price (0 for Free). Omit paidAmounts to use full tournament reentry_price for non-Free methods.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -1426,7 +1429,46 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid payment methods",
+      description:
+        "Invalid payment methods, paid amounts, length mismatch, or insufficient free re-entries for Free",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not found",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "put",
+  path: `${basePath}/players/{playerId}/reentry-payment`,
+  tags: ["Tournament Players"],
+  operationId: "setReentryPayments",
+  summary: "Replace all re-entry payments",
+  description:
+    "Replaces the full list of re-entry payment methods; length must equal totalReentryCount. Optional paidAmounts (same length as payments). Omit paidAmounts to use full tournament reentry_price for each non-Free slot.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: ReentryPaymentBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description:
+        "Invalid payment methods, paid amounts, length mismatches, or insufficient free re-entries for Free",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

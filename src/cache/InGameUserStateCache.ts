@@ -2,13 +2,16 @@ import { logger } from "../logger";
 import { RedisClient } from "../redis";
 import {
   EntryPaymentMethod,
+  expandReentryPairsToLines,
   InGameBonus,
   initInGameUserState,
   InGamePlayerStatus,
+  reentryPaymentLinesToPairs,
   type BurnedStackEvent,
   type InGameUserState,
   type PlayerId,
   type ReentryByPaymentMethod,
+  type ReentryPaymentLine,
   type BonusesByType,
   type TableId,
   type TournamentId,
@@ -67,6 +70,13 @@ function countFreeInReentryPairs(pairs: ReentryByPaymentMethod | null): number {
   for (const [method, count] of pairs) {
     if (method === EntryPaymentMethod.Free) n += count;
   }
+  return n;
+}
+
+function sumReentryPairCounts(pairs: ReentryByPaymentMethod | null): number {
+  if (!pairs) return 0;
+  let n = 0;
+  for (const [, count] of pairs) n += count;
   return n;
 }
 
@@ -257,33 +267,33 @@ export interface InGameUserStateCache {
    * @param entryPaymentMethod - New entry payment method, or null to clear
    * @returns Updated state or null if state does not exist or on error
    */
+  /**
+   * Updates entry payment method and optional paid amount (null = no monetary line when clearing / Free).
+   */
   updateEntryPaymentMethod(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    entryPaymentMethod: EntryPaymentMethod | null
+    entryPaymentMethod: EntryPaymentMethod | null,
+    entryPaidAmount?: number | null
   ): Promise<InGameUserState | null>;
 
   /**
-   * Records reentry payment methods for existing reentries. Does NOT add to totalReentryCount
-   * (reentries are added via addReentryCount / bounty eliminate). Only updates reentryByPaymentMethod.
-   * @param playerId - Player ID
-   * @param tournamentId - Tournament ID
-   * @param payments - List of payment methods (each adds 1 to that method's count)
-   * @returns Updated state or null if state does not exist or on error
+   * Appends re-entry payment lines (one per newly recorded payment). Migrates legacy pairs to lines using reentryPriceForLegacyExpand when needed.
    */
   addReentryPayment(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    payments: EntryPaymentMethod[]
+    appendLines: ReentryPaymentLine[],
+    reentryPriceForLegacyExpand: number
   ): Promise<InGameUserState | null>;
 
   /**
-   * Replaces reentry payment methods with the full list. Length must equal totalReentryCount.
+   * Replaces re-entry lines; length must equal totalReentryCount. Derives pairs from lines.
    */
   setReentryPaymentMethods(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    payments: EntryPaymentMethod[]
+    lines: ReentryPaymentLine[]
   ): Promise<InGameUserState | null>;
 
   /**
@@ -456,7 +466,13 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
         tableId: state.tableId ?? "",
         bountyCount: String(state.bountyCount),
         entryPaymentMethod: state.entryPaymentMethod ?? "",
+        entryPaidAmount:
+          state.entryPaidAmount == null ? "" : String(state.entryPaidAmount),
         reentryByPaymentMethod: state.reentryByPaymentMethod === null ? "" : JSON.stringify(state.reentryByPaymentMethod),
+        reentryPaymentLines:
+          state.reentryPaymentLines == null || state.reentryPaymentLines.length === 0
+            ? ""
+            : JSON.stringify(state.reentryPaymentLines),
         totalReentryCount: String(state.totalReentryCount),
         freeEntryCount: String(state.freeEntryCount),
         freeReentryCount: String(state.freeReentryCount),
@@ -781,28 +797,50 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   async updateEntryPaymentMethod(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    entryPaymentMethod: EntryPaymentMethod | null
+    entryPaymentMethod: EntryPaymentMethod | null,
+    entryPaidAmount?: number | null
   ): Promise<InGameUserState | null> {
-    logger.info({ playerId, tournamentId, entryPaymentMethod }, `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod entry`);
+    logger.info(
+      { playerId, tournamentId, entryPaymentMethod, entryPaidAmount },
+      `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod entry`
+    );
     try {
-      const k = key(tournamentId, playerId);
-      const exists = await RedisClient.instance.exists(k);
-      if (!exists) {
+      const state = await this.get(playerId, tournamentId);
+      if (!state) {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (key not found)`);
         return null;
       }
-      await RedisClient.instance.hset(k, "entryPaymentMethod", entryPaymentMethod ?? "");
+      let nextPaid: number | null;
+      if (
+        entryPaymentMethod == null ||
+        entryPaymentMethod === EntryPaymentMethod.Free
+      ) {
+        nextPaid = null;
+      } else if (
+        entryPaidAmount !== undefined &&
+        entryPaidAmount !== null &&
+        Number.isFinite(entryPaidAmount)
+      ) {
+        nextPaid = Math.trunc(entryPaidAmount);
+      } else {
+        nextPaid = state.entryPaidAmount;
+      }
+      const k = key(tournamentId, playerId);
+      await RedisClient.instance.hset(k, {
+        entryPaymentMethod: entryPaymentMethod ?? "",
+        entryPaidAmount: nextPaid == null ? "" : String(nextPaid),
+      });
       const hash = await RedisClient.instance.hgetall(k);
       if (!hash || Object.keys(hash).length === 0) {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result: miss (no data)`);
         return null;
       }
-      const state = parseHashToState(hash, playerId);
+      const parsed = parseHashToState(hash, playerId);
       logger.info(
-        { state: !!state, entryPaymentMethod: state?.entryPaymentMethod },
+        { state: !!parsed, entryPaymentMethod: parsed?.entryPaymentMethod },
         `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod result`
       );
-      return state;
+      return parsed;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.updateEntryPaymentMethod failed`);
       return null;
@@ -812,25 +850,33 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   async addReentryPayment(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    payments: EntryPaymentMethod[]
+    appendLines: ReentryPaymentLine[],
+    reentryPriceForLegacyExpand: number
   ): Promise<InGameUserState | null> {
-    logger.info({ playerId, tournamentId, payments }, `${LOG_PREFIX} InGameUserStateCache.addReentryPayment entry`);
+    logger.info(
+      { playerId, tournamentId, appendLines },
+      `${LOG_PREFIX} InGameUserStateCache.addReentryPayment entry`
+    );
     try {
       const state = await this.get(playerId, tournamentId);
       if (!state) {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.addReentryPayment result: miss (key not found)`);
         return null;
       }
-      const current = state.reentryByPaymentMethod ?? [];
-      const map = new Map<EntryPaymentMethod, number>();
-      for (const [method, count] of current) {
-        map.set(method, (map.get(method) ?? 0) + count);
+      let baseLines: ReentryPaymentLine[];
+      if (state.reentryPaymentLines != null && state.reentryPaymentLines.length > 0) {
+        baseLines = [...state.reentryPaymentLines];
+      } else if (sumReentryPairCounts(state.reentryByPaymentMethod) > 0) {
+        baseLines = expandReentryPairsToLines(
+          state.reentryByPaymentMethod,
+          reentryPriceForLegacyExpand
+        );
+      } else {
+        baseLines = [];
       }
-      const freeAdded = payments.filter((m) => m === EntryPaymentMethod.Free).length;
-      for (const method of payments) {
-        map.set(method, (map.get(method) ?? 0) + 1);
-      }
-      const updated: ReentryByPaymentMethod = Array.from(map.entries());
+      const mergedLines = [...baseLines, ...appendLines];
+      const updated = reentryPaymentLinesToPairs(mergedLines);
+      const freeAdded = appendLines.filter((l) => l.method === EntryPaymentMethod.Free).length;
       const { freeReentryCount, tournamentFreeReentryCount } = applyFreeReentryDelta(
         state,
         freeAdded
@@ -838,6 +884,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       const newState: InGameUserState = {
         ...state,
         reentryByPaymentMethod: updated,
+        reentryPaymentLines: mergedLines,
         totalReentryCount: state.totalReentryCount,
         freeReentryCount,
         tournamentFreeReentryCount,
@@ -858,23 +905,20 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   async setReentryPaymentMethods(
     playerId: PlayerId,
     tournamentId: TournamentId,
-    payments: EntryPaymentMethod[]
+    lines: ReentryPaymentLine[]
   ): Promise<InGameUserState | null> {
     const state = await this.get(playerId, tournamentId);
     if (!state) return null;
-    if (payments.length !== state.totalReentryCount) return null;
+    if (lines.length !== state.totalReentryCount) return null;
     const oldFree = countFreeInReentryPairs(state.reentryByPaymentMethod);
-    const newFree = payments.filter((p) => p === EntryPaymentMethod.Free).length;
+    const newFree = lines.filter((l) => l.method === EntryPaymentMethod.Free).length;
     const delta = newFree - oldFree;
-    const map = new Map<EntryPaymentMethod, number>();
-    for (const method of payments) {
-      map.set(method, (map.get(method) ?? 0) + 1);
-    }
-    const reentryByPaymentMethod: ReentryByPaymentMethod = Array.from(map.entries());
+    const reentryByPaymentMethod = reentryPaymentLinesToPairs(lines);
     const { freeReentryCount, tournamentFreeReentryCount } = applyFreeReentryDelta(state, delta);
     const newState: InGameUserState = {
       ...state,
       reentryByPaymentMethod,
+      reentryPaymentLines: lines,
       freeReentryCount,
       tournamentFreeReentryCount,
     };
@@ -1166,10 +1210,26 @@ function parseHashToState(
     }
     entryPaymentMethod = hash.entryPaymentMethod as EntryPaymentMethod;
   }
+  let entryPaidAmount: number | null = null;
+  if (hash.entryPaidAmount !== undefined && hash.entryPaidAmount !== null && hash.entryPaidAmount !== "") {
+    const ep = parseInt(hash.entryPaidAmount, 10);
+    if (Number.isNaN(ep) || ep < 0) {
+      logger.info({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid entryPaidAmount`);
+      return null;
+    }
+    entryPaidAmount = ep;
+  }
+  if (entryPaymentMethod === EntryPaymentMethod.Free) {
+    entryPaidAmount = null;
+  }
   const reentryByPaymentMethod = parseReentryByPaymentMethod(
     hash.reentryByPaymentMethod
   );
   if (reentryByPaymentMethod === undefined) {
+    return null;
+  }
+  const reentryPaymentLines = parseReentryPaymentLines(hash.reentryPaymentLines);
+  if (reentryPaymentLines === undefined) {
     return null;
   }
   if (hash.totalReentryCount === undefined || hash.totalReentryCount === null) {
@@ -1246,7 +1306,9 @@ function parseHashToState(
     tableId: (hash.tableId || null) as TableId | null,
     bountyCount,
     entryPaymentMethod,
+    entryPaidAmount,
     reentryByPaymentMethod,
+    reentryPaymentLines,
     totalReentryCount,
     freeEntryCount,
     freeReentryCount,
@@ -1332,6 +1394,48 @@ function parseCustomBonusChips(
       return undefined;
     }
     out.push(n);
+  }
+  return out;
+}
+
+function parseReentryPaymentLines(
+  raw: string | undefined | null
+): ReentryPaymentLine[] | null | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    return null;
+  }
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    logger.info({ raw }, `${LOG_PREFIX} parseReentryPaymentLines failed: invalid JSON`);
+    return undefined;
+  }
+  if (!Array.isArray(arr)) {
+    logger.info({ raw }, `${LOG_PREFIX} parseReentryPaymentLines failed: expected array`);
+    return undefined;
+  }
+  const out: ReentryPaymentLine[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      logger.info({ item, index: i }, `${LOG_PREFIX} parseReentryPaymentLines failed: bad row`);
+      return undefined;
+    }
+    const o = item as Record<string, unknown>;
+    const methodRaw = o.method ?? o.m;
+    if (typeof methodRaw !== "string" || !VALID_ENTRY_PAYMENT_METHODS.has(methodRaw)) {
+      logger.info({ item, index: i }, `${LOG_PREFIX} parseReentryPaymentLines failed: bad method`);
+      return undefined;
+    }
+    const amtRaw = o.paidAmount ?? o.amount ?? o.paid;
+    const num =
+      typeof amtRaw === "number" ? amtRaw : typeof amtRaw === "string" ? parseInt(amtRaw, 10) : NaN;
+    if (Number.isNaN(num) || !Number.isFinite(num) || num < 0 || !Number.isInteger(num)) {
+      logger.info({ item, index: i }, `${LOG_PREFIX} parseReentryPaymentLines failed: bad paidAmount`);
+      return undefined;
+    }
+    out.push({ method: methodRaw as EntryPaymentMethod, paidAmount: num });
   }
   return out;
 }

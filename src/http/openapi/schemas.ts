@@ -78,12 +78,29 @@ export const InGameUserStateSchema = z
         example: 1,
       }),
     entryPaymentMethod: EntryPaymentMethodSchema.nullable(),
+    entryPaidAmount: z
+      .number()
+      .int()
+      .nullable()
+      .openapi({
+        description:
+          "Actual entry amount charged in same units as tournament entry_price (0 for Free). Omitted in legacy data: clients may treat as full list price for Cache/CreditCard.",
+        example: 5000,
+      }),
     reentryByPaymentMethod: z
       .array(EntryPaymentMethodSchema)
       .nullable()
       .openapi({
         description: "Re-entry payments as flat list, e.g. [\"Cache\", \"Cache\", \"CreditCard\"]",
         example: ["Cache", "Cache", "CreditCard"],
+      }),
+    reentryPaidAmounts: z
+      .array(z.number().int())
+      .nullable()
+      .openapi({
+        description:
+          "Per re-entry paid amounts in line order (same length as recorded re-entries with payment methods). Legacy: null — use reentry_price × count per method.",
+        example: [3000, 5000, 0],
       }),
     totalReentryCount: z.number().openapi({ description: "Total re-entry count", example: 0 }),
     unpaidReentryCount: z
@@ -473,6 +490,15 @@ export const BonusMutationBodySchema = z
 export const EntryPaymentBodySchema = z
   .object({
     entryPaymentMethod: EntryPaymentMethodSchema,
+    entryPaidAmount: z
+      .number()
+      .int()
+      .optional()
+      .openapi({
+        description:
+          "Optional actual entry charge (0–tournament entry_price). Omit to use tournament entry_price when setting a paid method; ignored for Free.",
+        example: 4500,
+      }),
   })
   .openapi("EntryPaymentBody");
 
@@ -483,6 +509,15 @@ export const PlayerGameStartBodySchema = z
       description: "If provided: sets payment method and status InGamePaid. If omitted: status InGameNotPaid",
       example: "Cache",
     }),
+    entryPaidAmount: z
+      .number()
+      .int()
+      .optional()
+      .openapi({
+        description:
+          "Optional actual entry charge when recording payment (0–tournament entry_price). If omitted with a paid method, server uses tournament entry_price.",
+        example: 4500,
+      }),
     tableId: z
       .string()
       .optional()
@@ -513,6 +548,14 @@ export const ReentryPaymentBodySchema = z
     payments: z
       .array(EntryPaymentMethodSchema)
       .openapi({ description: "Payment methods for re-entry", example: ["Cache", "CreditCard"] }),
+    paidAmounts: z
+      .array(z.number().int())
+      .optional()
+      .openapi({
+        description:
+          "Optional per-slot paid amounts (same length as payments). Each non-Free must be 0–tournament reentry_price (Free slots are 0). Omit to use full reentry_price for paid methods.",
+        example: [2500, 5000],
+      }),
   })
   .openapi("ReentryPaymentBody");
 
