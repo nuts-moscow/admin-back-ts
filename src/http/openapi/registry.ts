@@ -1271,7 +1271,7 @@ openApiRegistry.registerPath({
   operationId: "inGamePayment",
   summary: "In-game payment",
   description:
-    "Updates entry payment method. Allowed when player is InGameNotPaid (then transitions to InGamePaid) or Out (e.g. eliminated but unpaid; only updates payment, status stays Out). Optional entryPaidAmount for discounted charge; omit to use tournament entry_price when switching to a paid method.",
+    "Updates entry payment method. InGameNotPaid: transitions to InGamePaid after recording payment. InGamePaid: correction only (e.g. CreditCard to Cache), status unchanged; optional entryPaidAmount. Out: records payment for eliminated unpaid player, status stays Out. Optional entryPaidAmount for discount; omit to keep stored amount or use tournament entry_price when first recording paid method.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -1289,7 +1289,7 @@ openApiRegistry.registerPath({
     },
     400: {
       description:
-        "Invalid body, invalid entryPaidAmount, or player must be in InGameNotPaid or Out status",
+        "Invalid body, invalid entryPaidAmount, or player status not InGameNotPaid, InGamePaid, or Out",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },

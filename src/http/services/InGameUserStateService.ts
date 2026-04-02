@@ -918,6 +918,7 @@ export class InGameUserStateService {
   /**
    * In-game payment: updates entry payment method.
    * If InGameNotPaid: also transitions to InGamePaid.
+   * If InGamePaid: updates method/amount only (e.g. CreditCard to Cache); status unchanged.
    * If Out (e.g. eliminated but never paid): only updates entry payment method, status stays Out.
    */
   async inGamePayment(
@@ -939,6 +940,7 @@ export class InGameUserStateService {
     if (!state) return { error: "not_found" };
     const allowedForPayment = new Set<InGamePlayerStatus>([
       InGamePlayerStatus.InGameNotPaid,
+      InGamePlayerStatus.InGamePaid,
       InGamePlayerStatus.Out,
     ]);
     if (!allowedForPayment.has(state.status)) {

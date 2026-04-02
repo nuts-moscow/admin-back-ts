@@ -846,7 +846,7 @@ export function inGameUserStateRoutes() {
             return new Response(
               JSON.stringify({
                 error:
-                  "Player must be in InGameNotPaid or Out status for in-game payment",
+                  "Player must be InGameNotPaid, InGamePaid, or Out for in-game payment",
               }),
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
