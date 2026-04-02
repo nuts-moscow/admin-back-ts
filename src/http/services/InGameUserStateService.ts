@@ -38,6 +38,10 @@ import {
   sumBurnedStackChips,
 } from "../../domain/cache/InGameUserState";
 import {
+  DEFAULT_MAX_REENTRIES,
+  effectiveAllowedReentryCount,
+} from "../../domain/tournamentReentryPolicy";
+import {
   flattenBonusesForApi,
   flattenReentryPairsForApi,
   parseReentryByPaymentMethodStoredJson,
@@ -45,6 +49,8 @@ import {
   recordedReentryCountForState,
   recordedReentryCountFromPairs,
 } from "../serializers/InGameUserStateSerializer";
+
+export type AddReentryCountError = "reentries_not_allowed" | "reentry_limit_reached";
 
 function countFreeInReentryByPaymentMethod(
   pairs: ReentryByPaymentMethod | null
@@ -665,6 +671,7 @@ export class InGameUserStateService {
       reentryByPaymentMethod: string[] | null;
       reentryPaidAmounts: number[] | null;
       totalReentryCount: number;
+      allowedReentryCount: number;
       freeEntryCount: number;
       freeReentryCount: number;
       tournamentFreeEntryCount: number;
@@ -685,6 +692,20 @@ export class InGameUserStateService {
     if (Number.isNaN(id)) return null;
     const tournament = await tournamentRepository.findById(id);
     if (!tournament || tournament.status !== "completed") return null;
+
+    const snap = await tournamentCashSnapshotRepository.findByTournamentId(id);
+    const freezeOutFromSnap = snap?.freezeOutEnabled === true;
+    const rawMaxSnap = snap?.maxReentries;
+    const maxReentriesFromSnap =
+      typeof rawMaxSnap === "number" &&
+      Number.isInteger(rawMaxSnap) &&
+      rawMaxSnap >= 0
+        ? rawMaxSnap
+        : DEFAULT_MAX_REENTRIES;
+    const allowedReentryCount = effectiveAllowedReentryCount(
+      freezeOutFromSnap,
+      maxReentriesFromSnap
+    );
 
     const rows = await tournamentResultRepository.findByTournamentId(id);
     const N = rows.length;
@@ -733,6 +754,7 @@ export class InGameUserStateService {
           reentryPaidAmounts:
             reentryLinesFromDb?.map((l) => l.paidAmount) ?? null,
           totalReentryCount: row.totalReentryCount,
+          allowedReentryCount,
           freeEntryCount: 0,
           freeReentryCount: 0,
           tournamentFreeEntryCount: 0,
@@ -791,7 +813,25 @@ export class InGameUserStateService {
     playerId: PlayerId,
     tournamentId: TournamentId,
     count: number
-  ): Promise<InGameUserState | null> {
+  ): Promise<
+    InGameUserState | null | { error: AddReentryCountError }
+  > {
+    if (count > 0) {
+      const structure = await tournamentStructureCache.get(tournamentId);
+      if (structure) {
+        const cap = effectiveAllowedReentryCount(
+          structure.freezeOutEnabled,
+          structure.maxReentries
+        );
+        const current = await InGameUserStateCache.get(playerId, tournamentId);
+        if (!current) return null;
+        if (current.totalReentryCount + count > cap) {
+          return {
+            error: cap === 0 ? "reentries_not_allowed" : "reentry_limit_reached",
+          };
+        }
+      }
+    }
     return InGameUserStateCache.addReentryCount(playerId, tournamentId, count);
   }
 
@@ -1250,6 +1290,29 @@ export class InGameUserStateService {
     }
 
     if (type === "Rebuy") {
+      const victimPre = await InGameUserStateCache.get(
+        eliminatedPlayerId,
+        tournamentId
+      );
+      if (!victimPre) {
+        return {
+          ok: false,
+          error: "Eliminated player not found in tournament",
+        };
+      }
+      const structure = await tournamentStructureCache.get(tournamentId);
+      if (structure) {
+        const cap = effectiveAllowedReentryCount(
+          structure.freezeOutEnabled,
+          structure.maxReentries
+        );
+        if (victimPre.totalReentryCount + 1 > cap) {
+          return {
+            ok: false,
+            error: cap === 0 ? "reentries_not_allowed" : "reentry_limit_reached",
+          };
+        }
+      }
       const reentryState = await InGameUserStateCache.addReentryCount(
         eliminatedPlayerId,
         tournamentId,
@@ -1671,7 +1734,14 @@ export class InGameUserStateService {
     playerId: PlayerId
   ): Promise<
     | { ok: true; state: InGameUserState }
-    | { ok: false; error: "not_found" | "invalid_status" | "internal" }
+    | {
+        ok: false;
+        error:
+          | "not_found"
+          | "invalid_status"
+          | "internal"
+          | AddReentryCountError;
+      }
   > {
     const state = await InGameUserStateCache.get(playerId, tournamentId);
     if (!state) {
@@ -1679,6 +1749,20 @@ export class InGameUserStateService {
     }
     if (state.status !== InGamePlayerStatus.Out) {
       return { ok: false, error: "invalid_status" };
+    }
+
+    const structureForCap = await tournamentStructureCache.get(tournamentId);
+    if (structureForCap) {
+      const cap = effectiveAllowedReentryCount(
+        structureForCap.freezeOutEnabled,
+        structureForCap.maxReentries
+      );
+      if (state.totalReentryCount + 1 > cap) {
+        return {
+          ok: false,
+          error: cap === 0 ? "reentries_not_allowed" : "reentry_limit_reached",
+        };
+      }
     }
 
     const oldPlacement = state.placement;

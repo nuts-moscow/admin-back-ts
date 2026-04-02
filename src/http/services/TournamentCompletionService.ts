@@ -4,6 +4,7 @@ import {
   InGameUserStateCache,
   tournamentStructureCache,
 } from "../../cache";
+import { DEFAULT_MAX_REENTRIES } from "../../domain/tournamentReentryPolicy";
 import type { InGameUserState } from "../../domain/cache/InGameUserState";
 import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { logger } from "../../logger";
@@ -62,6 +63,8 @@ export async function runTournamentCompletion(
   const cashDeskWithStack: Record<string, unknown> = {
     ...(cashDesk as unknown as Record<string, unknown>),
     stackSize: structure?.stackSize ?? null,
+    freezeOutEnabled: structure?.freezeOutEnabled ?? false,
+    maxReentries: structure?.maxReentries ?? DEFAULT_MAX_REENTRIES,
   };
   const saved = await tournamentCashSnapshotRepository.save(
     tournamentId,

@@ -1,5 +1,10 @@
 import type { BunRequest } from "bun";
 import type { BountyEliminationEventRecord } from "../../cache/BountyEliminationEventsCache";
+import { tournamentStructureCache } from "../../cache";
+import {
+  DEFAULT_MAX_REENTRIES,
+  effectiveAllowedReentryCount,
+} from "../../domain/tournamentReentryPolicy";
 import {
   BountyEliminationType,
   EntryPaymentMethod,
@@ -21,6 +26,17 @@ const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
 const VALID_PAIR_BONUSES = new Set<string>(
   Object.values(InGameBonus).filter((b) => b !== InGameBonus.Custom)
 );
+
+async function allowedReentryCountForTournament(tournamentId: string): Promise<number> {
+  const structure = await tournamentStructureCache.get(tournamentId);
+  if (!structure) {
+    return effectiveAllowedReentryCount(false, DEFAULT_MAX_REENTRIES);
+  }
+  return effectiveAllowedReentryCount(
+    structure.freezeOutEnabled,
+    structure.maxReentries
+  );
+}
 
 /** Parses EarlyBirdFlag / earlyBirdFlag / early_bird_flag from JSON body (boolean, string, or 1). */
 function parseEarlyBirdFlagFromBody(body: unknown): boolean {
@@ -48,10 +64,12 @@ export function inGameUserStateRoutes() {
   ) {
     const events =
       preloaded ?? (await service.getBountyEliminationEvents(tournamentId));
+    const allowedReentryCount = await allowedReentryCountForTournament(tournamentId);
     return toApiResponse(
       state,
       playerName,
-      eliminationEventsForPlayer(state.playerId, events)
+      eliminationEventsForPlayer(state.playerId, events),
+      allowedReentryCount
     );
   }
 
@@ -76,6 +94,15 @@ export function inGameUserStateRoutes() {
           "Player must be Out to return to game",
           { status: 400, headers: { "Content-Type": "text/plain; charset=utf-8" } }
         );
+      }
+      if (
+        result.error === "reentries_not_allowed" ||
+        result.error === "reentry_limit_reached"
+      ) {
+        return new Response(JSON.stringify({ error: result.error }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return new Response(
         JSON.stringify({ error: "Failed to return player to game" }),
@@ -632,6 +659,7 @@ export function inGameUserStateRoutes() {
         }
         const states = await service.getAllByTournament(tournamentId);
         const eliminationEvents = await service.getBountyEliminationEvents(tournamentId);
+        const allowedReentryCount = await allowedReentryCountForTournament(tournamentId);
         const enriched = await Promise.all(
           states.map(async (s) => {
             const [player, bountyKills] = await Promise.all([
@@ -642,7 +670,8 @@ export function inGameUserStateRoutes() {
               ...toApiResponse(
                 s,
                 player?.nickname ?? null,
-                eliminationEventsForPlayer(s.playerId, eliminationEvents)
+                eliminationEventsForPlayer(s.playerId, eliminationEvents),
+                allowedReentryCount
               ),
               signAgreement: player?.signAgreement ?? false,
               bountyKills,
@@ -681,6 +710,12 @@ export function inGameUserStateRoutes() {
           tournamentId,
           body.count
         );
+        if (state && typeof state === "object" && "error" in state) {
+          return new Response(JSON.stringify({ error: state.error }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         if (!state) {
           return new Response(null, { status: 404 });
         }

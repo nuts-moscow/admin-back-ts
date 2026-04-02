@@ -103,6 +103,15 @@ export const InGameUserStateSchema = z
         example: [3000, 5000, 0],
       }),
     totalReentryCount: z.number().openapi({ description: "Total re-entry count", example: 0 }),
+    allowedReentryCount: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({
+        description:
+          "Max re-entries allowed per player for this tournament: 0 if freeze-out, else structure maxReentries (default 5)",
+        example: 5,
+      }),
     unpaidReentryCount: z
       .number()
       .openapi({
@@ -677,6 +686,15 @@ export const MakeTournamentStructureBodySchema = z
       .union([z.boolean(), z.null()])
       .transform((v) => (v === null ? false : v))
       .openapi({ description: "Freeze-out mode (null is treated as false)" }),
+    maxReentries: z
+      .number()
+      .int()
+      .min(0)
+      .default(5)
+      .openapi({
+        description: "Max re-entries per player when not freeze-out; omit to use default 5",
+        example: 5,
+      }),
     blinds: z.array(BlindTypeSchema).openapi({ description: "Blinds and breaks" }),
   })
   .openapi("MakeTournamentStructureBody");
@@ -698,6 +716,18 @@ export const TournamentStructureResponseSchema = z
     playersLimit: z.number(),
     stackSize: z.number(),
     freezeOutEnabled: z.boolean(),
+    maxReentries: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({ description: "Stored max re-entries per player (not freeze-out)" }),
+    allowedReentryCount: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({
+        description: "Effective cap: 0 if freeze-out, else maxReentries",
+      }),
     blindsStructure: z.array(BlindTypeSchema),
   })
   .openapi("TournamentStructureResponse");
@@ -719,6 +749,8 @@ const TournamentStructureDataSchema = z
     playersLimit: z.number(),
     stackSize: z.number(),
     freezeOutEnabled: z.boolean(),
+    maxReentries: z.number().int().min(0),
+    allowedReentryCount: z.number().int().min(0),
     blindsStructure: z.array(BlindTypeSchema),
   })
   .openapi("TournamentStructureData");

@@ -27,6 +27,7 @@ create table if not exists tournament_structures (
     players_limit       numeric  not null,
     stack_size          numeric  not null,
     freeze_out_enabled  boolean  not null,
+    max_reentries       integer  not null default 5,
     blinds              text     not null
 );
 

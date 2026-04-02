@@ -20,4 +20,6 @@ export interface TournamentStructure {
   blindsStructure: BlindType[];
   stackSize: StackSize;
   freezeOutEnabled: boolean;
+  /** Max re-entries per player when not freeze-out. */
+  maxReentries: number;
 }

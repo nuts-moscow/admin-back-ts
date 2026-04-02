@@ -257,7 +257,8 @@ openApiRegistry.registerPath({
   tags: ["Tournaments"],
   operationId: "getTournament",
   summary: "Get tournament by ID",
-  description: "Returns tournament with its structure from cache (structure may be null if not set)",
+  description:
+    "Returns tournament with its structure from cache (structure may be null if not set). Structure includes maxReentries and allowedReentryCount when present.",
   request: {
     params: TournamentIdParamSchema,
   },
@@ -647,7 +648,7 @@ openApiRegistry.registerPath({
   operationId: "recordBountyElimination",
   summary: "Record bounty elimination",
   description:
-    "Elimination / bounty. type=Rebuy: adds reentry count; type=Out: status Out + placement. burnedStack=false: killerPlayerIds required (min 1); one full bounty is split 1/N across listed killers (fractional bountyCount). burnedStack=true: killerPlayerIds may be empty; no bounty; burnedChips required. Stores an event; use eventId with POST .../bounty/eliminate/undo for full rollback.",
+    "Elimination / bounty. type=Rebuy: adds reentry count (rejected with 400 if tournament is freeze-out or player would exceed allowedReentryCount); type=Out: status Out + placement. burnedStack=false: killerPlayerIds required (min 1); one full bounty is split 1/N across listed killers (fractional bountyCount). burnedStack=true: killerPlayerIds may be empty; no bounty; burnedChips required. Stores an event; use eventId with POST .../bounty/eliminate/undo for full rollback.",
   request: {
     params: TournamentParamsSchema,
     body: {
@@ -664,7 +665,8 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid request body",
+      description:
+        "Invalid request body, reentries_not_allowed (freeze-out), or reentry_limit_reached (structure max)",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
@@ -1099,7 +1101,8 @@ openApiRegistry.registerPath({
   tags: ["Tournament Players"],
   operationId: "listPlayers",
   summary: "List players in tournament",
-  description: "Returns all in-game player states for a tournament",
+  description:
+    "Returns all in-game player states for a tournament. Each item includes allowedReentryCount (0 if freeze-out, else structure maxReentries, default 5).",
   request: {
     params: TournamentParamsSchema,
   },
@@ -1121,7 +1124,8 @@ openApiRegistry.registerPath({
   tags: ["Tournament Players"],
   operationId: "addReentryCount",
   summary: "Add re-entry count",
-  description: "Adds re-entry count to a player",
+  description:
+    "Adds re-entry count to a player. Returns 400 with error reentries_not_allowed (freeze-out) or reentry_limit_reached (exceeds structure maxReentries) when the tournament structure is present in cache.",
   request: {
     params: TournamentPlayerParamsSchema,
     body: {
@@ -1138,7 +1142,8 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid request body",
+      description:
+        "Invalid request body, reentries_not_allowed, or reentry_limit_reached",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
@@ -1226,7 +1231,7 @@ openApiRegistry.registerPath({
   operationId: "returnPlayerToGame",
   summary: "Return busted player to game",
   description:
-    "Return busted player (Out) to in-game without a table: status InGamePaid or InGameNotPaid by entry payment, +1 unpaid rebuy, clear tableId and placement; placements of later bust-outs are decremented on the server.",
+    "Return busted player (Out) to in-game without a table: status InGamePaid or InGameNotPaid by entry payment, +1 unpaid rebuy, clear tableId and placement; placements of later bust-outs are decremented on the server. Returns 400 JSON { error: reentries_not_allowed | reentry_limit_reached } when re-entry is blocked.",
   request: {
     params: TournamentPlayerParamsSchema,
   },
@@ -1238,10 +1243,14 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: "Invalid status or business rules",
+      description:
+        "Invalid status (plain text), re-entry blocked (JSON error: reentries_not_allowed | reentry_limit_reached), or other business rules",
       content: {
         "text/plain": {
           schema: z.string(),
+        },
+        "application/json": {
+          schema: z.object({ error: z.string() }),
         },
       },
     },

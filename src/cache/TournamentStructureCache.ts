@@ -1,4 +1,5 @@
 import type { BlindType } from "../domain/BlindType";
+import { DEFAULT_MAX_REENTRIES } from "../domain/tournamentReentryPolicy";
 import { logger } from "../logger";
 import { RedisClient } from "../redis";
 
@@ -15,6 +16,7 @@ export interface TournamentStructureData {
   playersLimit: number;
   stackSize: number;
   freezeOutEnabled: boolean;
+  maxReentries: number;
   blindsStructure: BlindType[];
 }
 
@@ -35,11 +37,19 @@ function parseStructure(raw: string | null): TournamentStructureData | null {
     ) {
       return null;
     }
+    const rawMax = o.maxReentries;
+    const maxReentries =
+      typeof rawMax === "number" &&
+      Number.isInteger(rawMax) &&
+      rawMax >= 0
+        ? rawMax
+        : DEFAULT_MAX_REENTRIES;
     return {
       name: o.name,
       playersLimit: o.playersLimit,
       stackSize: o.stackSize,
       freezeOutEnabled,
+      maxReentries,
       blindsStructure: o.blindsStructure as BlindType[],
     };
   } catch {

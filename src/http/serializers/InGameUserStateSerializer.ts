@@ -134,7 +134,8 @@ export function flattenReentryPairsForApi(
 export function toApiResponse(
   state: InGameUserState,
   playerName: string | null = null,
-  bountyEliminationEvents: BountyEliminationEventForPlayer[] = []
+  bountyEliminationEvents: BountyEliminationEventForPlayer[] = [],
+  allowedReentryCount: number
 ): Omit<
   InGameUserState,
   "reentryByPaymentMethod" | "reentryPaymentLines" | "bonuses" | "customBonusChips"
@@ -147,6 +148,7 @@ export function toApiResponse(
   customBonusChips: number[];
   playerName: string | null;
   unpaidReentryCount: number;
+  allowedReentryCount: number;
   bountyEliminationEvents: BountyEliminationEventForPlayer[];
 } {
   const pairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
@@ -173,6 +175,7 @@ export function toApiResponse(
     customBonusChips: [...cbc],
     playerName,
     totalReentryCount: state.totalReentryCount,
+    allowedReentryCount,
     unpaidReentryCount,
     bountyEliminationEvents: bountyEliminationEvents.map((e) => ({
       eventId: e.eventId,

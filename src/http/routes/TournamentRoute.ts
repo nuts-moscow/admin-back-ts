@@ -1,5 +1,9 @@
 import type { BunRequest } from "bun";
 import type { BlindType } from "../../domain/BlindType";
+import {
+  DEFAULT_MAX_REENTRIES,
+  effectiveAllowedReentryCount,
+} from "../../domain/tournamentReentryPolicy";
 import { InGameUserStateService } from "../services/InGameUserStateService";
 import { TournamentService } from "../services/TournamentService";
 import { tournamentClockService } from "../services/TournamentClockService";
@@ -37,7 +41,14 @@ function parseBlinds(arr: unknown): BlindType[] | null {
 
 function validateStructureBody(body: unknown): {
   ok: true;
-  data: { name: string; playersLimit: number; stackSize: number; freezeOutEnabled: boolean; blinds: BlindType[] };
+  data: {
+    name: string;
+    playersLimit: number;
+    stackSize: number;
+    freezeOutEnabled: boolean;
+    maxReentries: number;
+    blinds: BlindType[];
+  };
 } | { ok: false; error: string } {
   if (typeof body !== "object" || body === null) {
     return { ok: false, error: "Invalid JSON body" };
@@ -60,6 +71,21 @@ function validateStructureBody(body: unknown): {
   } else {
     return { ok: false, error: "freezeOutEnabled must be a boolean" };
   }
+  let maxReentries: number;
+  if (o.maxReentries === undefined || o.maxReentries === null) {
+    maxReentries = DEFAULT_MAX_REENTRIES;
+  } else if (
+    typeof o.maxReentries === "number" &&
+    Number.isInteger(o.maxReentries) &&
+    o.maxReentries >= 0
+  ) {
+    maxReentries = o.maxReentries;
+  } else {
+    return {
+      ok: false,
+      error: "maxReentries must be a non-negative integer or omitted (default 5)",
+    };
+  }
   const blinds = parseBlinds(o.blinds);
   if (blinds === null) {
     return { ok: false, error: "blinds must be an array of Blind or Break objects" };
@@ -71,8 +97,33 @@ function validateStructureBody(body: unknown): {
       playersLimit: o.playersLimit,
       stackSize: o.stackSize,
       freezeOutEnabled,
+      maxReentries,
       blinds,
     },
+  };
+}
+
+function structureResponseFromEntity(s: {
+  id: number;
+  name: string;
+  playersLimit: number;
+  stackSize: number;
+  freezeOutEnabled: boolean;
+  maxReentries: number;
+  blindsStructure: BlindType[];
+}) {
+  return {
+    id: s.id,
+    name: s.name,
+    playersLimit: s.playersLimit,
+    stackSize: s.stackSize,
+    freezeOutEnabled: s.freezeOutEnabled,
+    maxReentries: s.maxReentries,
+    allowedReentryCount: effectiveAllowedReentryCount(
+      s.freezeOutEnabled,
+      s.maxReentries
+    ),
+    blindsStructure: s.blindsStructure,
   };
 }
 
@@ -139,14 +190,7 @@ export function tournamentRoutes() {
         }
         const structures = await service.listStructures(offset, limit);
         return Response.json({
-          structures: structures.map((s) => ({
-            id: s.id,
-            name: s.name,
-            playersLimit: s.playersLimit,
-            stackSize: s.stackSize,
-            freezeOutEnabled: s.freezeOutEnabled,
-            blindsStructure: s.blindsStructure,
-          })),
+          structures: structures.map((s) => structureResponseFromEntity(s)),
         });
       },
       POST: async (req: BunRequest<"/api/tournament-structures">) => {
@@ -174,17 +218,7 @@ export function tournamentRoutes() {
           );
         }
         const s = result.structure;
-        return Response.json(
-          {
-            id: s.id,
-            name: s.name,
-            playersLimit: s.playersLimit,
-            stackSize: s.stackSize,
-            freezeOutEnabled: s.freezeOutEnabled,
-            blindsStructure: s.blindsStructure,
-          },
-          { status: 201 }
-        );
+        return Response.json(structureResponseFromEntity(s), { status: 201 });
       },
     },
     "/api/tournament-structures/:id": {
@@ -235,14 +269,7 @@ export function tournamentRoutes() {
           );
         }
         const s = result.structure;
-        return Response.json({
-          id: s.id,
-          name: s.name,
-          playersLimit: s.playersLimit,
-          stackSize: s.stackSize,
-          freezeOutEnabled: s.freezeOutEnabled,
-          blindsStructure: s.blindsStructure,
-        });
+        return Response.json(structureResponseFromEntity(s));
       },
     },
     "/api/tournaments": {

@@ -1,4 +1,5 @@
 import type { BlindType } from "../../domain/BlindType";
+import { effectiveAllowedReentryCount } from "../../domain/tournamentReentryPolicy";
 import type { TournamentStructure } from "../../domain/TournamentStructure";
 import { tournamentStructureCache } from "../../cache";
 import {
@@ -14,6 +15,7 @@ export interface MakeTournamentStructureBody {
   playersLimit: number;
   stackSize: number;
   freezeOutEnabled: boolean;
+  maxReentries: number;
   blinds: BlindType[];
 }
 
@@ -56,6 +58,7 @@ export class TournamentService {
       playersLimit: input.playersLimit,
       stackSize: input.stackSize,
       freezeOutEnabled: input.freezeOutEnabled,
+      maxReentries: input.maxReentries,
       blinds: input.blinds,
     });
     if (!structure) return { ok: false, error: "failed" };
@@ -71,6 +74,7 @@ export class TournamentService {
       playersLimit: input.playersLimit,
       stackSize: input.stackSize,
       freezeOutEnabled: input.freezeOutEnabled,
+      maxReentries: input.maxReentries,
       blinds: input.blinds,
     });
     if (!structure) return { ok: false, error: "not_found" };
@@ -91,6 +95,7 @@ export class TournamentService {
         playersLimit: input.structure.playersLimit,
         stackSize: input.structure.stackSize,
         freezeOutEnabled: input.structure.freezeOutEnabled,
+        maxReentries: input.structure.maxReentries,
         blindsStructure: input.structure.blinds,
       }
     );
@@ -121,12 +126,22 @@ export class TournamentService {
     const tournament = await tournamentRepository.findById(id);
     if (!tournament) return null;
     const structure = await tournamentStructureCache.get(String(id));
+    const structureOut =
+      structure != null
+        ? {
+            ...structure,
+            allowedReentryCount: effectiveAllowedReentryCount(
+              structure.freezeOutEnabled,
+              structure.maxReentries
+            ),
+          }
+        : null;
     return {
       id: tournament.id,
       name: tournament.name,
       status: tournament.status,
       date: tournament.date,
-      structure: structure ?? null,
+      structure: structureOut,
     };
   }
 
@@ -239,6 +254,7 @@ export class TournamentService {
       playersLimit: structure.playersLimit,
       stackSize: structure.stackSize,
       freezeOutEnabled: structure.freezeOutEnabled,
+      maxReentries: structure.maxReentries,
       blindsStructure: structure.blinds,
     });
     if (!stored) return { ok: false, error: "failed" };
