@@ -1,5 +1,6 @@
 import type { BunRequest } from "bun";
 import type { BlindType } from "../../domain/BlindType";
+import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType";
 import {
   DEFAULT_MAX_REENTRIES,
   effectiveAllowedReentryCount,
@@ -7,6 +8,7 @@ import {
 import { InGameUserStateService } from "../services/InGameUserStateService";
 import { TournamentService } from "../services/TournamentService";
 import { tournamentClockService } from "../services/TournamentClockService";
+import { writeTournamentAuditLog } from "../services/tournamentAuditLog";
 
 function isValidBlind(x: unknown): x is Extract<BlindType, { type: "Blind" }> {
   if (typeof x !== "object" || x === null) return false;
@@ -174,6 +176,26 @@ function parseClockPatch(body: unknown):
     };
   }
   return { ok: true, paused, extendCurrentLevelSec };
+}
+
+function structureFieldsForAudit(data: {
+  name: string;
+  playersLimit: number;
+  stackSize: number;
+  freezeOutEnabled: boolean;
+  maxReentries: number;
+  entryFreeOnly: boolean;
+  blinds: BlindType[];
+}) {
+  return {
+    name: data.name,
+    playersLimit: data.playersLimit,
+    stackSize: data.stackSize,
+    freezeOutEnabled: data.freezeOutEnabled,
+    maxReentries: data.maxReentries,
+    entryFreeOnly: data.entryFreeOnly,
+    blindsCount: data.blinds.length,
+  };
 }
 
 export function tournamentRoutes() {
@@ -360,6 +382,12 @@ export function tournamentRoutes() {
             { status: 500, headers: { "Content-Type": "application/json" } }
           );
         }
+        await writeTournamentAuditLog(result.tournament.id, TournamentAuditEventType.TournamentCreated, {
+          name: result.tournament.name,
+          date: result.tournament.date,
+          status: result.tournament.status,
+          structure: structureFieldsForAudit(structureParsed.data),
+        });
         return Response.json(result.tournament, { status: 201 });
       },
     },
@@ -465,6 +493,11 @@ export function tournamentRoutes() {
             { status: 500, headers: { "Content-Type": "application/json" } }
           );
         }
+        await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentMetaUpdated, {
+          name: result.tournament.name,
+          date: result.tournament.date,
+          status: result.tournament.status,
+        });
         return Response.json(result.tournament);
       },
     },
@@ -522,6 +555,9 @@ export function tournamentRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentStatusChanged, {
+          status: o.status,
+        });
         return Response.json(result.tournament);
       },
     },
@@ -586,6 +622,8 @@ export function tournamentRoutes() {
           );
         }
 
+        const clockAudit: Record<string, unknown> = {};
+
         if (parsed.extendCurrentLevelSec !== undefined) {
           const r = await tournamentClockService.extendCurrentLevel(
             id,
@@ -615,6 +653,7 @@ export function tournamentRoutes() {
               { status, headers: { "Content-Type": "application/json" } }
             );
           }
+          clockAudit.extendCurrentLevelSec = parsed.extendCurrentLevelSec;
         }
 
         if (parsed.paused !== undefined) {
@@ -643,8 +682,10 @@ export function tournamentRoutes() {
               { status, headers: { "Content-Type": "application/json" } }
             );
           }
+          clockAudit.paused = parsed.paused;
         }
 
+        await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentClockPatch, clockAudit);
         return new Response(null, { status: 204 });
       },
     },
@@ -686,6 +727,14 @@ export function tournamentRoutes() {
           return new Response(
             JSON.stringify({ error: "Failed to update tournament structure" }),
             { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const tid = parseInt(tournamentId, 10);
+        if (!Number.isNaN(tid)) {
+          await writeTournamentAuditLog(
+            tid,
+            TournamentAuditEventType.TournamentStructureCacheUpdated,
+            { structure: structureFieldsForAudit(parsed.data) }
           );
         }
         return new Response(null, { status: 204 });

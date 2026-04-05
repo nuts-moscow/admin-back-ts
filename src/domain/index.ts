@@ -8,6 +8,10 @@ export type {
 } from "./BlindType";
 export type { Player, CreatePlayerInput, UpdatePlayerInput } from "./Player";
 export type { Tournament, TournamentDate, TournamentId, TournamentName, TournamentType } from "./Tournament";
+export type {
+  TournamentAuditEventTypeName,
+} from "./TournamentAuditEventType";
+export { TournamentAuditEventType } from "./TournamentAuditEventType";
 export type { TournamentStatus } from "./TournamentStatus";
 export { TournamentStatusValues } from "./TournamentStatus";
 export type {

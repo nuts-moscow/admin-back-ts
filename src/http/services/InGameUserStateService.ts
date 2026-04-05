@@ -1207,13 +1207,10 @@ export class InGameUserStateService {
     );
     if ("error" in built) return built;
 
-    const currentFree = countFreeInReentryByPaymentMethod(
-      state.reentryByPaymentMethod
-    );
     const newFree = payments.filter((p) => p === EntryPaymentMethod.Free).length;
     const available =
       state.freeReentryCount + (state.tournamentFreeReentryCount ?? 0);
-    if (currentFree + newFree > available) {
+    if (newFree > available) {
       return { error: "insufficient_free_reentries" };
     }
     return InGameUserStateCache.addReentryPayment(
@@ -1257,10 +1254,14 @@ export class InGameUserStateService {
     );
     if ("error" in built) return built;
 
-    const freeCount = payments.filter((p) => p === EntryPaymentMethod.Free).length;
+    const oldFree = countFreeInReentryByPaymentMethod(
+      state.reentryByPaymentMethod
+    );
+    const newFree = payments.filter((p) => p === EntryPaymentMethod.Free).length;
+    const delta = newFree - oldFree;
     const available =
       state.freeReentryCount + (state.tournamentFreeReentryCount ?? 0);
-    if (freeCount > available) {
+    if (delta > 0 && delta > available) {
       return { error: "insufficient_free_reentries" };
     }
     return InGameUserStateCache.setReentryPaymentMethods(

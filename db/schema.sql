@@ -21,6 +21,18 @@ create table if not exists tournaments
     reentry_price  bigint  not null default 1000
 );
 
+-- Append-only audit log (application inserts only; timestamps via occurred_at)
+create table if not exists tournament_audit_events (
+    id              bigserial primary key,
+    tournament_id   integer    not null references tournaments(id) on delete cascade,
+    event_type      text       not null,
+    payload         jsonb      not null default '{}'::jsonb,
+    occurred_at     timestamptz not null default now()
+);
+
+create index if not exists idx_tournament_audit_events_tournament_occurred
+  on tournament_audit_events (tournament_id, occurred_at desc);
+
 create table if not exists tournament_structures (
     id                  SERIAL   not null primary key,
     name                text     not null,

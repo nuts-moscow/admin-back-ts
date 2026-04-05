@@ -15,8 +15,10 @@ import {
   tournamentResultRepository,
   tournamentRepository,
 } from "../../postgres";
+import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType";
 import type { CashDeskResponse } from "./InGameUserStateService";
 import type { TournamentResultPlayerRow } from "../../postgres/TournamentResultRepository";
+import { writeTournamentAuditLog } from "./tournamentAuditLog";
 
 /**
  * Runs tournament completion: save cash snapshot, save results, update players' free counts, delete cache.
@@ -47,6 +49,9 @@ export async function runTournamentCompletion(
     await BountyKillsCache.deleteAllForTournament(tournamentIdStr);
     await BountyEliminationEventsCache.deleteAllForTournament(tournamentIdStr);
     await tournamentStructureCache.delete(tournamentIdStr);
+    await writeTournamentAuditLog(tournamentId, TournamentAuditEventType.TournamentCompleted, {
+      playerCount: 0,
+    });
     return { ok: true };
   }
 
@@ -179,6 +184,10 @@ export async function runTournamentCompletion(
       }
     }
   }
+
+  await writeTournamentAuditLog(tournamentId, TournamentAuditEventType.TournamentCompleted, {
+    playerCount: states.length,
+  });
 
   // Step 4: Delete all cache for tournament
   await InGameUserStateCache.deleteAllForTournament(tournamentIdStr);

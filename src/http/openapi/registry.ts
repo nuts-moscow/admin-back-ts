@@ -1439,7 +1439,7 @@ openApiRegistry.registerPath({
     },
     400: {
       description:
-        "Invalid payment methods, paid amounts, length mismatch, or insufficient free re-entries for Free",
+        "Invalid payment methods, paid amounts, length mismatch, or not enough free re-entry grants for requested Free payment(s)",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
@@ -1477,7 +1477,7 @@ openApiRegistry.registerPath({
     },
     400: {
       description:
-        "Invalid payment methods, paid amounts, length mismatches, or insufficient free re-entries for Free",
+        "Invalid payment methods, paid amounts, length mismatches, or not enough free re-entry grants for requested Free payment(s)",
       content: {
         "application/json": {
           schema: { type: "object", properties: { error: { type: "string" } } },
