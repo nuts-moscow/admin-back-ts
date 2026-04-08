@@ -1,3 +1,4 @@
+import type { TournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
 import type { BountyEliminationEventForPlayer } from "../../domain/cache/BountyEliminationEventForPlayer";
 import {
   EntryPaymentMethod,
@@ -138,7 +139,11 @@ export function toApiResponse(
   allowedReentryCount: number
 ): Omit<
   InGameUserState,
-  "reentryByPaymentMethod" | "reentryPaymentLines" | "bonuses" | "customBonusChips"
+  | "reentryByPaymentMethod"
+  | "reentryPaymentLines"
+  | "bonuses"
+  | "customBonusChips"
+  | "ratingSnapshot"
 > & {
   burnedStackChipsTotal: number;
   reentryByPaymentMethod: string[] | null;
@@ -150,6 +155,8 @@ export function toApiResponse(
   unpaidReentryCount: number;
   allowedReentryCount: number;
   bountyEliminationEvents: BountyEliminationEventForPlayer[];
+  /** Set for eliminated players: frozen rating at elimination time. */
+  rating?: TournamentRatingBreakdown;
 } {
   const pairs = state.reentryByPaymentMethod as ReentryByPaymentMethod | null;
   const recorded = recordedReentryCountFromPairs(pairs);
@@ -163,6 +170,7 @@ export function toApiResponse(
     bonuses: bon,
     customBonusChips: cbc,
     reentryByPaymentMethod: _rbm,
+    ratingSnapshot,
     ...core
   } = state;
   return {
@@ -182,5 +190,6 @@ export function toApiResponse(
       eliminatedPlayerId: e.eliminatedPlayerId,
       killerPlayerIds: [...e.killerPlayerIds],
     })),
+    ...(ratingSnapshot != null ? { rating: ratingSnapshot } : {}),
   };
 }

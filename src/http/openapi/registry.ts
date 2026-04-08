@@ -26,6 +26,7 @@ import {
   MakeTournamentStructureBodySchema,
   PatchTournamentClockBodySchema,
   PlayerGameStartBodySchema,
+  RatingManualAdjustmentBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
   TournamentChipPoolSummarySchema,
@@ -37,6 +38,7 @@ import {
   TournamentResponseSchema,
   TournamentStructureResponseSchema,
   TournamentClockTickSchema,
+  TournamentRatingMatrixResponseSchema,
   TournamentWithStructureResponseSchema,
   UpdatePlayerBodySchema,
   UpdateTournamentBodySchema,
@@ -128,6 +130,31 @@ const PlayerIdParamSchema = z.object({ playerId: z.string().openapi({ descriptio
 
 const TournamentStructureIdParamSchema = z.object({ id: z.string().openapi({ description: "Structure ID" }) }).openapi("TournamentStructureIdParam");
 const TournamentIdParamSchema = z.object({ id: z.string().openapi({ description: "Tournament ID" }) }).openapi("TournamentIdParam");
+
+const TournamentRatingPlayerParamsSchema = z
+  .object({
+    id: z.string().openapi({ description: "Tournament ID" }),
+    playerId: z.string().openapi({ description: "Player ID" }),
+  })
+  .openapi("TournamentRatingPlayerParams");
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/tournament-rating-matrix",
+  tags: ["Tournaments"],
+  operationId: "getTournamentRatingMatrix",
+  summary: "Base rating points matrix",
+  description:
+    "Read-only table: columns = participant count ranges 20–21 … 70–71, rows = finishing place 1–35. Same data as used for rating calculation.",
+  responses: {
+    200: {
+      description: "Matrix for admin display",
+      content: {
+        "application/json": { schema: TournamentRatingMatrixResponseSchema },
+      },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: "get",
@@ -226,12 +253,37 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/tournaments/{id}/players/{playerId}/rating-manual-adjustment",
+  tags: ["Tournaments"],
+  operationId: "patchTournamentPlayerRatingManualAdjustment",
+  summary: "Manual rating adjustment",
+  description:
+    "Sets additive manual rating points for a player in tournament results. Allowed only when tournament status is completed.",
+  request: {
+    params: TournamentRatingPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: RatingManualAdjustmentBodySchema },
+      },
+    },
+  },
+  responses: {
+    204: { description: "Updated" },
+    400: { description: "Invalid body" },
+    404: { description: "Tournament not found or player not in results" },
+    409: { description: "Tournament not completed" },
+  },
+});
+
+openApiRegistry.registerPath({
   method: "post",
   path: "/api/tournaments",
   tags: ["Tournaments"],
   operationId: "createTournament",
   summary: "Create tournament",
-  description: "Creates a tournament in the database and stores its structure in Redis cache",
+  description:
+    "Creates a tournament in the database and stores its structure in Redis cache. Optional ratingGuaranteeEnabled and coefficient fields default to false and 1.",
   request: {
     body: {
       content: {
@@ -279,7 +331,8 @@ openApiRegistry.registerPath({
   tags: ["Tournaments"],
   operationId: "updateTournament",
   summary: "Update tournament",
-  description: "Updates tournament name, date, and status",
+  description:
+    "Updates tournament name, date, status, and optionally rating guarantee / coefficients (omit rating fields to leave unchanged)",
   request: {
     params: TournamentIdParamSchema,
     body: {
@@ -1102,7 +1155,7 @@ openApiRegistry.registerPath({
   operationId: "listPlayers",
   summary: "List players in tournament",
   description:
-    "Returns all in-game player states for a tournament. Each item includes allowedReentryCount (0 if freeze-out, else structure maxReentries, default 5).",
+    "Returns all in-game player states for a tournament. Each item includes allowedReentryCount (0 if freeze-out, else structure maxReentries, default 5). For live tournaments, eliminated (Out) players include `rating` frozen at elimination; it is recalculated when placements shift (e.g. return-to-game). For completed tournaments, responses use DB `rating_persisted` plus manual adjustment.",
   request: {
     params: TournamentParamsSchema,
   },

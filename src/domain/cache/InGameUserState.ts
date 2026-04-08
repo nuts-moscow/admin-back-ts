@@ -1,3 +1,5 @@
+import type { TournamentRatingBreakdown } from "../TournamentRatingBreakdown";
+
 /** Player ID */
 export type PlayerId = string;
 
@@ -93,6 +95,8 @@ export interface InGameUserState {
   /** Tournament-only free re-entries (temporary for this tournament) */
   tournamentFreeReentryCount: number;
   placement: number | null;
+  /** Frozen rating when status is Out (set at elimination; cleared when returning to game). */
+  ratingSnapshot: TournamentRatingBreakdown | null;
   bonuses: BonusesByType | null;
   /** Размеры выдач custom-бонуса в фишках (каждый элемент — одна выдача). */
   customBonusChips: number[];
@@ -123,6 +127,7 @@ export function initInGameUserState(
     tournamentFreeEntryCount: 0,
     tournamentFreeReentryCount: 0,
     placement: null,
+    ratingSnapshot: null,
     bonuses: null,
     customBonusChips: [],
     burnedStackEvents: [],

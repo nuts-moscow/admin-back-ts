@@ -1,5 +1,6 @@
 import type { BunRequest } from "bun";
 import type { BlindType } from "../../domain/BlindType";
+import { getTournamentRatingMatrixPayload } from "../../domain/tournamentRatingMatrix";
 import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType";
 import {
   DEFAULT_MAX_REENTRIES,
@@ -178,6 +179,41 @@ function parseClockPatch(body: unknown):
   return { ok: true, paused, extendCurrentLevelSec };
 }
 
+function parseOptionalTournamentRating(body: Record<string, unknown>): {
+  ok: true;
+  ratingGuaranteeEnabled?: boolean;
+  ratingPointsCoefficient?: number;
+  ratingBountyCoefficient?: number;
+} | { ok: false; error: string } {
+  let ratingGuaranteeEnabled: boolean | undefined;
+  if ("ratingGuaranteeEnabled" in body && body.ratingGuaranteeEnabled !== undefined) {
+    if (typeof body.ratingGuaranteeEnabled !== "boolean") {
+      return { ok: false, error: "ratingGuaranteeEnabled must be a boolean" };
+    }
+    ratingGuaranteeEnabled = body.ratingGuaranteeEnabled;
+  }
+  let ratingPointsCoefficient: number | undefined;
+  if ("ratingPointsCoefficient" in body && body.ratingPointsCoefficient !== undefined) {
+    if (typeof body.ratingPointsCoefficient !== "number" || !Number.isFinite(body.ratingPointsCoefficient)) {
+      return { ok: false, error: "ratingPointsCoefficient must be a finite number" };
+    }
+    ratingPointsCoefficient = body.ratingPointsCoefficient;
+  }
+  let ratingBountyCoefficient: number | undefined;
+  if ("ratingBountyCoefficient" in body && body.ratingBountyCoefficient !== undefined) {
+    if (typeof body.ratingBountyCoefficient !== "number" || !Number.isFinite(body.ratingBountyCoefficient)) {
+      return { ok: false, error: "ratingBountyCoefficient must be a finite number" };
+    }
+    ratingBountyCoefficient = body.ratingBountyCoefficient;
+  }
+  return {
+    ok: true,
+    ratingGuaranteeEnabled,
+    ratingPointsCoefficient,
+    ratingBountyCoefficient,
+  };
+}
+
 function structureFieldsForAudit(data: {
   name: string;
   playersLimit: number;
@@ -203,6 +239,11 @@ export function tournamentRoutes() {
   const service = new TournamentService(inGameUserStateService);
 
   return {
+    "/api/tournament-rating-matrix": {
+      GET: async () => {
+        return Response.json(getTournamentRatingMatrixPayload());
+      },
+    },
     "/api/tournament-structures": {
       GET: async (req: BunRequest<"/api/tournament-structures">) => {
         const url = new URL(req.url);
@@ -332,6 +373,9 @@ export function tournamentRoutes() {
             name: t.name,
             status: t.status,
             date: t.date,
+            ratingGuaranteeEnabled: t.ratingGuaranteeEnabled,
+            ratingPointsCoefficient: t.ratingPointsCoefficient,
+            ratingBountyCoefficient: t.ratingBountyCoefficient,
           })),
         });
       },
@@ -371,10 +415,20 @@ export function tournamentRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        const ratingParsed = parseOptionalTournamentRating(o);
+        if (!ratingParsed.ok) {
+          return new Response(
+            JSON.stringify({ error: ratingParsed.error }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
         const result = await service.createTournament({
           name: o.name.trim(),
           date: o.date,
           structure: structureParsed.data,
+          ratingGuaranteeEnabled: ratingParsed.ratingGuaranteeEnabled,
+          ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
+          ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
         });
         if (!result.ok) {
           return new Response(
@@ -470,10 +524,20 @@ export function tournamentRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        const ratingParsed = parseOptionalTournamentRating(o);
+        if (!ratingParsed.ok) {
+          return new Response(
+            JSON.stringify({ error: ratingParsed.error }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
         const result = await service.updateTournament(id, {
           name: o.name.trim(),
           date: o.date,
           status: o.status,
+          ratingGuaranteeEnabled: ratingParsed.ratingGuaranteeEnabled,
+          ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
+          ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
         });
         if (!result.ok) {
           if (result.error === "not_found") {
@@ -497,6 +561,9 @@ export function tournamentRoutes() {
           name: result.tournament.name,
           date: result.tournament.date,
           status: result.tournament.status,
+          ratingGuaranteeEnabled: result.tournament.ratingGuaranteeEnabled,
+          ratingPointsCoefficient: result.tournament.ratingPointsCoefficient,
+          ratingBountyCoefficient: result.tournament.ratingBountyCoefficient,
         });
         return Response.json(result.tournament);
       },
@@ -737,6 +804,77 @@ export function tournamentRoutes() {
             { structure: structureFieldsForAudit(parsed.data) }
           );
         }
+        return new Response(null, { status: 204 });
+      },
+    },
+    "/api/tournaments/:id/players/:playerId/rating-manual-adjustment": {
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:id/players/:playerId/rating-manual-adjustment"> & {
+          params: { id: string; playerId: string };
+        }
+      ) => {
+        const idStr = req.params?.id;
+        const playerId = req.params?.playerId;
+        if (!idStr || !playerId) {
+          return new Response(
+            JSON.stringify({ error: "id and playerId are required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const id = parseInt(idStr, 10);
+        if (Number.isNaN(id)) {
+          return new Response(
+            JSON.stringify({ error: "id must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        let body: unknown;
+        try {
+          body = await req.json();
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (typeof body !== "object" || body === null) {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const o = body as Record<string, unknown>;
+        if (typeof o.manualAdjustment !== "number" || !Number.isFinite(o.manualAdjustment)) {
+          return new Response(
+            JSON.stringify({ error: "manualAdjustment must be a finite number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.setRatingManualAdjustment(id, playerId, o.manualAdjustment);
+        if (!result.ok) {
+          if (result.error === "not_found") {
+            return new Response(
+              JSON.stringify({ error: "Tournament not found" }),
+              { status: 404, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (result.error === "not_completed") {
+            return new Response(
+              JSON.stringify({
+                error: "Rating manual adjustment is only allowed for completed tournaments",
+              }),
+              { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: "Player not in tournament results" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentRatingManualAdjustment, {
+          playerId,
+          manualAdjustment: o.manualAdjustment,
+        });
         return new Response(null, { status: 204 });
       },
     },

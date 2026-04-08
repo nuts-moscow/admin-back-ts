@@ -58,6 +58,29 @@ export const BountyEliminationEventForPlayerSchema = z
   })
   .openapi("BountyEliminationEventForPlayer");
 
+/** Per-player tournament rating breakdown (completed tournaments, list players) */
+export const TournamentRatingBreakdownSchema = z
+  .object({
+    basePoints: z.number().openapi({
+      description: "Base points from participant count × place matrix (before guarantee and coefficients)",
+    }),
+    guaranteeBonus: z
+      .number()
+      .openapi({ description: "+10 when tournament guarantee is on and place is in top 10" }),
+    pointsCoefficient: z.number().openapi({ description: "Tournament points multiplier" }),
+    fromTableAfterCoefficient: z
+      .number()
+      .openapi({ description: "(basePoints + guaranteeBonus) × pointsCoefficient" }),
+    bountyCount: z.number(),
+    bountyPoints: z.number().openapi({
+      description: "(bountyCount × 0.5) × bountyCoefficient",
+    }),
+    bountyCoefficient: z.number(),
+    manualAdjustment: z.number().openapi({ description: "Manual add/sub from admin" }),
+    totalPoints: z.number(),
+  })
+  .openapi("TournamentRatingBreakdown");
+
 /** In-game user state */
 export const InGameUserStateSchema = z
   .object({
@@ -177,6 +200,10 @@ export const InGameUserStateSchema = z
         description: "Whether player signed agreement (only in list endpoint)",
         example: true,
       }),
+    rating: TournamentRatingBreakdownSchema.optional().openapi({
+      description:
+        "Set only when tournament is completed (results from DB). Omitted for live/cache player list.",
+    }),
   })
   .openapi("InGameUserState");
 
@@ -712,6 +739,26 @@ export const MakeTournamentBodySchema = z
     name: z.string().min(1).openapi({ description: "Tournament name" }),
     date: z.number().min(0).openapi({ description: "Unix timestamp" }),
     structure: MakeTournamentStructureBodySchema,
+    ratingGuaranteeEnabled: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "When true, each player in top 10 gets +10 rating points before the points coefficient",
+      }),
+    ratingPointsCoefficient: z
+      .number()
+      .finite()
+      .optional()
+      .openapi({ description: "Multiplier for (base + guarantee); default 1", example: 1 }),
+    ratingBountyCoefficient: z
+      .number()
+      .finite()
+      .optional()
+      .openapi({
+        description: "Multiplier for bounty points (0.5 per bounty); default 1",
+        example: 1,
+      }),
   })
   .openapi("MakeTournamentBody");
 
@@ -751,6 +798,9 @@ export const TournamentResponseSchema = z
     name: z.string(),
     status: z.string(),
     date: z.number(),
+    ratingGuaranteeEnabled: z.boolean(),
+    ratingPointsCoefficient: z.number(),
+    ratingBountyCoefficient: z.number(),
   })
   .openapi("TournamentResponse");
 
@@ -775,6 +825,9 @@ export const TournamentWithStructureResponseSchema = z
     name: z.string(),
     status: z.string(),
     date: z.number(),
+    ratingGuaranteeEnabled: z.boolean(),
+    ratingPointsCoefficient: z.number(),
+    ratingBountyCoefficient: z.number(),
     structure: TournamentStructureDataSchema.nullable(),
   })
   .openapi("TournamentWithStructureResponse");
@@ -820,8 +873,36 @@ export const UpdateTournamentBodySchema = z
     name: z.string().min(1).openapi({ description: "Tournament name" }),
     date: z.number().min(0).openapi({ description: "Unix timestamp" }),
     status: TournamentStatusSchema.openapi({ description: "Tournament status" }),
+    ratingGuaranteeEnabled: z.boolean().optional(),
+    ratingPointsCoefficient: z.number().finite().optional(),
+    ratingBountyCoefficient: z.number().finite().optional(),
   })
   .openapi("UpdateTournamentBody");
+
+/** PATCH body: manual rating adjustment for a player (completed tournament only) */
+export const RatingManualAdjustmentBodySchema = z
+  .object({
+    manualAdjustment: z
+      .number()
+      .finite()
+      .openapi({ description: "Added to total rating points (can be negative)" }),
+  })
+  .openapi("RatingManualAdjustmentBody");
+
+/** Full base-points matrix for admin reference */
+export const TournamentRatingMatrixPlaceRowSchema = z
+  .object({
+    place: z.number().int().min(1).max(35),
+    basePoints: z.array(z.number()).length(26),
+  })
+  .openapi("TournamentRatingMatrixPlaceRow");
+
+export const TournamentRatingMatrixResponseSchema = z
+  .object({
+    participantRangeLabels: z.array(z.string()).length(26),
+    places: z.array(TournamentRatingMatrixPlaceRowSchema).length(35),
+  })
+  .openapi("TournamentRatingMatrixResponse");
 
 /** Request body: update tournament status only */
 export const UpdateTournamentStatusBodySchema = z

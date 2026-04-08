@@ -21,8 +21,17 @@ import {
   parseStoredBonusesJson,
   parseStoredCustomBonusChipsJson,
 } from "../../domain/cache/inGameBonusChips";
+import {
+  isTournamentRatingBreakdown,
+  type TournamentRatingBreakdown,
+} from "../../domain/TournamentRatingBreakdown";
+import {
+  computeTournamentPlayerRating,
+  ratingWithManualAdjustment,
+} from "./tournamentRatingCompute";
 import type { BountyEliminationEventForPlayer } from "../../domain/cache/BountyEliminationEventForPlayer";
 import {
+  BountyEliminationType,
   EntryPaymentMethod,
   InGameBonus,
   InGamePlayerStatus,
@@ -696,6 +705,7 @@ export class InGameUserStateService {
       signAgreement: boolean;
       bountyKills: string[];
       bountyEliminationEvents: BountyEliminationEventForPlayer[];
+      rating: TournamentRatingBreakdown;
     }> | null
   > {
     const id = parseInt(tournamentId, 10);
@@ -751,6 +761,17 @@ export class InGameUserStateService {
         const burnedStackEvents = parseBurnedStackEventsFromJson(
           row.burnedStackEvents
         );
+        const persisted = row.ratingPersisted;
+        const rating =
+          persisted != null && isTournamentRatingBreakdown(persisted)
+            ? ratingWithManualAdjustment(persisted, row.ratingManualAdjustment)
+            : computeTournamentPlayerRating(
+                N,
+                placement,
+                row.bountyCount,
+                row.ratingManualAdjustment,
+                tournament
+              );
         return {
           tournamentPlayerId: row.tournamentPlayerId,
           playerId: row.playerId,
@@ -782,6 +803,7 @@ export class InGameUserStateService {
             row.playerId,
             allEliminationEvents
           ),
+          rating,
         };
       })
     );
@@ -1298,6 +1320,39 @@ export class InGameUserStateService {
   }
 
   /**
+   * Recomputes and stores frozen tournament rating for a player who is Out (after placement/bounty changes).
+   */
+  async refreshRatingSnapshotForOutPlayer(
+    tournamentId: TournamentId,
+    playerId: PlayerId
+  ): Promise<void> {
+    const state = await InGameUserStateCache.get(playerId, tournamentId);
+    if (!state || state.status !== InGamePlayerStatus.Out || state.placement == null) {
+      return;
+    }
+    const all = await InGameUserStateCache.getAllByTournament(tournamentId);
+    const N = all.length;
+    const finishPlace = N - state.placement + 1;
+    const tid = parseInt(tournamentId, 10);
+    const row = Number.isNaN(tid) ? null : await tournamentRepository.findById(tid);
+    if (!row) {
+      logger.info(
+        { tournamentId, playerId },
+        "[InGameUserStateService] refreshRatingSnapshotForOutPlayer: tournament not found"
+      );
+      return;
+    }
+    const breakdown = computeTournamentPlayerRating(
+      N,
+      finishPlace,
+      state.bountyCount,
+      0,
+      row
+    );
+    await InGameUserStateCache.updateRatingSnapshot(playerId, tournamentId, breakdown);
+  }
+
+  /**
    * Records a bounty elimination: who eliminated whom and type (Rebuy/Out).
    * 1. If type=Rebuy: increments reentry count for eliminated player
    * 2. If type=Out: sets eliminated player status to Out
@@ -1404,6 +1459,10 @@ export class InGameUserStateService {
       if (!afterBurn) {
         return { ok: false, error: "Failed to record burned stack event" };
       }
+    }
+
+    if (type === BountyEliminationType.Out) {
+      await this.refreshRatingSnapshotForOutPlayer(tournamentId, eliminatedPlayerId);
     }
 
     const n = normalizedKillers.length;
@@ -1738,6 +1797,7 @@ export class InGameUserStateService {
           return { ok: false, error: "Failed to shift placements" };
         }
         shifted.push({ playerId: s.playerId, fromPlacement: from });
+        await this.refreshRatingSnapshotForOutPlayer(tournamentId, s.playerId);
       }
     }
 
@@ -1846,6 +1906,7 @@ export class InGameUserStateService {
           return { ok: false, error: "internal" };
         }
         shifted.push({ playerId: s.playerId, fromPlacement: from });
+        await this.refreshRatingSnapshotForOutPlayer(tournamentId, s.playerId);
       }
     }
 

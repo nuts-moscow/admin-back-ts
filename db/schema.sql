@@ -18,7 +18,10 @@ create table if not exists tournaments
     status         text    not null,
     date           bigint  not null,
     entry_price    bigint  not null default 1000,
-    reentry_price  bigint  not null default 1000
+    reentry_price  bigint  not null default 1000,
+    rating_guarantee_enabled boolean not null default false,
+    rating_points_coefficient double precision not null default 1,
+    rating_bounty_coefficient double precision not null default 1
 );
 
 -- Append-only audit log (application inserts only; timestamps via occurred_at)
@@ -56,7 +59,7 @@ create table if not exists tournament_elimination_snapshots (
     events           jsonb    not null default '[]'
 );
 
--- Final results per player when tournament is completed (placement: 1 = winner)
+-- Final results per player when tournament is completed (placement in DB: high = better finish; API maps to 1 = winner)
 create table if not exists tournament_result_players (
     tournament_id             integer  not null references tournaments(id) on delete cascade,
     player_id                 text     not null,
@@ -74,5 +77,7 @@ create table if not exists tournament_result_players (
     bounty_kills              text,
     eliminated_by             text,
     burned_stack_events       text     not null default '[]',
+    rating_manual_adjustment  double precision not null default 0,
+    rating_persisted          jsonb    not null default '{}'::jsonb,
     primary key (tournament_id, player_id)
 );

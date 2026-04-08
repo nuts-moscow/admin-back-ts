@@ -31,6 +31,8 @@ export const TournamentAuditEventType = {
   ReentryPaymentReplaced: "reentry_payment_replaced",
   TournamentFreeEntriesAdjusted: "tournament_free_entries_adjusted",
   TournamentFreeReentriesAdjusted: "tournament_free_reentries_adjusted",
+
+  TournamentRatingManualAdjustment: "tournament_rating_manual_adjustment",
 } as const;
 
 export type TournamentAuditEventTypeName =

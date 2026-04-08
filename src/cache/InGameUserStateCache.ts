@@ -16,6 +16,10 @@ import {
   type TableId,
   type TournamentId,
 } from "../domain/cache/InGameUserState";
+import {
+  isTournamentRatingBreakdown,
+  type TournamentRatingBreakdown,
+} from "../domain/TournamentRatingBreakdown";
 
 const VALID_STATUSES = new Set<string>(
   Object.values(InGamePlayerStatus)
@@ -274,6 +278,15 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
+   * Stores frozen rating at elimination or clears when null (e.g. after recompute cleared elsewhere).
+   */
+  updateRatingSnapshot(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    snapshot: TournamentRatingBreakdown | null
+  ): Promise<InGameUserState | null>;
+
+  /**
    * Updates entry payment method in tournament.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
@@ -503,6 +516,8 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
           state.burnedStackEvents.length === 0
             ? ""
             : JSON.stringify(state.burnedStackEvents),
+        rating_snapshot:
+          state.ratingSnapshot == null ? "" : JSON.stringify(state.ratingSnapshot),
       });
       logger.info(`${LOG_PREFIX} InGameUserStateCache.set result: stored`);
       return true;
@@ -752,21 +767,19 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
   ): Promise<InGameUserState | null> {
     logger.info({ playerId, tournamentId, status }, `${LOG_PREFIX} InGameUserStateCache.updateStatus entry`);
     try {
-      const k = key(tournamentId, playerId);
-      const exists = await RedisClient.instance.exists(k);
-      if (!exists) {
+      const state = await this.get(playerId, tournamentId);
+      if (!state) {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateStatus result: miss (key not found)`);
         return null;
       }
-      await RedisClient.instance.hset(k, "status", status);
-      const hash = await RedisClient.instance.hgetall(k);
-      if (!hash || Object.keys(hash).length === 0) {
-        logger.info(`${LOG_PREFIX} InGameUserStateCache.updateStatus result: miss (no data)`);
-        return null;
-      }
-      const state = parseHashToState(hash, playerId);
-      logger.info({ state: !!state, status: state?.status }, `${LOG_PREFIX} InGameUserStateCache.updateStatus result`);
-      return state;
+      const next: InGameUserState = {
+        ...state,
+        status,
+        ratingSnapshot: status === InGamePlayerStatus.Out ? state.ratingSnapshot : null,
+      };
+      const ok = await this.set(playerId, tournamentId, next);
+      logger.info({ state: ok, status }, `${LOG_PREFIX} InGameUserStateCache.updateStatus result`);
+      return ok ? next : null;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.updateStatus failed`);
       return null;
@@ -784,31 +797,41 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
       `${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement entry`
     );
     try {
-      const k = key(tournamentId, playerId);
-      const exists = await RedisClient.instance.exists(k);
-      if (!exists) {
+      const state = await this.get(playerId, tournamentId);
+      if (!state) {
         logger.info(`${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement result: miss (key not found)`);
         return null;
       }
-      await RedisClient.instance.hset(k, {
+      const next: InGameUserState = {
+        ...state,
         status,
-        placement: placement === null ? "" : String(placement),
-      });
-      const hash = await RedisClient.instance.hgetall(k);
-      if (!hash || Object.keys(hash).length === 0) {
-        logger.info(`${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement result: miss (no data)`);
-        return null;
-      }
-      const state = parseHashToState(hash, playerId);
+        placement,
+        ratingSnapshot:
+          status === InGamePlayerStatus.Out ? state.ratingSnapshot : null,
+      };
+      const ok = await this.set(playerId, tournamentId, next);
+      const result = ok ? next : null;
       logger.info(
-        { state: !!state, status: state?.status, placement: state?.placement },
+        { state: !!result, status: result?.status, placement: result?.placement },
         `${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement result`
       );
-      return state;
+      return result;
     } catch (err) {
       logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.updateStatusAndPlacement failed`);
       return null;
     }
+  }
+
+  async updateRatingSnapshot(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    snapshot: TournamentRatingBreakdown | null
+  ): Promise<InGameUserState | null> {
+    const state = await this.get(playerId, tournamentId);
+    if (!state) return null;
+    const next: InGameUserState = { ...state, ratingSnapshot: snapshot };
+    const ok = await this.set(playerId, tournamentId, next);
+    return ok ? next : null;
   }
 
   async updateEntryPaymentMethod(
@@ -1291,6 +1314,16 @@ function parseHashToState(
     }
     placement = p;
   }
+  let ratingSnapshot: TournamentRatingBreakdown | null = null;
+  const rsRaw = hash.rating_snapshot;
+  if (rsRaw !== undefined && rsRaw !== null && rsRaw !== "") {
+    try {
+      const parsed = JSON.parse(String(rsRaw));
+      if (isTournamentRatingBreakdown(parsed)) ratingSnapshot = parsed;
+    } catch {
+      logger.info({ rsRaw }, `${LOG_PREFIX} parseHashToState: invalid rating_snapshot JSON`);
+    }
+  }
   const bonuses = parseBonuses(hash.bonuses);
   if (bonuses === undefined) {
     return null;
@@ -1338,6 +1371,7 @@ function parseHashToState(
     tournamentFreeEntryCount,
     tournamentFreeReentryCount,
     placement,
+    ratingSnapshot,
     bonuses,
     customBonusChips,
     burnedStackEvents,

@@ -3,9 +3,11 @@ import { effectiveAllowedReentryCount } from "../../domain/tournamentReentryPoli
 import type { TournamentStructure } from "../../domain/TournamentStructure";
 import { tournamentStructureCache } from "../../cache";
 import {
+  tournamentResultRepository,
   tournamentStructureRepository,
   tournamentRepository,
 } from "../../postgres";
+import type { TournamentRow } from "../../postgres/TournamentRepository";
 import { runTournamentCompletion } from "./TournamentCompletionService";
 import type { InGameUserStateService } from "./InGameUserStateService";
 import { tournamentClockService } from "./TournamentClockService";
@@ -24,6 +26,31 @@ export interface MakeTournamentBody {
   name: string;
   date: number;
   structure: MakeTournamentStructureBody;
+  ratingGuaranteeEnabled?: boolean;
+  ratingPointsCoefficient?: number;
+  ratingBountyCoefficient?: number;
+}
+
+export type TournamentApiSummary = {
+  id: number;
+  name: string;
+  status: string;
+  date: number;
+  ratingGuaranteeEnabled: boolean;
+  ratingPointsCoefficient: number;
+  ratingBountyCoefficient: number;
+};
+
+export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    date: row.date,
+    ratingGuaranteeEnabled: row.ratingGuaranteeEnabled,
+    ratingPointsCoefficient: row.ratingPointsCoefficient,
+    ratingBountyCoefficient: row.ratingBountyCoefficient,
+  };
 }
 
 export type CreateStructureResult =
@@ -35,7 +62,7 @@ export type UpdateStructureResult =
   | { ok: false; error: "not_found" | "failed" };
 
 export type CreateTournamentResult =
-  | { ok: true; tournament: { id: number; name: string; status: string; date: number } }
+  | { ok: true; tournament: TournamentApiSummary }
   | { ok: false; error: "failed" };
 
 export type UpdateTournamentStructureResult =
@@ -43,8 +70,16 @@ export type UpdateTournamentStructureResult =
   | { ok: false; error: "not_found" | "failed" };
 
 export type UpdateTournamentResult =
-  | { ok: true; tournament: { id: number; name: string; status: string; date: number } }
+  | { ok: true; tournament: TournamentApiSummary }
   | { ok: false; error: "not_found" | "failed" | "invalid_status" };
+
+export type UpdateTournamentStatusResult =
+  | { ok: true; tournament: TournamentApiSummary }
+  | { ok: false; error: "not_found" | "failed" | "invalid_status" };
+
+export type SetRatingManualAdjustmentResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "not_completed" | "failed" };
 
 export class TournamentService {
   constructor(
@@ -88,6 +123,9 @@ export class TournamentService {
     const tournament = await tournamentRepository.create({
       name: input.name,
       date: input.date,
+      ratingGuaranteeEnabled: input.ratingGuaranteeEnabled,
+      ratingPointsCoefficient: input.ratingPointsCoefficient,
+      ratingBountyCoefficient: input.ratingBountyCoefficient,
     });
     if (!tournament) return { ok: false, error: "failed" };
 
@@ -109,12 +147,7 @@ export class TournamentService {
 
     return {
       ok: true,
-      tournament: {
-        id: tournament.id,
-        name: tournament.name,
-        status: tournament.status,
-        date: tournament.date,
-      },
+      tournament: tournamentRowToApi(tournament),
     };
   }
 
@@ -145,6 +178,9 @@ export class TournamentService {
       name: tournament.name,
       status: tournament.status,
       date: tournament.date,
+      ratingGuaranteeEnabled: tournament.ratingGuaranteeEnabled,
+      ratingPointsCoefficient: tournament.ratingPointsCoefficient,
+      ratingBountyCoefficient: tournament.ratingBountyCoefficient,
       structure: structureOut,
     };
   }
@@ -152,7 +188,7 @@ export class TournamentService {
   async updateTournamentStatus(
     id: number,
     status: string
-  ): Promise<UpdateTournamentResult> {
+  ): Promise<UpdateTournamentStatusResult> {
     const validStatuses = ["registration_open", "in_progress", "completed"];
     if (!validStatuses.includes(status)) {
       return { ok: false, error: "invalid_status" };
@@ -185,20 +221,19 @@ export class TournamentService {
       await tournamentClockService.clearClock(tournament.id);
     }
 
-    return {
-      ok: true,
-      tournament: {
-        id: tournament.id,
-        name: tournament.name,
-        status: tournament.status,
-        date: tournament.date,
-      },
-    };
+    return { ok: true, tournament: tournamentRowToApi(tournament) };
   }
 
   async updateTournament(
     id: number,
-    input: { name: string; date: number; status: string }
+    input: {
+      name: string;
+      date: number;
+      status: string;
+      ratingGuaranteeEnabled?: boolean;
+      ratingPointsCoefficient?: number;
+      ratingBountyCoefficient?: number;
+    }
   ): Promise<UpdateTournamentResult> {
     const validStatuses = ["registration_open", "in_progress", "completed"];
     if (!validStatuses.includes(input.status)) {
@@ -222,7 +257,14 @@ export class TournamentService {
         };
       }
     }
-    const tournament = await tournamentRepository.update(id, input);
+    const tournament = await tournamentRepository.update(id, {
+      name: input.name,
+      date: input.date,
+      status: input.status,
+      ratingGuaranteeEnabled: input.ratingGuaranteeEnabled ?? null,
+      ratingPointsCoefficient: input.ratingPointsCoefficient ?? null,
+      ratingBountyCoefficient: input.ratingBountyCoefficient ?? null,
+    });
     if (!tournament) return { ok: false, error: "not_found" };
 
     if (tournament.status === "in_progress") {
@@ -234,13 +276,25 @@ export class TournamentService {
 
     return {
       ok: true,
-      tournament: {
-        id: tournament.id,
-        name: tournament.name,
-        status: tournament.status,
-        date: tournament.date,
-      },
+      tournament: tournamentRowToApi(tournament),
     };
+  }
+
+  async setRatingManualAdjustment(
+    tournamentId: number,
+    playerId: string,
+    manualAdjustment: number
+  ): Promise<SetRatingManualAdjustmentResult> {
+    const t = await tournamentRepository.findById(tournamentId);
+    if (!t) return { ok: false, error: "not_found" };
+    if (t.status !== "completed") return { ok: false, error: "not_completed" };
+    const ok = await tournamentResultRepository.updateRatingManualAdjustment(
+      tournamentId,
+      playerId,
+      manualAdjustment
+    );
+    if (!ok) return { ok: false, error: "failed" };
+    return { ok: true };
   }
 
   async updateTournamentStructure(

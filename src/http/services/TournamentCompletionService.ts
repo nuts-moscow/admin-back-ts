@@ -19,6 +19,7 @@ import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType"
 import type { CashDeskResponse } from "./InGameUserStateService";
 import type { TournamentResultPlayerRow } from "../../postgres/TournamentResultRepository";
 import { writeTournamentAuditLog } from "./tournamentAuditLog";
+import { computeTournamentPlayerRating } from "./tournamentRatingCompute";
 
 /**
  * Runs tournament completion: save cash snapshot, save results, update players' free counts, delete cache.
@@ -98,6 +99,19 @@ export async function runTournamentCompletion(
           ? state.placement
           : null;
 
+    const finishPlaceForRating =
+      placement != null ? N - placement + 1 : null;
+    const ratingPersisted =
+      state.status === InGamePlayerStatus.Out && state.ratingSnapshot != null
+        ? { ...state.ratingSnapshot }
+        : computeTournamentPlayerRating(
+            N,
+            finishPlaceForRating,
+            state.bountyCount,
+            0,
+            tournament
+          );
+
     resultRows.push({
       tournamentId,
       playerId: state.playerId,
@@ -128,6 +142,8 @@ export async function runTournamentCompletion(
         state.burnedStackEvents.length === 0
           ? "[]"
           : JSON.stringify(state.burnedStackEvents),
+      ratingManualAdjustment: 0,
+      ratingPersisted,
     });
   }
 

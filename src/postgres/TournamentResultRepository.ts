@@ -1,5 +1,22 @@
+import type { TournamentRatingBreakdown } from "../domain/TournamentRatingBreakdown";
+import { isTournamentRatingBreakdown } from "../domain/TournamentRatingBreakdown";
 import { logger } from "../logger";
 import { PostgresClient } from "./PostgresClient";
+
+function parseRatingPersistedColumn(raw: unknown): TournamentRatingBreakdown | null {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    if (raw === "" || raw === "{}") return null;
+    try {
+      const o = JSON.parse(raw);
+      return isTournamentRatingBreakdown(o) ? o : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object" && isTournamentRatingBreakdown(raw)) return raw;
+  return null;
+}
 
 export interface TournamentResultPlayerRow {
   tournamentId: number;
@@ -19,6 +36,9 @@ export interface TournamentResultPlayerRow {
   eliminatedBy: string | null;
   /** JSON array of { chips, source: "Rebuy"|"Out" } */
   burnedStackEvents: string;
+  ratingManualAdjustment: number;
+  /** Snapshot at tournament completion (manualAdjustment in object is always 0). */
+  ratingPersisted: TournamentRatingBreakdown | null;
 }
 
 export interface TournamentResultRepository {
@@ -29,6 +49,11 @@ export interface TournamentResultRepository {
   findByTournamentId(
     tournamentId: number
   ): Promise<TournamentResultPlayerRow[]>;
+  updateRatingManualAdjustment(
+    tournamentId: number,
+    playerId: string,
+    manualAdjustment: number
+  ): Promise<boolean>;
 }
 
 function rowToResult(row: Record<string, unknown>): TournamentResultPlayerRow {
@@ -66,6 +91,8 @@ function rowToResult(row: Record<string, unknown>): TournamentResultPlayerRow {
       row.burned_stack_events != null
         ? String(row.burned_stack_events)
         : "[]",
+    ratingManualAdjustment: Number(row.rating_manual_adjustment ?? 0),
+    ratingPersisted: parseRatingPersistedColumn(row.rating_persisted),
   };
 }
 
@@ -83,8 +110,10 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             entry_payment_method, entry_paid_amount, reentry_by_payment_method, reentry_payment_lines,
             total_reentry_count,
             bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by,
-            burned_stack_events
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            burned_stack_events,
+            rating_manual_adjustment,
+            rating_persisted
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb)
           ON CONFLICT (tournament_id, player_id) DO UPDATE SET
             tournament_player_id = EXCLUDED.tournament_player_id,
             placement = EXCLUDED.placement,
@@ -99,7 +128,9 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             custom_bonus_chips = EXCLUDED.custom_bonus_chips,
             bounty_kills = EXCLUDED.bounty_kills,
             eliminated_by = EXCLUDED.eliminated_by,
-            burned_stack_events = EXCLUDED.burned_stack_events`,
+            burned_stack_events = EXCLUDED.burned_stack_events,
+            rating_manual_adjustment = tournament_result_players.rating_manual_adjustment,
+            rating_persisted = tournament_result_players.rating_persisted`,
           [
             tournamentId,
             r.playerId,
@@ -117,6 +148,8 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             r.bountyKills,
             r.eliminatedBy,
             r.burnedStackEvents,
+            r.ratingManualAdjustment ?? 0,
+            JSON.stringify(r.ratingPersisted ?? {}),
           ]
         );
       }
@@ -139,7 +172,9 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
                 entry_payment_method, entry_paid_amount, reentry_by_payment_method, reentry_payment_lines,
                 total_reentry_count,
                 bounty_count, bonuses, custom_bonus_chips, bounty_kills, eliminated_by,
-                burned_stack_events
+                burned_stack_events,
+                rating_manual_adjustment,
+                rating_persisted
          FROM tournament_result_players
          WHERE tournament_id = $1
          ORDER BY placement ASC NULLS LAST, tournament_player_id ASC`,
@@ -154,6 +189,28 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
         "[Postgres] TournamentResultRepository.findByTournamentId failed"
       );
       return [];
+    }
+  }
+
+  async updateRatingManualAdjustment(
+    tournamentId: number,
+    playerId: string,
+    manualAdjustment: number
+  ): Promise<boolean> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `UPDATE tournament_result_players
+         SET rating_manual_adjustment = $3
+         WHERE tournament_id = $1 AND player_id = $2`,
+        [tournamentId, playerId, manualAdjustment]
+      );
+      return result.rowCount != null && result.rowCount > 0;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, playerId },
+        "[Postgres] TournamentResultRepository.updateRatingManualAdjustment failed"
+      );
+      return false;
     }
   }
 }
