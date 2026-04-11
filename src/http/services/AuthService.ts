@@ -5,8 +5,7 @@ import { sessionStore } from "../../redis/SessionStore";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
-/** Cookie name: __Host- prefix requires Secure + Path=/ — prevents subdomain injection */
-export const SESSION_COOKIE_NAME = IS_PRODUCTION ? "__Host-admin_session" : "admin_session";
+export const SESSION_COOKIE_NAME = "admin_session";
 const SESSION_TTL_SEC = 86400;
 
 /** Pre-computed dummy hash — used to normalize response time when user is not found (timing attack prevention) */
@@ -15,14 +14,23 @@ export async function initDummyHash(): Promise<void> {
   DUMMY_HASH = await Bun.password.hash("__dummy__");
 }
 
+/**
+ * Production:  SameSite=None; Secure — required for cross-site fetch (frontend on different origin).
+ *              CSRF protection is handled by Origin header check in requireAuth middleware.
+ * Development: SameSite=Lax — works for localhost-to-localhost without HTTPS.
+ */
 export function buildSessionCookie(sessionId: string): string {
-  const base = `${SESSION_COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL_SEC}`;
-  return IS_PRODUCTION ? `${base}; Secure` : base;
+  if (IS_PRODUCTION) {
+    return `${SESSION_COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=None; Secure; Path=/; Max-Age=${SESSION_TTL_SEC}`;
+  }
+  return `${SESSION_COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SEC}`;
 }
 
 export function clearSessionCookie(): string {
-  const base = `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
-  return IS_PRODUCTION ? `${base}; Secure` : base;
+  if (IS_PRODUCTION) {
+    return `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=None; Secure; Path=/; Max-Age=0`;
+  }
+  return `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
 }
 
 export function getSessionIdFromCookie(cookieHeader: string | null): string | null {

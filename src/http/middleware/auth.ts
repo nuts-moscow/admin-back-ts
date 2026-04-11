@@ -1,6 +1,7 @@
 import { logger } from "../../logger";
 import { resolveAllowedOrigin } from "../cors";
 import {
+  clearSessionCookie,
   getClientIp,
   getSessionIdFromCookie,
   SESSION_COOKIE_NAME,
@@ -63,7 +64,11 @@ export async function requireAuth(req: Request): Promise<RequireAuthResult> {
   const sessionId = getSessionIdFromCookie(cookieHeader);
 
   if (!sessionId) {
-    logger.warn({ path: pathname, ip }, "[Auth] Unauthorized: no session cookie");
+    // Log whether the Cookie header arrived at all (helps debug proxy/browser issues)
+    logger.warn(
+      { path: pathname, ip, hasCookieHeader: cookieHeader !== null, cookieNames: cookieHeader?.split(";").map((p) => p.trim().split("=")[0]?.trim()) ?? [] },
+      "[Auth] Unauthorized: no session cookie"
+    );
     return {
       response: new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -81,7 +86,7 @@ export async function requireAuth(req: Request): Promise<RequireAuthResult> {
         status: 401,
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`,
+          "Set-Cookie": clearSessionCookie(),
         },
       }),
       ctx: null,
