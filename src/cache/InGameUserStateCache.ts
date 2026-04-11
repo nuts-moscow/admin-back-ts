@@ -117,7 +117,7 @@ function applyCorePlayerTournamentGrants(playerId: PlayerId, state: InGameUserSt
       tournamentFreeReentryCount: 2,
     };
   }
-  if (id === 4 || id === 53) {
+  if (id === 4 || id === 53 || id === 12 || id === 117) {
     return {
       ...state,
       tournamentFreeEntryCount: 1,
