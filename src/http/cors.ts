@@ -4,6 +4,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "no-referrer",
+  "Cache-Control": "no-store",
 };
 
 /** Parses CORS_ORIGIN env value into a set of allowed origins.
