@@ -1,5 +1,5 @@
-import { ApplicationConfigs } from "../../configs";
 import { logger } from "../../logger";
+import { resolveAllowedOrigin } from "../cors";
 import {
   getClientIp,
   getSessionIdFromCookie,
@@ -41,13 +41,13 @@ export async function requireAuth(req: Request): Promise<RequireAuthResult> {
     return { response: null, ctx: null };
   }
 
-  // CSRF: for non-GET/HEAD requests with a cookie, verify Origin matches allowed origin
+  // CSRF: for non-GET/HEAD requests, verify Origin is in the allowed whitelist
   if (method !== "GET" && method !== "HEAD") {
     const origin = req.headers.get("origin");
     if (origin) {
-      const allowedOrigin = ApplicationConfigs.instance.server.corsOrigin;
-      if (allowedOrigin !== "*" && origin !== allowedOrigin) {
-        logger.warn({ origin, allowedOrigin, path: pathname, ip }, "[Auth] Forbidden: Origin mismatch");
+      const resolved = resolveAllowedOrigin(origin);
+      if (resolved === null) {
+        logger.warn({ origin, path: pathname, ip }, "[Auth] Forbidden: Origin not in whitelist");
         return {
           response: new Response(JSON.stringify({ error: "Forbidden" }), {
             status: 403,

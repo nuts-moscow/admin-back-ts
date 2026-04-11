@@ -38,11 +38,12 @@ export async function createHttpServer() {
   Bun.serve<TournamentClockWsData>({
     port,
     async fetch(req, server) {
+      const origin = req.headers.get("origin");
       try {
         if (req.method === "OPTIONS") {
           return new Response(null, {
             status: 204,
-            headers: corsHeaders(),
+            headers: corsHeaders(origin),
           });
         }
 
@@ -66,7 +67,7 @@ export async function createHttpServer() {
         // Auth middleware — runs before all HTTP routes
         const { response: authResponse, ctx } = await requireAuth(req);
         if (authResponse) {
-          return withCors(authResponse);
+          return withCors(authResponse, origin);
         }
 
         // Attach auth context to request so route handlers can read it
@@ -76,9 +77,9 @@ export async function createHttpServer() {
 
         const response = await router(req);
         if (response) {
-          return withCors(response);
+          return withCors(response, origin);
         }
-        return withCors(new Response("Not Found", { status: 404 }));
+        return withCors(new Response("Not Found", { status: 404 }), origin);
       } catch (err) {
         const url = new URL(req.url);
         logger.error({ err, method: req.method, path: url.pathname }, "[HTTP] Unhandled error in fetch handler");
@@ -86,7 +87,8 @@ export async function createHttpServer() {
           new Response(JSON.stringify({ error: "Internal server error" }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
-          })
+          }),
+          origin
         );
       }
     },
