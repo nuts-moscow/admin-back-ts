@@ -57,6 +57,8 @@ export interface TournamentRepository {
   create(input: MakeTournamentInput): Promise<TournamentRow | null>;
   findById(id: number): Promise<TournamentRow | null>;
   list(options?: ListTournamentsOptions): Promise<TournamentRow[]>;
+  /** Returns only registration_open and in_progress tournaments. */
+  listActive(): Promise<Pick<TournamentRow, "id" | "name" | "status" | "date">[]>;
   /** Numeric ids only; cheap for background clock tick. */
   listIdsByStatus(status: string): Promise<number[]>;
   update(id: number, input: UpdateTournamentInput): Promise<TournamentRow | null>;
@@ -127,6 +129,29 @@ class TournamentRepositoryImpl implements TournamentRepository {
       return result.rows.map((row) => rowToTournament(row as Record<string, unknown>));
     } catch (err) {
       logger.info({ err }, "[Postgres] TournamentRepository.list failed");
+      return [];
+    }
+  }
+
+  async listActive(): Promise<Pick<TournamentRow, "id" | "name" | "status" | "date">[]> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `SELECT id, name, status, date
+         FROM tournaments
+         WHERE status IN ('registration_open', 'in_progress')
+         ORDER BY date ASC`
+      );
+      return result.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: Number(r.id),
+          name: String(r.name ?? ""),
+          status: String(r.status ?? DEFAULT_STATUS),
+          date: Number(r.date ?? 0),
+        };
+      });
+    } catch (err) {
+      logger.info({ err }, "[Postgres] TournamentRepository.listActive failed");
       return [];
     }
   }

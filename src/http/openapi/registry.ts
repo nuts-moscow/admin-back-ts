@@ -4,6 +4,7 @@ import {
   AuthLoginBodySchema,
   AuthMeResponseSchema,
   AuthUserResponseSchema,
+  PublicTournamentsResponseSchema,
   AddPlayerToTournamentBodySchema,
   BonusMutationBodySchema,
   BountyCountBodySchema,
@@ -51,6 +52,23 @@ import {
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 
 export const openApiRegistry = new OpenAPIRegistry();
+
+// ── Public ────────────────────────────────────────────────────────────────────
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/public/tournaments",
+  tags: ["Public"],
+  operationId: "publicListTournaments",
+  summary: "List active tournaments",
+  description: "Returns tournaments with status registration_open or in_progress. No authentication required.",
+  responses: {
+    200: {
+      description: "Active tournaments",
+      content: { "application/json": { schema: PublicTournamentsResponseSchema } },
+    },
+  },
+});
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 

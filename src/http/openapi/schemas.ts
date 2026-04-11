@@ -29,6 +29,23 @@ export const AuthUserResponseSchema = z
   })
   .openapi("AuthUserResponse");
 
+// ── Public ────────────────────────────────────────────────────────────────────
+
+export const PublicTournamentItemSchema = z
+  .object({
+    id: z.number().int().openapi({ example: 1 }),
+    name: z.string().openapi({ example: "Freezeout 10K" }),
+    status: z.enum(["registration_open", "in_progress"]).openapi({ example: "in_progress" }),
+    date: z.string().openapi({ example: "2026-04-11T18:00:00.000Z" }),
+  })
+  .openapi("PublicTournamentItem");
+
+export const PublicTournamentsResponseSchema = z
+  .object({
+    tournaments: z.array(PublicTournamentItemSchema),
+  })
+  .openapi("PublicTournamentsResponse");
+
 /** In-game player status enum */
 export const InGamePlayerStatusSchema = z
   .enum([

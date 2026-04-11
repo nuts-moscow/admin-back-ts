@@ -7,6 +7,7 @@ import { authRoutes } from "./routes/AuthRoute";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
+import { publicRoutes } from "./routes/PublicRoute";
 import { tournamentRoutes } from "./routes/TournamentRoute";
 import { requireAuth } from "./middleware/auth";
 import { initDummyHash } from "./services/AuthService";
@@ -25,6 +26,7 @@ export async function createHttpServer() {
 
   const routes = {
     ...authRoutes(),
+    ...publicRoutes(),
     ...inGameUserStateRoutes(),
     ...playersRoutes(),
     ...tournamentRoutes(),
