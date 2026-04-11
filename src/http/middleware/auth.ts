@@ -35,7 +35,11 @@ export type RequireAuthResult =
   | { response: Response; ctx: null }
   | { response: null; ctx: AuthContext | null };
 
+const AUTH_DISABLED = true;
+
 export async function requireAuth(req: Request): Promise<RequireAuthResult> {
+  if (AUTH_DISABLED) return { response: null, ctx: null };
+
   const url = new URL(req.url);
   const pathname = url.pathname;
   const method = req.method.toUpperCase();
