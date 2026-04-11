@@ -10,7 +10,6 @@ import { sessionStore } from "../../redis/SessionStore";
 
 const PUBLIC_ROUTES: Array<{ method: string; path: string }> = [
   { method: "POST", path: "/api/auth/login" },
-  { method: "POST", path: "/api/auth/setup" },
 ];
 
 function isPublicRoute(method: string, pathname: string): boolean {

@@ -5,8 +5,6 @@ import { PostgresClient } from "./PostgresClient";
 export interface AdminUserRepository {
   /** Finds admin user by username (case-sensitive). Returns null if not found or on error. */
   findByUsername(username: string): Promise<AdminUser | null>;
-  /** Returns total count of admin users. Returns 0 on error. */
-  count(): Promise<number>;
   /** Creates a new admin user. Returns created user or null on error. */
   create(username: string, passwordHash: string): Promise<AdminUser | null>;
   /** Updates password hash for a user. Returns true on success. */
@@ -34,18 +32,6 @@ class AdminUserRepositoryImpl implements AdminUserRepository {
     } catch (err) {
       logger.error({ err }, "[AdminUserRepository] findByUsername failed");
       return null;
-    }
-  }
-
-  async count(): Promise<number> {
-    try {
-      const result = await PostgresClient.instance.query(
-        "SELECT COUNT(*) AS cnt FROM admin_users"
-      );
-      return parseInt(String(result.rows[0]?.cnt ?? "0"), 10) || 0;
-    } catch (err) {
-      logger.error({ err }, "[AdminUserRepository] count failed");
-      return 0;
     }
   }
 

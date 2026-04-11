@@ -104,29 +104,6 @@ export async function verifySession(sessionId: string): Promise<VerifySessionRes
   return { ok: true, userId };
 }
 
-export type SetupResult =
-  | { ok: true; user: AdminUser }
-  | { ok: false; reason: "already_exists" | "error" };
-
-export async function setup(
-  username: string,
-  password: string,
-  ip: string
-): Promise<SetupResult> {
-  const count = await adminUserRepository.count();
-  if (count > 0) {
-    logger.warn({ ip }, "[Auth] Setup blocked: admin user already exists");
-    return { ok: false, reason: "already_exists" };
-  }
-
-  const passwordHash = await Bun.password.hash(password);
-  const user = await adminUserRepository.create(username, passwordHash);
-  if (!user) return { ok: false, reason: "error" };
-
-  logger.info({ username }, "[Auth] Setup: first admin user created");
-  return { ok: true, user };
-}
-
 export type ChangePasswordResult =
   | { ok: true }
   | { ok: false; reason: "invalid_current_password" | "error" };

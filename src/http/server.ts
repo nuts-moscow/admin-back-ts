@@ -38,46 +38,57 @@ export async function createHttpServer() {
   Bun.serve<TournamentClockWsData>({
     port,
     async fetch(req, server) {
-      if (req.method === "OPTIONS") {
-        return new Response(null, {
-          status: 204,
-          headers: corsHeaders(),
-        });
-      }
-
-      // WebSocket upgrade is public — no auth required
-      const url = new URL(req.url);
-      const wsMatch = url.pathname.match(CLOCK_WS_PATH);
-      if (
-        wsMatch &&
-        req.headers.get("upgrade")?.toLowerCase() === "websocket"
-      ) {
-        const tournamentId = parseInt(wsMatch[1]!, 10);
-        if (!Number.isNaN(tournamentId)) {
-          const upgraded = server.upgrade(req, {
-            data: { tournamentId },
+      try {
+        if (req.method === "OPTIONS") {
+          return new Response(null, {
+            status: 204,
+            headers: corsHeaders(),
           });
-          if (upgraded) return undefined;
         }
-        return new Response("WebSocket upgrade failed", { status: 400 });
-      }
 
-      // Auth middleware — runs before all HTTP routes
-      const { response: authResponse, ctx } = await requireAuth(req);
-      if (authResponse) {
-        return withCors(authResponse);
-      }
+        // WebSocket upgrade is public — no auth required
+        const url = new URL(req.url);
+        const wsMatch = url.pathname.match(CLOCK_WS_PATH);
+        if (
+          wsMatch &&
+          req.headers.get("upgrade")?.toLowerCase() === "websocket"
+        ) {
+          const tournamentId = parseInt(wsMatch[1]!, 10);
+          if (!Number.isNaN(tournamentId)) {
+            const upgraded = server.upgrade(req, {
+              data: { tournamentId },
+            });
+            if (upgraded) return undefined;
+          }
+          return new Response("WebSocket upgrade failed", { status: 400 });
+        }
 
-      // Attach auth context to request so route handlers can read it
-      if (ctx) {
-        Object.assign(req, { authCtx: ctx as AuthContext });
-      }
+        // Auth middleware — runs before all HTTP routes
+        const { response: authResponse, ctx } = await requireAuth(req);
+        if (authResponse) {
+          return withCors(authResponse);
+        }
 
-      const response = await router(req);
-      if (response) {
-        return withCors(response);
+        // Attach auth context to request so route handlers can read it
+        if (ctx) {
+          Object.assign(req, { authCtx: ctx as AuthContext });
+        }
+
+        const response = await router(req);
+        if (response) {
+          return withCors(response);
+        }
+        return withCors(new Response("Not Found", { status: 404 }));
+      } catch (err) {
+        const url = new URL(req.url);
+        logger.error({ err, method: req.method, path: url.pathname }, "[HTTP] Unhandled error in fetch handler");
+        return withCors(
+          new Response(JSON.stringify({ error: "Internal server error" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
       }
-      return withCors(new Response("Not Found", { status: 404 }));
     },
     websocket: {
       open(ws: ServerWebSocket<TournamentClockWsData>) {

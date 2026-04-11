@@ -9,13 +9,6 @@ export const AuthLoginBodySchema = z
   })
   .openapi("AuthLoginBody");
 
-export const AuthSetupBodySchema = z
-  .object({
-    username: z.string().min(1).openapi({ example: "admin" }),
-    password: z.string().min(8).openapi({ example: "s3cr3tpassword" }),
-  })
-  .openapi("AuthSetupBody");
-
 export const AuthMeResponseSchema = z
   .object({
     id: z.number().int().openapi({ example: 1 }),

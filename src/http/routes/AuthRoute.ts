@@ -9,7 +9,6 @@ import {
   getClientIp,
   login,
   logout,
-  setup,
 } from "../services/AuthService";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -45,57 +44,6 @@ async function getUsernameById(userId: number): Promise<string> {
 
 export function authRoutes() {
   return {
-    "/api/auth/setup": {
-      POST: async (req: BunRequest) => {
-        const ctErr = requireJsonContentType(req);
-        if (ctErr) return ctErr;
-
-        let body: unknown;
-        try { body = await req.json(); } catch {
-          return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-            status: 400, headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        if (!body || typeof body !== "object") {
-          return new Response(JSON.stringify({ error: "Invalid body" }), {
-            status: 400, headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        const { username, password } = body as Record<string, unknown>;
-        if (typeof username !== "string" || username.trim().length === 0) {
-          return new Response(JSON.stringify({ error: "username is required" }), {
-            status: 400, headers: { "Content-Type": "application/json" },
-          });
-        }
-        if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-          return new Response(
-            JSON.stringify({ error: `password must be at least ${MIN_PASSWORD_LENGTH} characters` }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
-        }
-
-        const ip = getClientIp(req);
-        const result = await setup(username.trim(), password, ip);
-
-        if (!result.ok) {
-          if (result.reason === "already_exists") {
-            return new Response(JSON.stringify({ error: "Admin user already exists" }), {
-              status: 409, headers: { "Content-Type": "application/json" },
-            });
-          }
-          return new Response(JSON.stringify({ error: "Failed to create admin user" }), {
-            status: 500, headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        return new Response(JSON.stringify({ username: result.user.username }), {
-          status: 201, headers: { "Content-Type": "application/json" },
-        });
-      },
-    },
-
     "/api/auth/login": {
       POST: async (req: BunRequest) => {
         const ctErr = requireJsonContentType(req);

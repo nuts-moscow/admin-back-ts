@@ -3,7 +3,6 @@ import {
   AuthChangePasswordBodySchema,
   AuthLoginBodySchema,
   AuthMeResponseSchema,
-  AuthSetupBodySchema,
   AuthUserResponseSchema,
   AddPlayerToTournamentBodySchema,
   BonusMutationBodySchema,
@@ -54,29 +53,6 @@ import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 export const openApiRegistry = new OpenAPIRegistry();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-
-openApiRegistry.registerPath({
-  method: "post",
-  path: "/api/auth/setup",
-  tags: ["Auth"],
-  operationId: "authSetup",
-  summary: "Create first admin user",
-  description: "One-time setup endpoint. Creates the first admin user. Returns 409 if an admin user already exists.",
-  request: {
-    body: {
-      content: { "application/json": { schema: AuthSetupBodySchema } },
-    },
-  },
-  responses: {
-    201: {
-      description: "Admin user created",
-      content: { "application/json": { schema: AuthUserResponseSchema } },
-    },
-    400: { description: "Validation error (missing fields or password too short)" },
-    409: { description: "Admin user already exists" },
-    415: { description: "Content-Type must be application/json" },
-  },
-});
 
 openApiRegistry.registerPath({
   method: "post",
