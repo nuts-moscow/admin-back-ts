@@ -3,10 +3,14 @@ import { ApplicationConfigs } from "../configs";
 import { logger } from "../logger";
 import { withCors, corsHeaders } from "./cors";
 import { createRouter } from "./router";
+import { authRoutes } from "./routes/AuthRoute";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
 import { tournamentRoutes } from "./routes/TournamentRoute";
+import { requireAuth } from "./middleware/auth";
+import { initDummyHash } from "./services/AuthService";
+import type { AuthContext } from "./middleware/auth";
 import {
   onTournamentClockSocketClose,
   onTournamentClockSocketOpen,
@@ -15,8 +19,12 @@ import {
 
 const CLOCK_WS_PATH = /^\/ws\/tournaments\/(\d+)\/clock\/?$/;
 
-export function createHttpServer() {
+export async function createHttpServer() {
+  // Pre-compute dummy hash for timing-safe login (prevents username enumeration via response time)
+  await initDummyHash();
+
   const routes = {
+    ...authRoutes(),
     ...inGameUserStateRoutes(),
     ...playersRoutes(),
     ...tournamentRoutes(),
@@ -37,6 +45,7 @@ export function createHttpServer() {
         });
       }
 
+      // WebSocket upgrade is public — no auth required
       const url = new URL(req.url);
       const wsMatch = url.pathname.match(CLOCK_WS_PATH);
       if (
@@ -51,6 +60,17 @@ export function createHttpServer() {
           if (upgraded) return undefined;
         }
         return new Response("WebSocket upgrade failed", { status: 400 });
+      }
+
+      // Auth middleware — runs before all HTTP routes
+      const { response: authResponse, ctx } = await requireAuth(req);
+      if (authResponse) {
+        return withCors(authResponse);
+      }
+
+      // Attach auth context to request so route handlers can read it
+      if (ctx) {
+        Object.assign(req, { authCtx: ctx as AuthContext });
       }
 
       const response = await router(req);

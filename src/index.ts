@@ -8,7 +8,7 @@ async function main() {
   await initLogger();
   await wirePostgres();
   await wireRedis();
-  wireHttp();
+  await wireHttp();
 
   logger.info("Application started");
 }

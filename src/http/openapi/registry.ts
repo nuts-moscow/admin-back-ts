@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  AuthChangePasswordBodySchema,
+  AuthLoginBodySchema,
+  AuthMeResponseSchema,
+  AuthSetupBodySchema,
+  AuthUserResponseSchema,
   AddPlayerToTournamentBodySchema,
   BonusMutationBodySchema,
   BountyCountBodySchema,
@@ -47,6 +52,107 @@ import {
 import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 
 export const openApiRegistry = new OpenAPIRegistry();
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/api/auth/setup",
+  tags: ["Auth"],
+  operationId: "authSetup",
+  summary: "Create first admin user",
+  description: "One-time setup endpoint. Creates the first admin user. Returns 409 if an admin user already exists.",
+  request: {
+    body: {
+      content: { "application/json": { schema: AuthSetupBodySchema } },
+    },
+  },
+  responses: {
+    201: {
+      description: "Admin user created",
+      content: { "application/json": { schema: AuthUserResponseSchema } },
+    },
+    400: { description: "Validation error (missing fields or password too short)" },
+    409: { description: "Admin user already exists" },
+    415: { description: "Content-Type must be application/json" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/api/auth/login",
+  tags: ["Auth"],
+  operationId: "authLogin",
+  summary: "Login",
+  description: "Authenticates admin user. On success sets an httpOnly session cookie (admin_session / __Host-admin_session in production).",
+  request: {
+    body: {
+      content: { "application/json": { schema: AuthLoginBodySchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Login successful. Set-Cookie header contains session cookie.",
+      content: { "application/json": { schema: AuthUserResponseSchema } },
+    },
+    400: { description: "Missing or invalid fields" },
+    401: { description: "Invalid credentials" },
+    415: { description: "Content-Type must be application/json" },
+    429: { description: "Too many login attempts. Retry-After: 900" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/api/auth/logout",
+  tags: ["Auth"],
+  operationId: "authLogout",
+  summary: "Logout",
+  description: "Invalidates the current session and clears the session cookie. Requires valid session cookie.",
+  responses: {
+    204: { description: "Session invalidated" },
+    401: { description: "Not authenticated" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/auth/me",
+  tags: ["Auth"],
+  operationId: "authMe",
+  summary: "Get current user",
+  description: "Returns the currently authenticated admin user. Requires valid session cookie.",
+  responses: {
+    200: {
+      description: "Current user",
+      content: { "application/json": { schema: AuthMeResponseSchema } },
+    },
+    401: { description: "Not authenticated" },
+    404: { description: "User not found" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "post",
+  path: "/api/auth/change-password",
+  tags: ["Auth"],
+  operationId: "authChangePassword",
+  summary: "Change password",
+  description: "Changes the admin password. Invalidates all existing sessions (including the current one). Requires valid session cookie.",
+  request: {
+    body: {
+      content: { "application/json": { schema: AuthChangePasswordBodySchema } },
+    },
+  },
+  responses: {
+    204: { description: "Password changed. All sessions invalidated." },
+    400: { description: "Invalid current password or new password too short" },
+    401: { description: "Not authenticated" },
+    415: { description: "Content-Type must be application/json" },
+  },
+});
+
+// ── Tournaments ───────────────────────────────────────────────────────────────
 
 const basePath = "/api/tournaments/{tournamentId}";
 

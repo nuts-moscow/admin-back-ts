@@ -1,5 +1,41 @@
 import { z } from "zod";
 
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export const AuthLoginBodySchema = z
+  .object({
+    username: z.string().min(1).openapi({ example: "admin" }),
+    password: z.string().min(8).openapi({ example: "s3cr3tpassword" }),
+  })
+  .openapi("AuthLoginBody");
+
+export const AuthSetupBodySchema = z
+  .object({
+    username: z.string().min(1).openapi({ example: "admin" }),
+    password: z.string().min(8).openapi({ example: "s3cr3tpassword" }),
+  })
+  .openapi("AuthSetupBody");
+
+export const AuthMeResponseSchema = z
+  .object({
+    id: z.number().int().openapi({ example: 1 }),
+    username: z.string().openapi({ example: "admin" }),
+  })
+  .openapi("AuthMeResponse");
+
+export const AuthChangePasswordBodySchema = z
+  .object({
+    currentPassword: z.string().min(1).openapi({ example: "oldpassword" }),
+    newPassword: z.string().min(8).openapi({ example: "newpassword123" }),
+  })
+  .openapi("AuthChangePasswordBody");
+
+export const AuthUserResponseSchema = z
+  .object({
+    username: z.string().openapi({ example: "admin" }),
+  })
+  .openapi("AuthUserResponse");
+
 /** In-game player status enum */
 export const InGamePlayerStatusSchema = z
   .enum([

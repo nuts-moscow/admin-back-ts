@@ -60,6 +60,13 @@ create table if not exists tournament_elimination_snapshots (
 );
 
 -- Final results per player when tournament is completed (placement in DB: high = better finish; API maps to 1 = winner)
+create table if not exists admin_users (
+    id            serial primary key,
+    username      text not null unique,
+    password_hash text not null,
+    created_at    timestamptz not null default now()
+);
+
 create table if not exists tournament_result_players (
     tournament_id             integer  not null references tournaments(id) on delete cascade,
     player_id                 text     not null,

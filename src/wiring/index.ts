@@ -22,7 +22,7 @@ export async function wireRedis(): Promise<void> {
   }
 }
 
-export function wireHttp(): void {
-  createHttpServer();
+export async function wireHttp(): Promise<void> {
+  await createHttpServer();
   startTournamentClockBroadcastLoop();
 }
