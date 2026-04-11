@@ -9,13 +9,15 @@ import {
 } from "../services/AuthService";
 import { sessionStore } from "../../redis/SessionStore";
 
-const PUBLIC_ROUTES: Array<{ method: string; path: string }> = [
+const PUBLIC_EXACT_ROUTES: Array<{ method: string; path: string }> = [
   { method: "POST", path: "/api/auth/login" },
-  { method: "GET", path: "/public/tournaments" },
 ];
 
 function isPublicRoute(method: string, pathname: string): boolean {
-  return PUBLIC_ROUTES.some((r) => r.method === method && r.path === pathname);
+  if (PUBLIC_EXACT_ROUTES.some((r) => r.method === method && r.path === pathname)) return true;
+  // All GET /public/* routes are public
+  if (method === "GET" && pathname.startsWith("/public/")) return true;
+  return false;
 }
 
 export interface AuthContext {

@@ -46,6 +46,10 @@ export const PublicTournamentsResponseSchema = z
   })
   .openapi("PublicTournamentsResponse");
 
+export const PublicTournamentParamsSchema = z
+  .object({ id: z.string().openapi({ example: "1" }) })
+  .openapi("PublicTournamentParams");
+
 /** In-game player status enum */
 export const InGamePlayerStatusSchema = z
   .enum([
