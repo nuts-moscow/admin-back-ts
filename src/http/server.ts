@@ -105,5 +105,6 @@ export async function createHttpServer() {
     },
   });
 
-  logger.info({ port }, "[HTTP] Server listening");
+  const { corsOrigin } = ApplicationConfigs.instance.server;
+  logger.info({ port, corsOrigin }, "[HTTP] Server listening");
 }
