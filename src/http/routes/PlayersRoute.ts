@@ -1,5 +1,6 @@
 import type { BunRequest } from "bun";
 import { InGameUserStateCache } from "../../cache";
+import { logger } from "../../logger";
 import { PlayersService } from "../services/PlayersService";
 
 function playerToJson(player: {
@@ -58,7 +59,17 @@ export function playersRoutes() {
           }
         }
         const players = await service.listPlayers(offset, limit);
-        return Response.json({ players: players.map(playerToJson) });
+        const body = players.map(playerToJson);
+        logger.info(
+          {
+            count: body.length,
+            offset,
+            limit,
+            ids: body.map((p) => p.id),
+          },
+          "[Players] GET /api/players → 200"
+        );
+        return Response.json({ players: body });
       },
     },
     "/api/players/create": {

@@ -1,4 +1,5 @@
 import type { BunRequest } from "bun";
+import { logger } from "../../logger";
 import type { BlindType } from "../../domain/BlindType";
 import { getTournamentRatingMatrixPayload } from "../../domain/tournamentRatingMatrix";
 import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType";
@@ -264,9 +265,18 @@ export function tournamentRoutes() {
           );
         }
         const structures = await service.listStructures(offset, limit);
-        return Response.json({
-          structures: structures.map((s) => structureResponseFromEntity(s)),
-        });
+        const body = structures.map((s) => structureResponseFromEntity(s));
+        logger.info(
+          {
+            count: body.length,
+            offset,
+            limit,
+            ids: body.map((s) => s.id),
+            names: body.map((s) => s.name),
+          },
+          "[Structures] GET /api/tournament-structures → 200"
+        );
+        return Response.json({ structures: body });
       },
       POST: async (req: BunRequest<"/api/tournament-structures">) => {
         let body: unknown;
