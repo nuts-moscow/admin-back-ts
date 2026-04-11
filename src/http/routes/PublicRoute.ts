@@ -1,8 +1,12 @@
 import type { BunRequest } from "bun";
 import { logger } from "../../logger";
 import { tournamentRepository } from "../../postgres/TournamentRepository";
+import { InGameUserStateService } from "../services/InGameUserStateService";
+import { tournamentClockService } from "../services/TournamentClockService";
 
 export function publicRoutes() {
+  const inGameService = new InGameUserStateService();
+
   return {
     "/public/tournaments": {
       GET: async (_req: BunRequest<"/public/tournaments">) => {
@@ -44,6 +48,55 @@ export function publicRoutes() {
           status: tournament.status,
           date: new Date(tournament.date).toISOString(),
         });
+      },
+    },
+
+    "/public/tournaments/:id/clock": {
+      GET: async (req: BunRequest<"/public/tournaments/:id/clock"> & { params: { id: string } }) => {
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id) || id < 1) {
+          return new Response(JSON.stringify({ error: "Invalid tournament id" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const tick = await tournamentClockService.getTick(id);
+        if (!tick) {
+          return new Response(JSON.stringify({ error: "Tournament not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        logger.info({ id }, "[Public] GET /public/tournaments/:id/clock → 200");
+        return Response.json(tick);
+      },
+    },
+
+    "/public/tournaments/:tournamentId/chip-pool-summary": {
+      GET: async (
+        req: BunRequest<"/public/tournaments/:tournamentId/chip-pool-summary"> & {
+          params: { tournamentId: string };
+        }
+      ) => {
+        const result = await inGameService.getTournamentChipPoolSummary(req.params.tournamentId);
+        if (!result.ok) {
+          if (result.error === "stack_size_unavailable") {
+            return new Response(
+              JSON.stringify({ error: "Stack size not available for this tournament" }),
+              { status: 422, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          const msg =
+            result.error === "structure_not_found"
+              ? "Tournament structure not found"
+              : "Tournament not found";
+          return new Response(JSON.stringify({ error: msg }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        logger.info({ tournamentId: req.params.tournamentId }, "[Public] GET /public/tournaments/:id/chip-pool-summary → 200");
+        return Response.json(result.summary);
       },
     },
   };
