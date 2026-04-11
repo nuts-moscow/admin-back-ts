@@ -66,7 +66,7 @@ export async function requireAuth(req: Request): Promise<RequireAuthResult> {
   if (!sessionId) {
     // Log whether the Cookie header arrived at all (helps debug proxy/browser issues)
     logger.warn(
-      { path: pathname, ip, hasCookieHeader: cookieHeader !== null, cookieNames: cookieHeader?.split(";").map((p) => p.trim().split("=")[0]?.trim()) ?? [] },
+      { method, path: pathname, ip, hasCookieHeader: cookieHeader !== null, cookieNames: cookieHeader?.split(";").map((p) => p.trim().split("=")[0]?.trim()) ?? [] },
       "[Auth] Unauthorized: no session cookie"
     );
     return {
