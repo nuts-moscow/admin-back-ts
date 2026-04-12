@@ -54,6 +54,31 @@ export const PublicTournamentParamsSchema = z
   .object({ id: z.string().openapi({ example: "1" }) })
   .openapi("PublicTournamentParams");
 
+export const PublicRatingPlaceRowSchema = z
+  .object({
+    place: z.number().int().min(1).openapi({ example: 1 }),
+    basePoints: z.number().openapi({ description: "Points from rating matrix for field size" }),
+    guaranteeBonus: z.number().openapi({ description: "+10 for places 1–10 when guarantee is on" }),
+    pointsCoefficient: z.number().openapi({ example: 1 }),
+    fromTableAfterCoefficient: z
+      .number()
+      .openapi({ description: "(basePoints + guaranteeBonus) × pointsCoefficient; no bounty" }),
+  })
+  .openapi("PublicRatingPlaceRow");
+
+export const PublicRatingDistributionResponseSchema = z
+  .object({
+    tournamentId: z.number().int(),
+    playersInTournament: z.number().int().min(0).openapi({ description: "Current players in tournament (Redis)" }),
+    prizePlacesDepth: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({ description: "Max place with base points > 0 for current field size" }),
+    places: z.array(PublicRatingPlaceRowSchema),
+  })
+  .openapi("PublicRatingDistributionResponse");
+
 /** In-game player status enum */
 export const InGamePlayerStatusSchema = z
   .enum([

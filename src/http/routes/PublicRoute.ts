@@ -1,7 +1,9 @@
 import type { BunRequest } from "bun";
+import { maxPrizePlace, selectPlacesForDisplay } from "../../domain/publicRatingDistribution";
 import { logger } from "../../logger";
 import { tournamentRepository } from "../../postgres/TournamentRepository";
 import { InGameUserStateService } from "../services/InGameUserStateService";
+import { buildPublicRatingPlaceRows } from "../services/tournamentRatingCompute";
 import { TournamentService } from "../services/TournamentService";
 import { tournamentClockService } from "../services/TournamentClockService";
 
@@ -21,6 +23,47 @@ export function publicRoutes() {
             status: t.status,
             date: new Date(t.date).toISOString(),
           })),
+        });
+      },
+    },
+
+    "/public/tournaments/:id/rating-points-distribution": {
+      GET: async (
+        req: BunRequest<"/public/tournaments/:id/rating-points-distribution"> & { params: { id: string } }
+      ) => {
+        const id = parseInt(req.params.id, 10);
+        if (Number.isNaN(id) || id < 1) {
+          return new Response(JSON.stringify({ error: "Invalid tournament id" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const row = await tournamentRepository.findById(id);
+        if (!row) {
+          return new Response(JSON.stringify({ error: "Tournament not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const states = await inGameService.getAllByTournament(String(id));
+        const R = states.length;
+        const P = maxPrizePlace(R);
+        const placeNumbers = selectPlacesForDisplay(R, P);
+        const places =
+          R === 0 ? [] : buildPublicRatingPlaceRows(placeNumbers, R, row);
+
+        logger.info(
+          { id, playersInTournament: R, prizePlacesDepth: P, rows: places.length },
+          "[Public] GET /public/tournaments/:id/rating-points-distribution → 200"
+        );
+
+        return Response.json({
+          tournamentId: id,
+          playersInTournament: R,
+          prizePlacesDepth: P,
+          places,
         });
       },
     },

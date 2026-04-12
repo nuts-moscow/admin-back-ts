@@ -2,6 +2,40 @@ import type { TournamentRatingBreakdown } from "../../domain/TournamentRatingBre
 import { getBaseRatingPoints } from "../../domain/tournamentRatingMatrix";
 import type { TournamentRow } from "../../postgres/TournamentRepository";
 
+export interface PublicRatingPlaceRow {
+  place: number;
+  basePoints: number;
+  guaranteeBonus: number;
+  pointsCoefficient: number;
+  fromTableAfterCoefficient: number;
+}
+
+export function buildPublicRatingPlaceRows(
+  places: number[],
+  participantCount: number,
+  tournament: Pick<
+    TournamentRow,
+    "ratingGuaranteeEnabled" | "ratingPointsCoefficient" | "ratingBountyCoefficient"
+  >
+): PublicRatingPlaceRow[] {
+  return places.map((place) => {
+    const breakdown = computeTournamentPlayerRating(
+      participantCount,
+      place,
+      0,
+      0,
+      tournament
+    );
+    return {
+      place,
+      basePoints: breakdown.basePoints,
+      guaranteeBonus: breakdown.guaranteeBonus,
+      pointsCoefficient: breakdown.pointsCoefficient,
+      fromTableAfterCoefficient: breakdown.fromTableAfterCoefficient,
+    };
+  });
+}
+
 export const TOURNAMENT_BOUNTY_RATING_BASE = 0.5;
 
 export type { TournamentRatingBreakdown };

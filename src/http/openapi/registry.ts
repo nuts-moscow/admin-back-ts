@@ -4,6 +4,7 @@ import {
   AuthLoginBodySchema,
   AuthMeResponseSchema,
   AuthUserResponseSchema,
+  PublicRatingDistributionResponseSchema,
   PublicTournamentParamsSchema,
   PublicTournamentsResponseSchema,
   AddPlayerToTournamentBodySchema,
@@ -93,6 +94,27 @@ openApiRegistry.registerPath({
     200: {
       description: "Tournament with structure (same as protected GET tournament by id)",
       content: { "application/json": { schema: TournamentWithStructureResponseSchema } },
+    },
+    400: { description: "Invalid tournament id" },
+    404: { description: "Tournament not found" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/public/tournaments/{id}/rating-points-distribution",
+  tags: ["Public"],
+  operationId: "publicRatingPointsDistribution",
+  summary: "Rating points preview for public display",
+  description:
+    "Places 1–10 (or 1..M if M<10) plus last three ranks in the prize zone, with points from matrix × guarantee × coefficient. Uses current player count as field size. No bounty. No authentication.",
+  request: {
+    params: PublicTournamentParamsSchema,
+  },
+  responses: {
+    200: {
+      description: "Tournament rating preview",
+      content: { "application/json": { schema: PublicRatingDistributionResponseSchema } },
     },
     400: { description: "Invalid tournament id" },
     404: { description: "Tournament not found" },
