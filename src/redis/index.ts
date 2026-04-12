@@ -1,2 +1,2 @@
 export { RedisClient } from "./RedisClient";
-export { sessionStore } from "./SessionStore";
+export { authStore, JWT_ACCESS_TTL_SEC } from "./AuthStore";

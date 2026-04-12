@@ -9,6 +9,7 @@
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.4.3",
     "ioredis": "^5",
+    "jose": "^6.2.2",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",

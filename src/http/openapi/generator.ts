@@ -19,6 +19,14 @@ export function generateOpenAPIDocument() {
     servers: [{ url: `http://localhost:${port}` }],
     tags: [
       {
+        name: "Auth",
+        description: "Admin JWT: POST /api/auth/login, then Authorization: Bearer <token>",
+      },
+      {
+        name: "Public",
+        description: "Public endpoints without authentication",
+      },
+      {
         name: "Players",
         description: "Управление игроками: создание",
       },

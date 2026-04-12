@@ -26,6 +26,10 @@ export const AuthChangePasswordBodySchema = z
 export const AuthUserResponseSchema = z
   .object({
     username: z.string().openapi({ example: "admin" }),
+    token: z.string().openapi({
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      description: "JWT — send as Authorization: Bearer <token>",
+    }),
   })
   .openapi("AuthUserResponse");
 

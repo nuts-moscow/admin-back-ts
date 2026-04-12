@@ -1,13 +1,10 @@
 import { logger } from "../../logger";
 import { resolveAllowedOrigin } from "../cors";
 import {
-  clearSessionCookie,
+  getBearerToken,
   getClientIp,
-  getSessionIdFromCookie,
-  SESSION_COOKIE_NAME,
-  verifySession,
+  verifyAccessToken,
 } from "../services/AuthService";
-import { sessionStore } from "../../redis/SessionStore";
 
 const PUBLIC_EXACT_ROUTES: Array<{ method: string; path: string }> = [
   { method: "POST", path: "/api/auth/login" },
@@ -15,19 +12,18 @@ const PUBLIC_EXACT_ROUTES: Array<{ method: string; path: string }> = [
 
 function isPublicRoute(method: string, pathname: string): boolean {
   if (PUBLIC_EXACT_ROUTES.some((r) => r.method === method && r.path === pathname)) return true;
-  // All GET /public/* routes are public
   if (method === "GET" && pathname.startsWith("/public/")) return true;
   return false;
 }
 
 export interface AuthContext {
   userId: number;
-  sessionId: string;
+  jti: string;
 }
 
 /**
  * Auth middleware. Returns a 401/403 Response if the request is not authorized,
- * or null to allow it through. Also performs sliding session refresh.
+ * or null to allow it through.
  *
  * Attach AuthContext to the request via requireAuth result for downstream use.
  */
@@ -35,11 +31,7 @@ export type RequireAuthResult =
   | { response: Response; ctx: null }
   | { response: null; ctx: AuthContext | null };
 
-const AUTH_DISABLED = true;
-
 export async function requireAuth(req: Request): Promise<RequireAuthResult> {
-  if (AUTH_DISABLED) return { response: null, ctx: null };
-
   const url = new URL(req.url);
   const pathname = url.pathname;
   const method = req.method.toUpperCase();
@@ -49,7 +41,6 @@ export async function requireAuth(req: Request): Promise<RequireAuthResult> {
     return { response: null, ctx: null };
   }
 
-  // CSRF: for non-GET/HEAD requests, verify Origin is in the allowed whitelist
   if (method !== "GET" && method !== "HEAD") {
     const origin = req.headers.get("origin");
     if (origin) {
@@ -67,14 +58,11 @@ export async function requireAuth(req: Request): Promise<RequireAuthResult> {
     }
   }
 
-  const cookieHeader = req.headers.get("cookie");
-  const sessionId = getSessionIdFromCookie(cookieHeader);
-
-  if (!sessionId) {
-    // Log whether the Cookie header arrived at all (helps debug proxy/browser issues)
+  const token = getBearerToken(req.headers.get("authorization"));
+  if (!token) {
     logger.warn(
-      { method, path: pathname, ip, hasCookieHeader: cookieHeader !== null, cookieNames: cookieHeader?.split(";").map((p) => p.trim().split("=")[0]?.trim()) ?? [] },
-      "[Auth] Unauthorized: no session cookie"
+      { method, path: pathname, ip, hasAuthorization: req.headers.get("authorization") != null },
+      "[Auth] Unauthorized: no Bearer token"
     );
     return {
       response: new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -85,23 +73,17 @@ export async function requireAuth(req: Request): Promise<RequireAuthResult> {
     };
   }
 
-  const result = await verifySession(sessionId);
+  const result = await verifyAccessToken(token);
   if (!result.ok) {
-    logger.warn({ sessionId: sessionId.slice(0, 8), path: pathname, ip }, "[Auth] Unauthorized: invalid or expired session");
+    logger.warn({ path: pathname, ip }, "[Auth] Unauthorized: invalid or revoked token");
     return {
       response: new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: {
-          "Content-Type": "application/json",
-          "Set-Cookie": clearSessionCookie(),
-        },
+        headers: { "Content-Type": "application/json" },
       }),
       ctx: null,
     };
   }
 
-  // Sliding session: reset TTL on every authenticated request
-  await sessionStore.refresh(sessionId, result.userId);
-
-  return { response: null, ctx: { userId: result.userId, sessionId } };
+  return { response: null, ctx: { userId: result.userId, jti: result.jti } };
 }

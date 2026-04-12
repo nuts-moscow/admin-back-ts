@@ -2,14 +2,7 @@ import type { BunRequest } from "bun";
 import { PostgresClient } from "../../postgres/PostgresClient";
 import { adminUserRepository } from "../../postgres/AdminUserRepository";
 import type { AuthContext } from "../middleware/auth";
-import {
-  buildSessionCookie,
-  changePassword,
-  clearSessionCookie,
-  getClientIp,
-  login,
-  logout,
-} from "../services/AuthService";
+import { changePassword, getClientIp, login, logout } from "../services/AuthService";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -87,12 +80,9 @@ export function authRoutes() {
           });
         }
 
-        return new Response(JSON.stringify({ username: result.user.username }), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "Set-Cookie": buildSessionCookie(result.sessionId),
-          },
+        return Response.json({
+          username: result.user.username,
+          token: result.token,
         });
       },
     },
@@ -108,12 +98,9 @@ export function authRoutes() {
 
         const ip = getClientIp(req);
         const username = await getUsernameById(ctx.userId);
-        await logout(ctx.sessionId, ctx.userId, username, ip);
+        await logout(ctx.jti, ctx.userId, username, ip);
 
-        return new Response(null, {
-          status: 204,
-          headers: { "Set-Cookie": clearSessionCookie() },
-        });
+        return new Response(null, { status: 204 });
       },
     },
 
@@ -192,10 +179,7 @@ export function authRoutes() {
           });
         }
 
-        return new Response(null, {
-          status: 204,
-          headers: { "Set-Cookie": clearSessionCookie() },
-        });
+        return new Response(null, { status: 204 });
       },
     },
   };

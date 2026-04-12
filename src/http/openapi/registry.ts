@@ -55,6 +55,13 @@ import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 
 export const openApiRegistry = new OpenAPIRegistry();
 
+openApiRegistry.registerComponent("securitySchemes", "bearerAuth", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "JWT",
+  description: "JWT from POST /api/auth/login — Authorization: Bearer <token>",
+});
+
 // ── Public ────────────────────────────────────────────────────────────────────
 
 openApiRegistry.registerPath({
@@ -100,7 +107,7 @@ openApiRegistry.registerPath({
   tags: ["Auth"],
   operationId: "authLogin",
   summary: "Login",
-  description: "Authenticates admin user. On success sets an httpOnly session cookie (admin_session / __Host-admin_session in production).",
+  description: "Authenticates admin user. Returns a JWT — store securely (e.g. localStorage) and send as Authorization: Bearer <token> on subsequent requests.",
   request: {
     body: {
       content: { "application/json": { schema: AuthLoginBodySchema } },
@@ -108,7 +115,7 @@ openApiRegistry.registerPath({
   },
   responses: {
     200: {
-      description: "Login successful. Set-Cookie header contains session cookie.",
+      description: "Login successful. Response body contains JWT token.",
       content: { "application/json": { schema: AuthUserResponseSchema } },
     },
     400: { description: "Missing or invalid fields" },
@@ -124,9 +131,10 @@ openApiRegistry.registerPath({
   tags: ["Auth"],
   operationId: "authLogout",
   summary: "Logout",
-  description: "Invalidates the current session and clears the session cookie. Requires valid session cookie.",
+  description: "Invalidates the current JWT server-side (blocklist). Requires Authorization: Bearer.",
+  security: [{ bearerAuth: [] }],
   responses: {
-    204: { description: "Session invalidated" },
+    204: { description: "Token invalidated" },
     401: { description: "Not authenticated" },
   },
 });
@@ -137,7 +145,8 @@ openApiRegistry.registerPath({
   tags: ["Auth"],
   operationId: "authMe",
   summary: "Get current user",
-  description: "Returns the currently authenticated admin user. Requires valid session cookie.",
+  description: "Returns the currently authenticated admin user. Requires Authorization: Bearer.",
+  security: [{ bearerAuth: [] }],
   responses: {
     200: {
       description: "Current user",
@@ -154,14 +163,15 @@ openApiRegistry.registerPath({
   tags: ["Auth"],
   operationId: "authChangePassword",
   summary: "Change password",
-  description: "Changes the admin password. Invalidates all existing sessions (including the current one). Requires valid session cookie.",
+  description: "Changes the admin password. Invalidates all existing JWTs (version bump). Requires Authorization: Bearer.",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: { "application/json": { schema: AuthChangePasswordBodySchema } },
     },
   },
   responses: {
-    204: { description: "Password changed. All sessions invalidated." },
+    204: { description: "Password changed. All JWTs invalidated." },
     400: { description: "Invalid current password or new password too short" },
     401: { description: "Not authenticated" },
     415: { description: "Content-Type must be application/json" },
