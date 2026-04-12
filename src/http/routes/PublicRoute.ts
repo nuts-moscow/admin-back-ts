@@ -2,10 +2,12 @@ import type { BunRequest } from "bun";
 import { logger } from "../../logger";
 import { tournamentRepository } from "../../postgres/TournamentRepository";
 import { InGameUserStateService } from "../services/InGameUserStateService";
+import { TournamentService } from "../services/TournamentService";
 import { tournamentClockService } from "../services/TournamentClockService";
 
 export function publicRoutes() {
   const inGameService = new InGameUserStateService();
+  const tournamentService = new TournamentService();
 
   return {
     "/public/tournaments": {
@@ -33,7 +35,7 @@ export function publicRoutes() {
           });
         }
 
-        const tournament = await tournamentRepository.findById(id);
+        const tournament = await tournamentService.getTournament(id);
         if (!tournament) {
           return new Response(JSON.stringify({ error: "Tournament not found" }), {
             status: 404,
@@ -42,12 +44,8 @@ export function publicRoutes() {
         }
 
         logger.info({ id: tournament.id, status: tournament.status }, "[Public] GET /public/tournaments/:id → 200");
-        return Response.json({
-          id: tournament.id,
-          name: tournament.name,
-          status: tournament.status,
-          date: new Date(tournament.date).toISOString(),
-        });
+        // Same shape as GET /api/tournaments/:id (structure, blindsStructure, rating fields, date as ms)
+        return Response.json(tournament);
       },
     },
 

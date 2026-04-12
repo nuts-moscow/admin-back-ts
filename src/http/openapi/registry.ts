@@ -4,7 +4,6 @@ import {
   AuthLoginBodySchema,
   AuthMeResponseSchema,
   AuthUserResponseSchema,
-  PublicTournamentItemSchema,
   PublicTournamentParamsSchema,
   PublicTournamentsResponseSchema,
   AddPlayerToTournamentBodySchema,
@@ -85,14 +84,15 @@ openApiRegistry.registerPath({
   tags: ["Public"],
   operationId: "publicGetTournament",
   summary: "Get tournament by ID",
-  description: "Returns a single tournament by ID regardless of status. No authentication required.",
+  description:
+    "Same response shape as GET /api/tournaments/{id}: id, name, status, date (ms), rating fields, and structure (nullable) with blindsStructure (Blind/Break steps in order). No authentication required.",
   request: {
     params: PublicTournamentParamsSchema,
   },
   responses: {
     200: {
-      description: "Tournament",
-      content: { "application/json": { schema: PublicTournamentItemSchema } },
+      description: "Tournament with structure (same as protected GET tournament by id)",
+      content: { "application/json": { schema: TournamentWithStructureResponseSchema } },
     },
     400: { description: "Invalid tournament id" },
     404: { description: "Tournament not found" },
