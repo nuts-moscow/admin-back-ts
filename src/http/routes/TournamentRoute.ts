@@ -183,6 +183,7 @@ function parseClockPatch(body: unknown):
 function parseOptionalTournamentRating(body: Record<string, unknown>): {
   ok: true;
   ratingGuaranteeEnabled?: boolean;
+  ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
 } | { ok: false; error: string } {
@@ -192,6 +193,21 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
       return { ok: false, error: "ratingGuaranteeEnabled must be a boolean" };
     }
     ratingGuaranteeEnabled = body.ratingGuaranteeEnabled;
+  }
+  let ratingGuaranteeBonusPoints: number | undefined;
+  if ("ratingGuaranteeBonusPoints" in body && body.ratingGuaranteeBonusPoints !== undefined) {
+    if (
+      typeof body.ratingGuaranteeBonusPoints !== "number" ||
+      !Number.isFinite(body.ratingGuaranteeBonusPoints) ||
+      !Number.isInteger(body.ratingGuaranteeBonusPoints) ||
+      body.ratingGuaranteeBonusPoints < 0
+    ) {
+      return {
+        ok: false,
+        error: "ratingGuaranteeBonusPoints must be a non-negative integer",
+      };
+    }
+    ratingGuaranteeBonusPoints = body.ratingGuaranteeBonusPoints;
   }
   let ratingPointsCoefficient: number | undefined;
   if ("ratingPointsCoefficient" in body && body.ratingPointsCoefficient !== undefined) {
@@ -210,6 +226,7 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
   return {
     ok: true,
     ratingGuaranteeEnabled,
+    ratingGuaranteeBonusPoints,
     ratingPointsCoefficient,
     ratingBountyCoefficient,
   };
@@ -384,6 +401,7 @@ export function tournamentRoutes() {
             status: t.status,
             date: t.date,
             ratingGuaranteeEnabled: t.ratingGuaranteeEnabled,
+            ratingGuaranteeBonusPoints: t.ratingGuaranteeBonusPoints,
             ratingPointsCoefficient: t.ratingPointsCoefficient,
             ratingBountyCoefficient: t.ratingBountyCoefficient,
           })),
@@ -437,6 +455,7 @@ export function tournamentRoutes() {
           date: o.date,
           structure: structureParsed.data,
           ratingGuaranteeEnabled: ratingParsed.ratingGuaranteeEnabled,
+          ratingGuaranteeBonusPoints: ratingParsed.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
         });
@@ -546,6 +565,7 @@ export function tournamentRoutes() {
           date: o.date,
           status: o.status,
           ratingGuaranteeEnabled: ratingParsed.ratingGuaranteeEnabled,
+          ratingGuaranteeBonusPoints: ratingParsed.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
         });
@@ -572,6 +592,7 @@ export function tournamentRoutes() {
           date: result.tournament.date,
           status: result.tournament.status,
           ratingGuaranteeEnabled: result.tournament.ratingGuaranteeEnabled,
+          ratingGuaranteeBonusPoints: result.tournament.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: result.tournament.ratingPointsCoefficient,
           ratingBountyCoefficient: result.tournament.ratingBountyCoefficient,
         });

@@ -437,7 +437,7 @@ openApiRegistry.registerPath({
   operationId: "createTournament",
   summary: "Create tournament",
   description:
-    "Creates a tournament in the database and stores its structure in Redis cache. Optional ratingGuaranteeEnabled and coefficient fields default to false and 1.",
+    "Creates a tournament in the database and stores its structure in Redis cache. Optional ratingGuaranteeEnabled, ratingGuaranteeBonusPoints (default 10 for top-10 guarantee), and coefficient fields default to false and 1.",
   request: {
     body: {
       content: {

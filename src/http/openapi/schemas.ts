@@ -58,7 +58,9 @@ export const PublicRatingPlaceRowSchema = z
   .object({
     place: z.number().int().min(1).openapi({ example: 1 }),
     basePoints: z.number().openapi({ description: "Points from rating matrix for field size" }),
-    guaranteeBonus: z.number().openapi({ description: "+10 for places 1–10 when guarantee is on" }),
+    guaranteeBonus: z
+      .number()
+      .openapi({ description: "Tournament guarantee bonus for places 1–10 when guarantee is on (configurable, default 10)" }),
     pointsCoefficient: z.number().openapi({ example: 1 }),
     fromTableAfterCoefficient: z
       .number()
@@ -145,7 +147,9 @@ export const TournamentRatingBreakdownSchema = z
     }),
     guaranteeBonus: z
       .number()
-      .openapi({ description: "+10 when tournament guarantee is on and place is in top 10" }),
+      .openapi({
+        description: "Guarantee bonus when tournament guarantee is on and place is in top 10 (amount configurable per tournament, default 10)",
+      }),
     pointsCoefficient: z.number().openapi({ description: "Tournament points multiplier" }),
     fromTableAfterCoefficient: z
       .number()
@@ -823,7 +827,16 @@ export const MakeTournamentBodySchema = z
       .optional()
       .openapi({
         description:
-          "When true, each player in top 10 gets +10 rating points before the points coefficient",
+          "When true, each player in top 10 gets bonus rating points before the points coefficient",
+      }),
+    ratingGuaranteeBonusPoints: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .openapi({
+        description: "Bonus points for places 1–10 when guarantee is on; default 10",
+        example: 10,
       }),
     ratingPointsCoefficient: z
       .number()
@@ -878,6 +891,11 @@ export const TournamentResponseSchema = z
     status: z.string(),
     date: z.number(),
     ratingGuaranteeEnabled: z.boolean(),
+    ratingGuaranteeBonusPoints: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({ description: "Bonus for places 1–10 when guarantee is on", example: 10 }),
     ratingPointsCoefficient: z.number(),
     ratingBountyCoefficient: z.number(),
   })
@@ -905,6 +923,7 @@ export const TournamentWithStructureResponseSchema = z
     status: z.string(),
     date: z.number(),
     ratingGuaranteeEnabled: z.boolean(),
+    ratingGuaranteeBonusPoints: z.number().int().min(0),
     ratingPointsCoefficient: z.number(),
     ratingBountyCoefficient: z.number(),
     structure: TournamentStructureDataSchema.nullable(),
@@ -953,6 +972,7 @@ export const UpdateTournamentBodySchema = z
     date: z.number().min(0).openapi({ description: "Unix timestamp" }),
     status: TournamentStatusSchema.openapi({ description: "Tournament status" }),
     ratingGuaranteeEnabled: z.boolean().optional(),
+    ratingGuaranteeBonusPoints: z.number().int().min(0).optional(),
     ratingPointsCoefficient: z.number().finite().optional(),
     ratingBountyCoefficient: z.number().finite().optional(),
   })

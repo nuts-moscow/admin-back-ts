@@ -27,6 +27,8 @@ export interface MakeTournamentBody {
   date: number;
   structure: MakeTournamentStructureBody;
   ratingGuaranteeEnabled?: boolean;
+  /** Bonus points for places 1–10 when guarantee is on; default 10 */
+  ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
 }
@@ -37,6 +39,7 @@ export type TournamentApiSummary = {
   status: string;
   date: number;
   ratingGuaranteeEnabled: boolean;
+  ratingGuaranteeBonusPoints: number;
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
 };
@@ -48,6 +51,7 @@ export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
     status: row.status,
     date: row.date,
     ratingGuaranteeEnabled: row.ratingGuaranteeEnabled,
+    ratingGuaranteeBonusPoints: row.ratingGuaranteeBonusPoints,
     ratingPointsCoefficient: row.ratingPointsCoefficient,
     ratingBountyCoefficient: row.ratingBountyCoefficient,
   };
@@ -124,6 +128,7 @@ export class TournamentService {
       name: input.name,
       date: input.date,
       ratingGuaranteeEnabled: input.ratingGuaranteeEnabled,
+      ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: input.ratingPointsCoefficient,
       ratingBountyCoefficient: input.ratingBountyCoefficient,
     });
@@ -179,6 +184,7 @@ export class TournamentService {
       status: tournament.status,
       date: tournament.date,
       ratingGuaranteeEnabled: tournament.ratingGuaranteeEnabled,
+      ratingGuaranteeBonusPoints: tournament.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: tournament.ratingPointsCoefficient,
       ratingBountyCoefficient: tournament.ratingBountyCoefficient,
       structure: structureOut,
@@ -231,6 +237,7 @@ export class TournamentService {
       date: number;
       status: string;
       ratingGuaranteeEnabled?: boolean;
+      ratingGuaranteeBonusPoints?: number;
       ratingPointsCoefficient?: number;
       ratingBountyCoefficient?: number;
     }
@@ -262,6 +269,7 @@ export class TournamentService {
       date: input.date,
       status: input.status,
       ratingGuaranteeEnabled: input.ratingGuaranteeEnabled ?? null,
+      ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints ?? null,
       ratingPointsCoefficient: input.ratingPointsCoefficient ?? null,
       ratingBountyCoefficient: input.ratingBountyCoefficient ?? null,
     });

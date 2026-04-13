@@ -1,10 +1,13 @@
 import { logger } from "../logger";
 import { PostgresClient } from "./PostgresClient";
 
+const DEFAULT_RATING_GUARANTEE_BONUS_POINTS = 10;
+
 export interface MakeTournamentInput {
   name: string;
   date: number;
   ratingGuaranteeEnabled?: boolean;
+  ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
 }
@@ -17,6 +20,7 @@ export interface TournamentRow {
   entryPrice: number;
   reentryPrice: number;
   ratingGuaranteeEnabled: boolean;
+  ratingGuaranteeBonusPoints: number;
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
 }
@@ -34,6 +38,10 @@ function rowToTournament(row: Record<string, unknown>): TournamentRow {
     entryPrice: Number(row.entry_price ?? DEFAULT_ENTRY_PRICE),
     reentryPrice: Number(row.reentry_price ?? DEFAULT_REENTRY_PRICE),
     ratingGuaranteeEnabled: Boolean(row.rating_guarantee_enabled ?? false),
+    ratingGuaranteeBonusPoints: Math.max(
+      0,
+      Number(row.rating_guarantee_bonus_points ?? DEFAULT_RATING_GUARANTEE_BONUS_POINTS)
+    ),
     ratingPointsCoefficient: Number(row.rating_points_coefficient ?? 1),
     ratingBountyCoefficient: Number(row.rating_bounty_coefficient ?? 1),
   };
@@ -49,6 +57,7 @@ export interface UpdateTournamentInput {
   date: number;
   status: string;
   ratingGuaranteeEnabled?: boolean | null;
+  ratingGuaranteeBonusPoints?: number | null;
   ratingPointsCoefficient?: number | null;
   ratingBountyCoefficient?: number | null;
 }
@@ -69,16 +78,20 @@ class TournamentRepositoryImpl implements TournamentRepository {
   async create(input: MakeTournamentInput): Promise<TournamentRow | null> {
     try {
       const ratingGuaranteeEnabled = input.ratingGuaranteeEnabled ?? false;
+      const ratingGuaranteeBonusPoints =
+        input.ratingGuaranteeBonusPoints ?? DEFAULT_RATING_GUARANTEE_BONUS_POINTS;
       const ratingPointsCoefficient = input.ratingPointsCoefficient ?? 1;
       const ratingBountyCoefficient = input.ratingBountyCoefficient ?? 1;
       const result = await PostgresClient.instance.query(
         `INSERT INTO tournaments (
            name, status, date, entry_price, reentry_price,
-           rating_guarantee_enabled, rating_points_coefficient, rating_bounty_coefficient
+           rating_guarantee_enabled, rating_guarantee_bonus_points,
+           rating_points_coefficient, rating_bounty_coefficient
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id, name, status, date, entry_price, reentry_price,
-           rating_guarantee_enabled, rating_points_coefficient, rating_bounty_coefficient`,
+           rating_guarantee_enabled, rating_guarantee_bonus_points,
+           rating_points_coefficient, rating_bounty_coefficient`,
         [
           input.name,
           DEFAULT_STATUS,
@@ -86,6 +99,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           DEFAULT_ENTRY_PRICE,
           DEFAULT_REENTRY_PRICE,
           ratingGuaranteeEnabled,
+          ratingGuaranteeBonusPoints,
           ratingPointsCoefficient,
           ratingBountyCoefficient,
         ]
@@ -103,7 +117,8 @@ class TournamentRepositoryImpl implements TournamentRepository {
     try {
       const result = await PostgresClient.instance.query(
         `SELECT id, name, status, date, entry_price, reentry_price,
-                rating_guarantee_enabled, rating_points_coefficient, rating_bounty_coefficient
+                rating_guarantee_enabled, rating_guarantee_bonus_points,
+                rating_points_coefficient, rating_bounty_coefficient
          FROM tournaments WHERE id = $1`,
         [id]
       );
@@ -122,7 +137,8 @@ class TournamentRepositoryImpl implements TournamentRepository {
       const limit = options?.limit != null ? Math.max(1, Math.min(1000, options.limit)) : 100;
       const result = await PostgresClient.instance.query(
         `SELECT id, name, status, date, entry_price, reentry_price,
-                rating_guarantee_enabled, rating_points_coefficient, rating_bounty_coefficient
+                rating_guarantee_enabled, rating_guarantee_bonus_points,
+                rating_points_coefficient, rating_bounty_coefficient
          FROM tournaments ORDER BY date ASC OFFSET $1 LIMIT $2`,
         [offset, limit]
       );
@@ -177,17 +193,20 @@ class TournamentRepositoryImpl implements TournamentRepository {
            date = $2,
            status = $3,
            rating_guarantee_enabled = COALESCE($5, rating_guarantee_enabled),
-           rating_points_coefficient = COALESCE($6, rating_points_coefficient),
-           rating_bounty_coefficient = COALESCE($7, rating_bounty_coefficient)
+           rating_guarantee_bonus_points = COALESCE($6, rating_guarantee_bonus_points),
+           rating_points_coefficient = COALESCE($7, rating_points_coefficient),
+           rating_bounty_coefficient = COALESCE($8, rating_bounty_coefficient)
          WHERE id = $4
          RETURNING id, name, status, date, entry_price, reentry_price,
-           rating_guarantee_enabled, rating_points_coefficient, rating_bounty_coefficient`,
+           rating_guarantee_enabled, rating_guarantee_bonus_points,
+           rating_points_coefficient, rating_bounty_coefficient`,
         [
           input.name,
           input.date,
           input.status,
           id,
           input.ratingGuaranteeEnabled ?? null,
+          input.ratingGuaranteeBonusPoints ?? null,
           input.ratingPointsCoefficient ?? null,
           input.ratingBountyCoefficient ?? null,
         ]
@@ -206,7 +225,8 @@ class TournamentRepositoryImpl implements TournamentRepository {
       const result = await PostgresClient.instance.query(
         `UPDATE tournaments SET status = $1 WHERE id = $2
          RETURNING id, name, status, date, entry_price, reentry_price,
-           rating_guarantee_enabled, rating_points_coefficient, rating_bounty_coefficient`,
+           rating_guarantee_enabled, rating_guarantee_bonus_points,
+           rating_points_coefficient, rating_bounty_coefficient`,
         [status, id]
       );
       const row = result.rows[0];

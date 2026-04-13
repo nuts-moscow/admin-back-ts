@@ -15,7 +15,10 @@ export function buildPublicRatingPlaceRows(
   participantCount: number,
   tournament: Pick<
     TournamentRow,
-    "ratingGuaranteeEnabled" | "ratingPointsCoefficient" | "ratingBountyCoefficient"
+    | "ratingGuaranteeEnabled"
+    | "ratingGuaranteeBonusPoints"
+    | "ratingPointsCoefficient"
+    | "ratingBountyCoefficient"
   >
 ): PublicRatingPlaceRow[] {
   return places.map((place) => {
@@ -47,16 +50,20 @@ export function computeTournamentPlayerRating(
   manualAdjustment: number,
   tournament: Pick<
     TournamentRow,
-    "ratingGuaranteeEnabled" | "ratingPointsCoefficient" | "ratingBountyCoefficient"
+    | "ratingGuaranteeEnabled"
+    | "ratingGuaranteeBonusPoints"
+    | "ratingPointsCoefficient"
+    | "ratingBountyCoefficient"
   >
 ): TournamentRatingBreakdown {
   const place = finishPlace != null && Number.isFinite(finishPlace) ? Math.floor(finishPlace) : null;
   const base =
     place != null && place >= 1 ? getBaseRatingPoints(participantCount, place) : 0;
 
+  const bonusPts = tournament.ratingGuaranteeBonusPoints ?? 10;
   const guaranteeBonus =
     tournament.ratingGuaranteeEnabled && place != null && place >= 1 && place <= 10
-      ? 10
+      ? bonusPts
       : 0;
 
   const coef = tournament.ratingPointsCoefficient;

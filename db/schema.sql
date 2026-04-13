@@ -20,6 +20,7 @@ create table if not exists tournaments
     entry_price    bigint  not null default 1000,
     reentry_price  bigint  not null default 1000,
     rating_guarantee_enabled boolean not null default false,
+    rating_guarantee_bonus_points integer not null default 10,
     rating_points_coefficient double precision not null default 1,
     rating_bounty_coefficient double precision not null default 1
 );
