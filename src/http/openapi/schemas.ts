@@ -77,13 +77,23 @@ export const PublicRatingDistributionResponseSchema = z
       .min(0)
       .openapi({
         description:
-          "Non-eliminated players (Redis states with status ≠ Out); used as field size for the rating matrix",
+          "Players still in the tournament (Redis states with status ≠ Out); which place rows are returned",
+      }),
+    ratingMatrixFieldSize: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({
+        description:
+          "All player states in Redis for this tournament (including eliminated); participant count for the rating matrix and base points",
       }),
     prizePlacesDepth: z
       .number()
       .int()
       .min(0)
-      .openapi({ description: "Max place with base points > 0 for current field size" }),
+      .openapi({
+        description: "Max place with base points > 0 for ratingMatrixFieldSize (matrix column)",
+      }),
     places: z.array(PublicRatingPlaceRowSchema),
   })
   .openapi("PublicRatingDistributionResponse");

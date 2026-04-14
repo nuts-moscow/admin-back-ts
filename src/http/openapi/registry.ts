@@ -107,7 +107,7 @@ openApiRegistry.registerPath({
   operationId: "publicRatingPointsDistribution",
   summary: "Rating points preview for public display",
   description:
-    "Places 1–10 (or 1..M if M<10) plus last three ranks in the prize zone, with points from matrix × guarantee × coefficient. Field size uses non-eliminated players only (status ≠ Out). No bounty. No authentication.",
+    "Base points use the full tournament field (all Redis player states, including eliminated). Returned place rows and playersInTournament count only non-eliminated players (status ≠ Out). ratingMatrixFieldSize is the matrix participant count. No bounty. No authentication.",
   request: {
     params: PublicTournamentParamsSchema,
   },
