@@ -1,6 +1,22 @@
+import { InGamePlayerStatus, type InGameUserState } from "./cache/InGameUserState";
 import { getBaseRatingPoints } from "./tournamentRatingMatrix";
 
 const MAX_PLACE = 35;
+
+/**
+ * How many ranks the place preview should cover: not eliminated, and if anyone has
+ * sat down to play, only InGamePaid/InGameNotPaid (excludes Registered still waiting).
+ * Before any player is InGame, falls back to all non-Out (e.g. all Registered).
+ */
+export function countPlayersForPlaceList(states: readonly InGameUserState[]): number {
+  const inGame = states.filter(
+    (s) =>
+      s.status === InGamePlayerStatus.InGamePaid ||
+      s.status === InGamePlayerStatus.InGameNotPaid
+  );
+  if (inGame.length > 0) return inGame.length;
+  return states.filter((s) => s.status !== InGamePlayerStatus.Out).length;
+}
 
 /** Deepest finishing place (1..35) that still receives base points from the matrix for this field size. */
 export function maxPrizePlace(participantCount: number): number {

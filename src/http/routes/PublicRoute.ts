@@ -1,6 +1,5 @@
 import type { BunRequest } from "bun";
-import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
-import { maxPrizePlace, selectPlacesForDisplay } from "../../domain/publicRatingDistribution";
+import { maxPrizePlace, countPlayersForPlaceList, selectPlacesForDisplay } from "../../domain/publicRatingDistribution";
 import { logger } from "../../logger";
 import { tournamentRepository } from "../../postgres/TournamentRepository";
 import { InGameUserStateService } from "../services/InGameUserStateService";
@@ -51,14 +50,14 @@ export function publicRoutes() {
         const states = await inGameService.getAllByTournament(String(id));
         /** Full field size for the rating matrix (all Redis states, including eliminated). */
         const ratingMatrixFieldSize = states.length;
-        /** Remaining players (not Out); drives which place rows we return. */
-        const playersRemaining = states.filter((s) => s.status !== InGamePlayerStatus.Out).length;
+        /** Drives which place rows we return (InGame-only when play started; see countPlayersForPlaceList). */
+        const playersForPlaceList = countPlayersForPlaceList(states);
         /** Deepest place with base points > 0 for `ratingMatrixFieldSize` (matrix column / depth). */
         const matrixMaxPlaceWithPoints = maxPrizePlace(ratingMatrixFieldSize);
         /** Top 10 + bubble for the remaining field only (no rows beyond still-active count). */
-        const placeNumbers = selectPlacesForDisplay(playersRemaining, playersRemaining);
+        const placeNumbers = selectPlacesForDisplay(playersForPlaceList, playersForPlaceList);
         const places =
-          playersRemaining === 0
+          playersForPlaceList === 0
             ? []
             : buildPublicRatingPlaceRows(placeNumbers, ratingMatrixFieldSize, row);
 
@@ -66,7 +65,7 @@ export function publicRoutes() {
           {
             id,
             ratingMatrixFieldSize,
-            playersRemaining,
+            playersForPlaceList,
             matrixMaxPlaceWithPoints,
             rows: places.length,
           },
@@ -75,7 +74,7 @@ export function publicRoutes() {
 
         return Response.json({
           tournamentId: id,
-          playersInTournament: playersRemaining,
+          playersInTournament: playersForPlaceList,
           ratingMatrixFieldSize,
           prizePlacesDepth: matrixMaxPlaceWithPoints,
           places,

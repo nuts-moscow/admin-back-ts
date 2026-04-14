@@ -77,7 +77,7 @@ export const PublicRatingDistributionResponseSchema = z
       .min(0)
       .openapi({
         description:
-          "Players still in the tournament (Redis states with status ≠ Out); which place rows are returned",
+          "Count for place rows: non-Out, and if anyone is InGamePaid/InGameNotPaid, only those (excludes Registered waiting). Matrix field size is ratingMatrixFieldSize",
       }),
     ratingMatrixFieldSize: z
       .number()
