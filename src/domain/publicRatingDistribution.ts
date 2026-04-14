@@ -16,6 +16,9 @@ export function maxPrizePlace(participantCount: number): number {
 /**
  * Places to show: top 1..min(10, M) plus last three ranks in 1..M when M > 10.
  * M = min(players, prizeDepth).
+ *
+ * When M is 11 or 12, the last-three block overlaps the top-10 range (e.g. M=11 → 9,10,11).
+ * A Set merges overlaps so each place appears once (place 10 is never listed twice).
  */
 export function selectPlacesForDisplay(playersInTournament: number, prizeDepth: number): number[] {
   const R = Math.max(0, Math.floor(playersInTournament));

@@ -51,20 +51,27 @@ export function publicRoutes() {
         const states = await inGameService.getAllByTournament(String(id));
         /** Field size for matrix: exclude eliminated (Out); keys may remain in Redis after bust-out. */
         const R = states.filter((s) => s.status !== InGamePlayerStatus.Out).length;
-        const P = maxPrizePlace(R);
-        const placeNumbers = selectPlacesForDisplay(R, P);
+        /** Deepest place with base points > 0 in the matrix for this field size (may be < R for small fields). */
+        const matrixMaxPlaceWithPoints = maxPrizePlace(R);
+        /** List ranks up to current field size R (top 10 + bubble when R > 10), not capped by matrix depth. */
+        const placeNumbers = selectPlacesForDisplay(R, R);
         const places =
           R === 0 ? [] : buildPublicRatingPlaceRows(placeNumbers, R, row);
 
         logger.info(
-          { id, playersInTournament: R, prizePlacesDepth: P, rows: places.length },
+          {
+            id,
+            playersInTournament: R,
+            matrixMaxPlaceWithPoints,
+            rows: places.length,
+          },
           "[Public] GET /public/tournaments/:id/rating-points-distribution → 200"
         );
 
         return Response.json({
           tournamentId: id,
           playersInTournament: R,
-          prizePlacesDepth: P,
+          prizePlacesDepth: matrixMaxPlaceWithPoints,
           places,
         });
       },
