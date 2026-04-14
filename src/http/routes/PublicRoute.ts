@@ -1,4 +1,5 @@
 import type { BunRequest } from "bun";
+import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { maxPrizePlace, selectPlacesForDisplay } from "../../domain/publicRatingDistribution";
 import { logger } from "../../logger";
 import { tournamentRepository } from "../../postgres/TournamentRepository";
@@ -48,7 +49,8 @@ export function publicRoutes() {
         }
 
         const states = await inGameService.getAllByTournament(String(id));
-        const R = states.length;
+        /** Field size for matrix: exclude eliminated (Out); keys may remain in Redis after bust-out. */
+        const R = states.filter((s) => s.status !== InGamePlayerStatus.Out).length;
         const P = maxPrizePlace(R);
         const placeNumbers = selectPlacesForDisplay(R, P);
         const places =

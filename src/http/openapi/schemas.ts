@@ -71,7 +71,14 @@ export const PublicRatingPlaceRowSchema = z
 export const PublicRatingDistributionResponseSchema = z
   .object({
     tournamentId: z.number().int(),
-    playersInTournament: z.number().int().min(0).openapi({ description: "Current players in tournament (Redis)" }),
+    playersInTournament: z
+      .number()
+      .int()
+      .min(0)
+      .openapi({
+        description:
+          "Non-eliminated players (Redis states with status ≠ Out); used as field size for the rating matrix",
+      }),
     prizePlacesDepth: z
       .number()
       .int()

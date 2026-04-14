@@ -107,7 +107,7 @@ openApiRegistry.registerPath({
   operationId: "publicRatingPointsDistribution",
   summary: "Rating points preview for public display",
   description:
-    "Places 1–10 (or 1..M if M<10) plus last three ranks in the prize zone, with points from matrix × guarantee × coefficient. Uses current player count as field size. No bounty. No authentication.",
+    "Places 1–10 (or 1..M if M<10) plus last three ranks in the prize zone, with points from matrix × guarantee × coefficient. Field size uses non-eliminated players only (status ≠ Out). No bounty. No authentication.",
   request: {
     params: PublicTournamentParamsSchema,
   },
