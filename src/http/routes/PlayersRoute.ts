@@ -201,6 +201,32 @@ export function playersRoutes() {
         const player = result.player;
         return Response.json(playerToJson(player));
       },
+      DELETE: async (
+        req: BunRequest<"/api/players/:playerId"> & { params: { playerId: string } }
+      ) => {
+        const playerId = req.params?.playerId;
+        if (!playerId) {
+          return new Response(
+            JSON.stringify({ error: "playerId is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.deletePlayer(playerId);
+        if (!result.ok) {
+          if (result.error === "not_found") {
+            return new Response(
+              JSON.stringify({ error: "Player not found" }),
+              { status: 404, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: "Failed to delete player" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        logger.info({ playerId }, "[Players] DELETE /api/players/:playerId → 204");
+        return new Response(null, { status: 204 });
+      },
     },
     "/api/players/:playerId/free-entries": {
       PATCH: async (

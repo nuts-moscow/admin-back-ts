@@ -20,6 +20,8 @@ export interface PlayerRepository {
   create(input: CreatePlayerInput): Promise<Player | null>;
   /** Updates player fields by id. Only provided fields are updated. Returns updated player or null */
   update(playerId: string, input: UpdatePlayerInput): Promise<Player | null>;
+  /** Deletes player by id. Returns true if a row was removed. */
+  deleteById(playerId: string): Promise<boolean>;
   /** Applies delta to free_entry_count (clamp to >= 0). Returns new count or null. */
   updateFreeEntryCountByDelta(playerId: string, delta: number): Promise<number | null>;
   /** Applies delta to free_reentry_count (clamp to >= 0). Returns new count or null. */
@@ -187,6 +189,21 @@ class PlayerRepositoryImpl implements PlayerRepository {
     } catch (err) {
       logger.info({ err }, "[Postgres] PlayerRepository.update failed");
       return null;
+    }
+  }
+
+  async deleteById(playerId: string): Promise<boolean> {
+    try {
+      const id = parseInt(playerId, 10);
+      if (Number.isNaN(id)) return false;
+      const result = await PostgresClient.instance.query(
+        "DELETE FROM players WHERE id = $1 RETURNING id",
+        [id]
+      );
+      return result.rows.length > 0;
+    } catch (err) {
+      logger.info({ err }, "[Postgres] PlayerRepository.deleteById failed");
+      return false;
     }
   }
 

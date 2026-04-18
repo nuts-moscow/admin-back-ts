@@ -9,6 +9,10 @@ export type UpdatePlayerResult =
   | { ok: true; player: Player }
   | { ok: false; error: "not_found" | "duplicate_nickname" | "invalid_nickname" };
 
+export type DeletePlayerResult =
+  | { ok: true }
+  | { ok: false; error: "not_found" | "failed" };
+
 export class PlayersService {
   async listPlayers(offset?: number, limit?: number) {
     return playerRepository.list({ offset, limit });
@@ -49,6 +53,19 @@ export class PlayersService {
       return { ok: false, error: "not_found" };
     }
     return { ok: true, player };
+  }
+
+  /** Removes the player row from the database by id. */
+  async deletePlayer(playerId: string): Promise<DeletePlayerResult> {
+    const deleted = await playerRepository.deleteById(playerId);
+    if (!deleted) {
+      const exists = await playerRepository.findById(playerId);
+      if (exists) {
+        return { ok: false, error: "failed" };
+      }
+      return { ok: false, error: "not_found" };
+    }
+    return { ok: true };
   }
 
   /**

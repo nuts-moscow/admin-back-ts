@@ -690,6 +690,38 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: "delete",
+  path: "/api/players/{playerId}",
+  tags: ["Players"],
+  operationId: "deletePlayer",
+  summary: "Delete player",
+  description:
+    "Deletes the player row from the database by id. Does not remove tournament result history rows that reference the player as text id.",
+  request: {
+    params: PlayerIdParamSchema,
+  },
+  responses: {
+    204: { description: "Player deleted" },
+    404: {
+      description: "Player not found",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    500: {
+      description: "Delete failed (e.g. database error)",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: "patch",
   path: "/api/players/{playerId}/free-entries",
   tags: ["Players"],

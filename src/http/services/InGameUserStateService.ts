@@ -7,6 +7,7 @@ import {
 } from "../../cache";
 import {
   playerRepository,
+  ratingTableRepository,
   tournamentCashSnapshotRepository,
   tournamentEliminationSnapshotRepository,
   tournamentRepository,
@@ -712,6 +713,8 @@ export class InGameUserStateService {
     if (Number.isNaN(id)) return null;
     const tournament = await tournamentRepository.findById(id);
     if (!tournament || tournament.status !== "completed") return null;
+    const ratingTable = await ratingTableRepository.findById(tournament.ratingTableId);
+    if (!ratingTable) return null;
 
     const snap = await tournamentCashSnapshotRepository.findByTournamentId(id);
     const freezeOutFromSnap = snap?.freezeOutEnabled === true;
@@ -770,7 +773,8 @@ export class InGameUserStateService {
                 placement,
                 row.bountyCount,
                 row.ratingManualAdjustment,
-                tournament
+                tournament,
+                ratingTable
               );
         return {
           tournamentPlayerId: row.tournamentPlayerId,
@@ -1342,12 +1346,21 @@ export class InGameUserStateService {
       );
       return;
     }
+    const ratingTable = await ratingTableRepository.findById(row.ratingTableId);
+    if (!ratingTable) {
+      logger.info(
+        { tournamentId, playerId, ratingTableId: row.ratingTableId },
+        "[InGameUserStateService] refreshRatingSnapshotForOutPlayer: rating table not found"
+      );
+      return;
+    }
     const breakdown = computeTournamentPlayerRating(
       N,
       finishPlace,
       state.bountyCount,
       0,
-      row
+      row,
+      ratingTable
     );
     await InGameUserStateCache.updateRatingSnapshot(playerId, tournamentId, breakdown);
   }
