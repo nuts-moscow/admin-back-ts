@@ -1,3 +1,5 @@
+import type { RatingTable } from "./RatingTable";
+
 /** Column = participant count range start 20,22,...,70 (pairs 20-21 … 70-71). */
 export const TOURNAMENT_RATING_COLUMN_COUNT = 26;
 
@@ -120,6 +122,63 @@ export function getTournamentRatingMatrixPayload(): TournamentRatingMatrixRespon
     places: RATING_MATRIX.map((basePoints, i) => ({
       place: i + 1,
       basePoints: [...basePoints],
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Table-aware lookup — works with any RatingTable loaded from the DB
+// ---------------------------------------------------------------------------
+
+/** Column index (0-based) for a given participant count and table definition. */
+export function tableColumnIndex(table: RatingTable, participantCount: number): number {
+  const n = Math.floor(participantCount);
+  const colCount = table.matrix[0]?.length ?? 0;
+  if (!Number.isFinite(n) || colCount === 0) return 0;
+  const idx = Math.floor((n - table.columnRangeStart) / table.columnRangeStep);
+  return Math.max(0, Math.min(colCount - 1, idx));
+}
+
+/** Base rating points from any RatingTable for a given participant count and finish place. */
+export function getTableBaseRatingPoints(
+  table: RatingTable,
+  participantCount: number,
+  finishPlace: number
+): number {
+  const place = Math.floor(finishPlace);
+  if (place < 1 || place > table.matrix.length) return 0;
+  const col = tableColumnIndex(table, participantCount);
+  return table.matrix[place - 1]?.[col] ?? 0;
+}
+
+/** Column range labels for any RatingTable (e.g. ["10-11", "12-13", ...]). */
+export function tableParticipantRangeLabels(table: RatingTable): string[] {
+  const colCount = table.matrix[0]?.length ?? 0;
+  return Array.from(
+    { length: colCount },
+    (_, i) =>
+      `${table.columnRangeStart + i * table.columnRangeStep}-${
+        table.columnRangeStart + i * table.columnRangeStep + 1
+      }`
+  );
+}
+
+export interface RatingTablePayload {
+  id: number;
+  name: string;
+  participantRangeLabels: string[];
+  places: { place: number; basePoints: (number | null)[] }[];
+}
+
+/** Serialize a RatingTable for API responses. */
+export function getRatingTablePayload(table: RatingTable): RatingTablePayload {
+  return {
+    id: table.id,
+    name: table.name,
+    participantRangeLabels: tableParticipantRangeLabels(table),
+    places: table.matrix.map((row, i) => ({
+      place: i + 1,
+      basePoints: [...row],
     })),
   };
 }

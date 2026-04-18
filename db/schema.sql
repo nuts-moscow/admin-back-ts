@@ -1,3 +1,14 @@
+-- Rating distribution tables: multiple named matrices for assigning points by place and participant count.
+-- column_range_start: participant count mapped to the first column (step always 2).
+-- matrix: rows = places (0-based index → place N+1), cols = participant count ranges; null = no points.
+create table if not exists rating_tables (
+  id                   SERIAL  PRIMARY KEY,
+  name                 TEXT    NOT NULL,
+  column_range_start   INTEGER NOT NULL,
+  column_range_step    INTEGER NOT NULL DEFAULT 2,
+  matrix               JSONB   NOT NULL
+);
+
 create table if not exists players (
     id                  SERIAL     not null primary key,
     nickname            text       not null,
@@ -13,16 +24,17 @@ create table if not exists players (
 
 create table if not exists tournaments
 (
-    id             SERIAL  not null primary key,
-    name           text    not null,
-    status         text    not null,
-    date           bigint  not null,
-    entry_price    bigint  not null default 1000,
-    reentry_price  bigint  not null default 1000,
-    rating_guarantee_enabled boolean not null default false,
+    id                            SERIAL  not null primary key,
+    name                          text    not null,
+    status                        text    not null,
+    date                          bigint  not null,
+    entry_price                   bigint  not null default 1000,
+    reentry_price                 bigint  not null default 1000,
+    rating_guarantee_enabled      boolean not null default false,
     rating_guarantee_bonus_points integer not null default 10,
-    rating_points_coefficient double precision not null default 1,
-    rating_bounty_coefficient double precision not null default 1
+    rating_points_coefficient     double precision not null default 1,
+    rating_bounty_coefficient     double precision not null default 1,
+    rating_table_id               integer not null default 1 references rating_tables(id)
 );
 
 -- Append-only audit log (application inserts only; timestamps via occurred_at)

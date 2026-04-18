@@ -2,6 +2,7 @@ import { logger } from "../logger";
 import { PostgresClient } from "./PostgresClient";
 
 const DEFAULT_RATING_GUARANTEE_BONUS_POINTS = 10;
+const DEFAULT_RATING_TABLE_ID = 1;
 
 export interface MakeTournamentInput {
   name: string;
@@ -10,6 +11,7 @@ export interface MakeTournamentInput {
   ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
+  ratingTableId?: number;
 }
 
 export interface TournamentRow {
@@ -23,6 +25,7 @@ export interface TournamentRow {
   ratingGuaranteeBonusPoints: number;
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
+  ratingTableId: number;
 }
 
 const DEFAULT_STATUS = "registration_open";
@@ -44,6 +47,7 @@ function rowToTournament(row: Record<string, unknown>): TournamentRow {
     ),
     ratingPointsCoefficient: Number(row.rating_points_coefficient ?? 1),
     ratingBountyCoefficient: Number(row.rating_bounty_coefficient ?? 1),
+    ratingTableId: Number(row.rating_table_id ?? DEFAULT_RATING_TABLE_ID),
   };
 }
 
@@ -60,7 +64,15 @@ export interface UpdateTournamentInput {
   ratingGuaranteeBonusPoints?: number | null;
   ratingPointsCoefficient?: number | null;
   ratingBountyCoefficient?: number | null;
+  ratingTableId?: number | null;
 }
+
+const SELECT_COLUMNS = `
+  id, name, status, date, entry_price, reentry_price,
+  rating_guarantee_enabled, rating_guarantee_bonus_points,
+  rating_points_coefficient, rating_bounty_coefficient,
+  rating_table_id
+`;
 
 export interface TournamentRepository {
   create(input: MakeTournamentInput): Promise<TournamentRow | null>;
@@ -82,16 +94,16 @@ class TournamentRepositoryImpl implements TournamentRepository {
         input.ratingGuaranteeBonusPoints ?? DEFAULT_RATING_GUARANTEE_BONUS_POINTS;
       const ratingPointsCoefficient = input.ratingPointsCoefficient ?? 1;
       const ratingBountyCoefficient = input.ratingBountyCoefficient ?? 1;
+      const ratingTableId = input.ratingTableId ?? DEFAULT_RATING_TABLE_ID;
       const result = await PostgresClient.instance.query(
         `INSERT INTO tournaments (
            name, status, date, entry_price, reentry_price,
            rating_guarantee_enabled, rating_guarantee_bonus_points,
-           rating_points_coefficient, rating_bounty_coefficient
+           rating_points_coefficient, rating_bounty_coefficient,
+           rating_table_id
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, name, status, date, entry_price, reentry_price,
-           rating_guarantee_enabled, rating_guarantee_bonus_points,
-           rating_points_coefficient, rating_bounty_coefficient`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING ${SELECT_COLUMNS}`,
         [
           input.name,
           DEFAULT_STATUS,
@@ -102,6 +114,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           ratingGuaranteeBonusPoints,
           ratingPointsCoefficient,
           ratingBountyCoefficient,
+          ratingTableId,
         ]
       );
       const row = result.rows[0];
@@ -116,10 +129,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
   async findById(id: number): Promise<TournamentRow | null> {
     try {
       const result = await PostgresClient.instance.query(
-        `SELECT id, name, status, date, entry_price, reentry_price,
-                rating_guarantee_enabled, rating_guarantee_bonus_points,
-                rating_points_coefficient, rating_bounty_coefficient
-         FROM tournaments WHERE id = $1`,
+        `SELECT ${SELECT_COLUMNS} FROM tournaments WHERE id = $1`,
         [id]
       );
       const row = result.rows[0];
@@ -136,9 +146,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
       const offset = Math.max(0, options?.offset ?? 0);
       const limit = options?.limit != null ? Math.max(1, Math.min(1000, options.limit)) : 100;
       const result = await PostgresClient.instance.query(
-        `SELECT id, name, status, date, entry_price, reentry_price,
-                rating_guarantee_enabled, rating_guarantee_bonus_points,
-                rating_points_coefficient, rating_bounty_coefficient
+        `SELECT ${SELECT_COLUMNS}
          FROM tournaments ORDER BY date ASC OFFSET $1 LIMIT $2`,
         [offset, limit]
       );
@@ -195,11 +203,10 @@ class TournamentRepositoryImpl implements TournamentRepository {
            rating_guarantee_enabled = COALESCE($5, rating_guarantee_enabled),
            rating_guarantee_bonus_points = COALESCE($6, rating_guarantee_bonus_points),
            rating_points_coefficient = COALESCE($7, rating_points_coefficient),
-           rating_bounty_coefficient = COALESCE($8, rating_bounty_coefficient)
+           rating_bounty_coefficient = COALESCE($8, rating_bounty_coefficient),
+           rating_table_id = COALESCE($9, rating_table_id)
          WHERE id = $4
-         RETURNING id, name, status, date, entry_price, reentry_price,
-           rating_guarantee_enabled, rating_guarantee_bonus_points,
-           rating_points_coefficient, rating_bounty_coefficient`,
+         RETURNING ${SELECT_COLUMNS}`,
         [
           input.name,
           input.date,
@@ -209,6 +216,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           input.ratingGuaranteeBonusPoints ?? null,
           input.ratingPointsCoefficient ?? null,
           input.ratingBountyCoefficient ?? null,
+          input.ratingTableId ?? null,
         ]
       );
       const row = result.rows[0];
@@ -224,9 +232,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
     try {
       const result = await PostgresClient.instance.query(
         `UPDATE tournaments SET status = $1 WHERE id = $2
-         RETURNING id, name, status, date, entry_price, reentry_price,
-           rating_guarantee_enabled, rating_guarantee_bonus_points,
-           rating_points_coefficient, rating_bounty_coefficient`,
+         RETURNING ${SELECT_COLUMNS}`,
         [status, id]
       );
       const row = result.rows[0];

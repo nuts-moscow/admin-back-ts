@@ -2,6 +2,7 @@ import type { BunRequest } from "bun";
 import { maxPrizePlace, countPlayersForPlaceList, selectPlacesForDisplay } from "../../domain/publicRatingDistribution";
 import { logger } from "../../logger";
 import { tournamentRepository } from "../../postgres/TournamentRepository";
+import { ratingTableRepository } from "../../postgres/RatingTableRepository";
 import { InGameUserStateService } from "../services/InGameUserStateService";
 import { buildPublicRatingPlaceRows } from "../services/tournamentRatingCompute";
 import { TournamentService } from "../services/TournamentService";
@@ -47,19 +48,27 @@ export function publicRoutes() {
           });
         }
 
+        const ratingTable = await ratingTableRepository.findById(row.ratingTableId);
+        if (!ratingTable) {
+          return new Response(JSON.stringify({ error: "Rating table not found" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
         const states = await inGameService.getAllByTournament(String(id));
         /** Full field size for the rating matrix (all Redis states, including eliminated). */
         const ratingMatrixFieldSize = states.length;
         /** Drives which place rows we return (InGame-only when play started; see countPlayersForPlaceList). */
         const playersForPlaceList = countPlayersForPlaceList(states);
         /** Deepest place with base points > 0 for `ratingMatrixFieldSize` (matrix column / depth). */
-        const matrixMaxPlaceWithPoints = maxPrizePlace(ratingMatrixFieldSize);
+        const matrixMaxPlaceWithPoints = maxPrizePlace(ratingTable, ratingMatrixFieldSize);
         /** Top 10 + bubble for the remaining field only (no rows beyond still-active count). */
         const placeNumbers = selectPlacesForDisplay(playersForPlaceList, playersForPlaceList);
         const places =
           playersForPlaceList === 0
             ? []
-            : buildPublicRatingPlaceRows(placeNumbers, ratingMatrixFieldSize, row);
+            : buildPublicRatingPlaceRows(placeNumbers, ratingMatrixFieldSize, row, ratingTable);
 
         logger.info(
           {

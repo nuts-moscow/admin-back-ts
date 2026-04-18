@@ -1,7 +1,6 @@
 import { InGamePlayerStatus, type InGameUserState } from "./cache/InGameUserState";
-import { getBaseRatingPoints } from "./tournamentRatingMatrix";
-
-const MAX_PLACE = 35;
+import { getTableBaseRatingPoints } from "./tournamentRatingMatrix";
+import type { RatingTable } from "./RatingTable";
 
 /**
  * How many ranks the place preview should cover: not eliminated, and if anyone has
@@ -18,13 +17,14 @@ export function countPlayersForPlaceList(states: readonly InGameUserState[]): nu
   return states.filter((s) => s.status !== InGamePlayerStatus.Out).length;
 }
 
-/** Deepest finishing place (1..35) that still receives base points from the matrix for this field size. */
-export function maxPrizePlace(participantCount: number): number {
+/** Deepest finishing place that still receives base points from the given table for this field size. */
+export function maxPrizePlace(table: RatingTable, participantCount: number): number {
   const n = Math.floor(participantCount);
   if (!Number.isFinite(n) || n < 1) return 0;
+  const maxPlace = table.matrix.length;
   let max = 0;
-  for (let p = 1; p <= MAX_PLACE; p++) {
-    if (getBaseRatingPoints(n, p) > 0) max = p;
+  for (let p = 1; p <= maxPlace; p++) {
+    if (getTableBaseRatingPoints(table, n, p) > 0) max = p;
   }
   return max;
 }

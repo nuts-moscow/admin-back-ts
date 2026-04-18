@@ -1,5 +1,6 @@
 import type { TournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
-import { getBaseRatingPoints } from "../../domain/tournamentRatingMatrix";
+import { getTableBaseRatingPoints } from "../../domain/tournamentRatingMatrix";
+import type { RatingTable } from "../../domain/RatingTable";
 import type { TournamentRow } from "../../postgres/TournamentRepository";
 
 export interface PublicRatingPlaceRow {
@@ -19,7 +20,8 @@ export function buildPublicRatingPlaceRows(
     | "ratingGuaranteeBonusPoints"
     | "ratingPointsCoefficient"
     | "ratingBountyCoefficient"
-  >
+  >,
+  ratingTable: RatingTable
 ): PublicRatingPlaceRow[] {
   return places.map((place) => {
     const breakdown = computeTournamentPlayerRating(
@@ -27,7 +29,8 @@ export function buildPublicRatingPlaceRows(
       place,
       0,
       0,
-      tournament
+      tournament,
+      ratingTable
     );
     return {
       place,
@@ -54,11 +57,12 @@ export function computeTournamentPlayerRating(
     | "ratingGuaranteeBonusPoints"
     | "ratingPointsCoefficient"
     | "ratingBountyCoefficient"
-  >
+  >,
+  ratingTable: RatingTable
 ): TournamentRatingBreakdown {
   const place = finishPlace != null && Number.isFinite(finishPlace) ? Math.floor(finishPlace) : null;
   const base =
-    place != null && place >= 1 ? getBaseRatingPoints(participantCount, place) : 0;
+    place != null && place >= 1 ? getTableBaseRatingPoints(ratingTable, participantCount, place) : 0;
 
   const bonusPts = tournament.ratingGuaranteeBonusPoints ?? 10;
   const guaranteeBonus =

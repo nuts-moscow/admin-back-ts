@@ -1,8 +1,9 @@
 import type { BunRequest } from "bun";
 import { logger } from "../../logger";
 import type { BlindType } from "../../domain/BlindType";
-import { getTournamentRatingMatrixPayload } from "../../domain/tournamentRatingMatrix";
+import { getTournamentRatingMatrixPayload, getRatingTablePayload } from "../../domain/tournamentRatingMatrix";
 import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType";
+import { ratingTableRepository } from "../../postgres/RatingTableRepository";
 import {
   DEFAULT_MAX_REENTRIES,
   effectiveAllowedReentryCount,
@@ -186,6 +187,7 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
   ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
+  ratingTableId?: number;
 } | { ok: false; error: string } {
   let ratingGuaranteeEnabled: boolean | undefined;
   if ("ratingGuaranteeEnabled" in body && body.ratingGuaranteeEnabled !== undefined) {
@@ -223,12 +225,24 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
     }
     ratingBountyCoefficient = body.ratingBountyCoefficient;
   }
+  let ratingTableId: number | undefined;
+  if ("ratingTableId" in body && body.ratingTableId !== undefined) {
+    if (
+      typeof body.ratingTableId !== "number" ||
+      !Number.isInteger(body.ratingTableId) ||
+      body.ratingTableId < 1
+    ) {
+      return { ok: false, error: "ratingTableId must be a positive integer" };
+    }
+    ratingTableId = body.ratingTableId;
+  }
   return {
     ok: true,
     ratingGuaranteeEnabled,
     ratingGuaranteeBonusPoints,
     ratingPointsCoefficient,
     ratingBountyCoefficient,
+    ratingTableId,
   };
 }
 
@@ -260,6 +274,33 @@ export function tournamentRoutes() {
     "/api/tournament-rating-matrix": {
       GET: async () => {
         return Response.json(getTournamentRatingMatrixPayload());
+      },
+    },
+    "/api/rating-tables": {
+      GET: async () => {
+        const tables = await ratingTableRepository.list();
+        return Response.json({
+          ratingTables: tables.map((t) => getRatingTablePayload(t)),
+        });
+      },
+    },
+    "/api/rating-tables/:id": {
+      GET: async (req: BunRequest<"/api/rating-tables/:id"> & { params: { id: string } }) => {
+        const id = parseInt(req.params?.id ?? "", 10);
+        if (Number.isNaN(id) || id < 1) {
+          return new Response(
+            JSON.stringify({ error: "id must be a positive integer" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const table = await ratingTableRepository.findById(id);
+        if (!table) {
+          return new Response(
+            JSON.stringify({ error: "Rating table not found" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return Response.json(getRatingTablePayload(table));
       },
     },
     "/api/tournament-structures": {
@@ -404,6 +445,7 @@ export function tournamentRoutes() {
             ratingGuaranteeBonusPoints: t.ratingGuaranteeBonusPoints,
             ratingPointsCoefficient: t.ratingPointsCoefficient,
             ratingBountyCoefficient: t.ratingBountyCoefficient,
+            ratingTableId: t.ratingTableId,
           })),
         });
       },
@@ -458,6 +500,7 @@ export function tournamentRoutes() {
           ratingGuaranteeBonusPoints: ratingParsed.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
+          ratingTableId: ratingParsed.ratingTableId,
         });
         if (!result.ok) {
           return new Response(
@@ -568,6 +611,7 @@ export function tournamentRoutes() {
           ratingGuaranteeBonusPoints: ratingParsed.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
+          ratingTableId: ratingParsed.ratingTableId,
         });
         if (!result.ok) {
           if (result.error === "not_found") {
@@ -595,6 +639,7 @@ export function tournamentRoutes() {
           ratingGuaranteeBonusPoints: result.tournament.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: result.tournament.ratingPointsCoefficient,
           ratingBountyCoefficient: result.tournament.ratingBountyCoefficient,
+          ratingTableId: result.tournament.ratingTableId,
         });
         return Response.json(result.tournament);
       },

@@ -10,6 +10,7 @@ import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { logger } from "../../logger";
 import {
   playerRepository,
+  ratingTableRepository,
   tournamentCashSnapshotRepository,
   tournamentEliminationSnapshotRepository,
   tournamentResultRepository,
@@ -38,6 +39,11 @@ export async function runTournamentCompletion(
   const tournament = await tournamentRepository.findById(tournamentId);
   if (!tournament) {
     return { ok: false, error: "tournament_not_found" };
+  }
+
+  const ratingTable = await ratingTableRepository.findById(tournament.ratingTableId);
+  if (!ratingTable) {
+    return { ok: false, error: "rating_table_not_found" };
   }
 
   const states = await InGameUserStateCache.getAllByTournament(tournamentIdStr);
@@ -109,7 +115,8 @@ export async function runTournamentCompletion(
             finishPlaceForRating,
             state.bountyCount,
             0,
-            tournament
+            tournament,
+            ratingTable
           );
 
     resultRows.push({

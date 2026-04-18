@@ -31,6 +31,7 @@ export interface MakeTournamentBody {
   ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
+  ratingTableId?: number;
 }
 
 export type TournamentApiSummary = {
@@ -42,6 +43,7 @@ export type TournamentApiSummary = {
   ratingGuaranteeBonusPoints: number;
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
+  ratingTableId: number;
 };
 
 export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
@@ -54,6 +56,7 @@ export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
     ratingGuaranteeBonusPoints: row.ratingGuaranteeBonusPoints,
     ratingPointsCoefficient: row.ratingPointsCoefficient,
     ratingBountyCoefficient: row.ratingBountyCoefficient,
+    ratingTableId: row.ratingTableId,
   };
 }
 
@@ -131,6 +134,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: input.ratingPointsCoefficient,
       ratingBountyCoefficient: input.ratingBountyCoefficient,
+      ratingTableId: input.ratingTableId,
     });
     if (!tournament) return { ok: false, error: "failed" };
 
@@ -187,6 +191,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints: tournament.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: tournament.ratingPointsCoefficient,
       ratingBountyCoefficient: tournament.ratingBountyCoefficient,
+      ratingTableId: tournament.ratingTableId,
       structure: structureOut,
     };
   }
@@ -240,6 +245,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints?: number;
       ratingPointsCoefficient?: number;
       ratingBountyCoefficient?: number;
+      ratingTableId?: number;
     }
   ): Promise<UpdateTournamentResult> {
     const validStatuses = ["registration_open", "in_progress", "completed"];
@@ -272,6 +278,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints ?? null,
       ratingPointsCoefficient: input.ratingPointsCoefficient ?? null,
       ratingBountyCoefficient: input.ratingBountyCoefficient ?? null,
+      ratingTableId: input.ratingTableId ?? null,
     });
     if (!tournament) return { ok: false, error: "not_found" };
 
