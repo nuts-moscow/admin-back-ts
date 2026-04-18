@@ -29,6 +29,8 @@ import {
 import {
   applyNonPlacementAccrued,
   computeTournamentPlayerRating,
+  matrixFinishPlaceFromEliminationSlot,
+  ratingParticipantCount,
   ratingWithManualAdjustment,
 } from "./tournamentRatingCompute";
 import type { BountyEliminationEventForPlayer } from "../../domain/cache/BountyEliminationEventForPlayer";
@@ -733,6 +735,8 @@ export class InGameUserStateService {
 
     const rows = await tournamentResultRepository.findByTournamentId(id);
     const N = rows.length;
+    const nRating = rows.filter((r) => r.status !== InGamePlayerStatus.Registered)
+      .length;
     const eliminationSnapshot =
       await tournamentEliminationSnapshotRepository.findByTournamentId(id);
     const allEliminationEvents = eliminationSnapshot ?? [];
@@ -766,12 +770,24 @@ export class InGameUserStateService {
           row.burnedStackEvents
         );
         const persisted = row.ratingPersisted;
+        const elimPlForRating =
+          row.status === InGamePlayerStatus.Registered
+            ? null
+            : row.status === InGamePlayerStatus.Out
+              ? row.placement
+              : nRating >= 1
+                ? nRating
+                : null;
+        const finishPlaceForRating = matrixFinishPlaceFromEliminationSlot(
+          nRating,
+          elimPlForRating
+        );
         const rating =
           persisted != null && isTournamentRatingBreakdown(persisted)
             ? ratingWithManualAdjustment(persisted, row.ratingManualAdjustment)
             : computeTournamentPlayerRating(
-                N,
-                placement,
+                nRating,
+                finishPlaceForRating,
                 row.bountyCount,
                 row.ratingManualAdjustment,
                 tournament,
@@ -1345,8 +1361,11 @@ export class InGameUserStateService {
       return;
     }
     const all = await InGameUserStateCache.getAllByTournament(tournamentId);
-    const N = all.length;
-    const finishPlace = N - state.placement + 1;
+    const nRating = ratingParticipantCount(all);
+    const finishPlace = matrixFinishPlaceFromEliminationSlot(nRating, state.placement);
+    if (finishPlace == null) {
+      return;
+    }
     const tid = parseInt(tournamentId, 10);
     const row = Number.isNaN(tid) ? null : await tournamentRepository.findById(tid);
     if (!row) {
@@ -1366,7 +1385,7 @@ export class InGameUserStateService {
     }
     const breakdown = applyNonPlacementAccrued(
       computeTournamentPlayerRating(
-        N,
+        nRating,
         finishPlace,
         state.bountyCount,
         0,

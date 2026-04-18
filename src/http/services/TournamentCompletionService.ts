@@ -23,6 +23,8 @@ import { writeTournamentAuditLog } from "./tournamentAuditLog";
 import {
   applyNonPlacementAccrued,
   computeTournamentPlayerRating,
+  matrixFinishPlaceFromEliminationSlot,
+  ratingParticipantCount,
 } from "./tournamentRatingCompute";
 import { normalizeTournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
 
@@ -91,8 +93,9 @@ export async function runTournamentCompletion(
     return { ok: false, error: "cash_snapshot_save_failed" };
   }
 
-  // Step 2: Save results (with placement: 1 = winner, 2+ by elimination order)
+  // Step 2: Save results (with placement: 1 = first out, N = winner among full Redis roster)
   const N = states.length;
+  const nRating = ratingParticipantCount(states);
   const resultRows: TournamentResultPlayerRow[] = [];
 
   for (const state of states) {
@@ -109,13 +112,23 @@ export async function runTournamentCompletion(
           ? state.placement
           : null;
 
-    const finishPlaceForRating =
-      placement != null ? N - placement + 1 : null;
+    const elimPlForRating =
+      state.status === InGamePlayerStatus.Registered
+        ? null
+        : state.status === InGamePlayerStatus.Out
+          ? state.placement
+          : nRating >= 1
+            ? nRating
+            : null;
+    const finishPlaceForRating = matrixFinishPlaceFromEliminationSlot(
+      nRating,
+      elimPlForRating
+    );
     const baseRating =
       state.status === InGamePlayerStatus.Out && state.ratingSnapshot != null
         ? normalizeTournamentRatingBreakdown(state.ratingSnapshot)
         : computeTournamentPlayerRating(
-            N,
+            nRating,
             finishPlaceForRating,
             state.bountyCount,
             0,

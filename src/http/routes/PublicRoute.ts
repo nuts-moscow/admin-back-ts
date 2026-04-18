@@ -4,7 +4,10 @@ import { logger } from "../../logger";
 import { tournamentRepository } from "../../postgres/TournamentRepository";
 import { ratingTableRepository } from "../../postgres/RatingTableRepository";
 import { InGameUserStateService } from "../services/InGameUserStateService";
-import { buildPublicRatingPlaceRows } from "../services/tournamentRatingCompute";
+import {
+  buildPublicRatingPlaceRows,
+  ratingParticipantCount,
+} from "../services/tournamentRatingCompute";
 import { TournamentService } from "../services/TournamentService";
 import { tournamentClockService } from "../services/TournamentClockService";
 
@@ -57,8 +60,8 @@ export function publicRoutes() {
         }
 
         const states = await inGameService.getAllByTournament(String(id));
-        /** Full field size for the rating matrix (all Redis states, including eliminated). */
-        const ratingMatrixFieldSize = states.length;
+        /** Field size for the rating matrix: players who joined (status other than Registered). */
+        const ratingMatrixFieldSize = ratingParticipantCount(states);
         /** Drives which place rows we return (InGame-only when play started; see countPlayersForPlaceList). */
         const playersForPlaceList = countPlayersForPlaceList(states);
         /** Deepest place with base points > 0 for `ratingMatrixFieldSize` (matrix column / depth). */
@@ -66,7 +69,7 @@ export function publicRoutes() {
         /** Top 10 + bubble for the remaining field only (no rows beyond still-active count). */
         const placeNumbers = selectPlacesForDisplay(playersForPlaceList, playersForPlaceList);
         const places =
-          playersForPlaceList === 0
+          playersForPlaceList === 0 || ratingMatrixFieldSize < 1
             ? []
             : buildPublicRatingPlaceRows(placeNumbers, ratingMatrixFieldSize, row, ratingTable);
 

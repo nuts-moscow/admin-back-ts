@@ -1,7 +1,30 @@
 import type { TournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
+import { InGamePlayerStatus, type InGameUserState } from "../../domain/cache/InGameUserState";
 import { getTableBaseRatingPoints } from "../../domain/tournamentRatingMatrix";
 import type { RatingTable } from "../../domain/RatingTable";
 import type { TournamentRow } from "../../postgres/TournamentRepository";
+
+/**
+ * Field size for the rating matrix: players who joined the game (any status except Registered).
+ */
+export function ratingParticipantCount(states: Pick<InGameUserState, "status">[]): number {
+  let n = 0;
+  for (const s of states) {
+    if (s.status !== InGamePlayerStatus.Registered) n += 1;
+  }
+  return n;
+}
+
+/**
+ * Matrix row index (1 = best). eliminationPlacement is Redis-style: 1 = first out, nPlayed = winner in field.
+ */
+export function matrixFinishPlaceFromEliminationSlot(
+  nPlayed: number,
+  eliminationPlacement: number | null
+): number | null {
+  if (nPlayed < 1 || eliminationPlacement == null) return null;
+  return nPlayed - eliminationPlacement + 1;
+}
 
 export interface PublicRatingPlaceRow {
   place: number;
