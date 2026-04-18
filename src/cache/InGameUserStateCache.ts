@@ -111,7 +111,14 @@ function applyFreeReentryDelta(
 function applyCorePlayerTournamentGrants(playerId: PlayerId, state: InGameUserState): InGameUserState {
   const id = parseInt(playerId, 10);
   if (Number.isNaN(id)) return state;
-  if (id >= 1 && id <= 3) {
+  if (id === 1 || id === 2) {
+    return {
+      ...state,
+      tournamentFreeEntryCount: 1,
+      tournamentFreeReentryCount: 5,
+    };
+  }
+  if (id === 3) {
     return {
       ...state,
       tournamentFreeEntryCount: 1,
