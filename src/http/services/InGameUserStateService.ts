@@ -27,6 +27,7 @@ import {
   type TournamentRatingBreakdown,
 } from "../../domain/TournamentRatingBreakdown";
 import {
+  applyNonPlacementAccrued,
   computeTournamentPlayerRating,
   ratingWithManualAdjustment,
 } from "./tournamentRatingCompute";
@@ -1315,6 +1316,15 @@ export class InGameUserStateService {
     return InGameUserStateCache.addTournamentFreeReentries(playerId, tournamentId, delta);
   }
 
+  /** Adjusts Redis accrual for rating outside placement matrix (HINCRBYFLOAT). */
+  async adjustRatingNonPlacementAccrued(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null> {
+    return InGameUserStateCache.adjustRatingNonPlacementAccrued(playerId, tournamentId, delta);
+  }
+
   async updateTableId(
     playerId: PlayerId,
     tournamentId: TournamentId,
@@ -1354,13 +1364,16 @@ export class InGameUserStateService {
       );
       return;
     }
-    const breakdown = computeTournamentPlayerRating(
-      N,
-      finishPlace,
-      state.bountyCount,
-      0,
-      row,
-      ratingTable
+    const breakdown = applyNonPlacementAccrued(
+      computeTournamentPlayerRating(
+        N,
+        finishPlace,
+        state.bountyCount,
+        0,
+        row,
+        ratingTable
+      ),
+      state.ratingNonPlacementAccrued ?? 0
     );
     await InGameUserStateCache.updateRatingSnapshot(playerId, tournamentId, breakdown);
   }

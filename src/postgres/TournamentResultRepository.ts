@@ -1,5 +1,8 @@
 import type { TournamentRatingBreakdown } from "../domain/TournamentRatingBreakdown";
-import { isTournamentRatingBreakdown } from "../domain/TournamentRatingBreakdown";
+import {
+  isTournamentRatingBreakdown,
+  normalizeTournamentRatingBreakdown,
+} from "../domain/TournamentRatingBreakdown";
 import { logger } from "../logger";
 import { PostgresClient } from "./PostgresClient";
 
@@ -9,12 +12,16 @@ function parseRatingPersistedColumn(raw: unknown): TournamentRatingBreakdown | n
     if (raw === "" || raw === "{}") return null;
     try {
       const o = JSON.parse(raw);
-      return isTournamentRatingBreakdown(o) ? o : null;
+      return isTournamentRatingBreakdown(o)
+        ? normalizeTournamentRatingBreakdown(o as TournamentRatingBreakdown)
+        : null;
     } catch {
       return null;
     }
   }
-  if (typeof raw === "object" && isTournamentRatingBreakdown(raw)) return raw;
+  if (typeof raw === "object" && isTournamentRatingBreakdown(raw)) {
+    return normalizeTournamentRatingBreakdown(raw as TournamentRatingBreakdown);
+  }
   return null;
 }
 

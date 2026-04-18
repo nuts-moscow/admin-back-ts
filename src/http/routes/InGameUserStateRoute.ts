@@ -1401,6 +1401,46 @@ export function inGameUserStateRoutes() {
         );
       },
     },
+    "/api/tournaments/:tournamentId/players/:playerId/rating-non-placement": {
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/rating-non-placement">
+      ) => {
+        const { tournamentId, playerId } = req.params;
+        let body: { delta?: number };
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const delta = body.delta;
+        if (delta === undefined || delta === null || typeof delta !== "number") {
+          return new Response(
+            JSON.stringify({ error: "delta is required and must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (!Number.isFinite(delta)) {
+          return new Response(
+            JSON.stringify({ error: "delta must be a finite number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const state = await service.adjustRatingNonPlacementAccrued(playerId, tournamentId, delta);
+        if (!state) {
+          return new Response(null, { status: 404 });
+        }
+        await writeTournamentAuditLog(
+          tournamentId,
+          TournamentAuditEventType.RatingNonPlacementAccruedAdjusted,
+          { playerId, delta }
+        );
+        const playerName = await playerRepository.getNicknameById(playerId);
+        return Response.json(await playerStateResponse(tournamentId, state, playerName));
+      },
+    },
     "/api/tournaments/:tournamentId/players/:playerId/free-entries": {
       PATCH: async (
         req: BunRequest<"/api/tournaments/:tournamentId/players/:playerId/free-entries">

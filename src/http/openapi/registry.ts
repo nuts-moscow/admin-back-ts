@@ -34,6 +34,7 @@ import {
   PatchTournamentClockBodySchema,
   PlayerGameStartBodySchema,
   RatingManualAdjustmentBodySchema,
+  RatingNonPlacementAccruedDeltaBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
   TournamentChipPoolSummarySchema,
@@ -881,6 +882,43 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: "patch",
+  path: `${basePath}/players/{playerId}/rating-non-placement`,
+  tags: ["Tournament Players"],
+  operationId: "patchRatingNonPlacementAccrued",
+  summary: "Adjust non-placement rating accrual",
+  description:
+    "Atomically adds or subtracts rating points accrued outside the placement matrix (Redis). Not cleared on return-to-game; merged into frozen rating and totalPoints on elimination and tournament completion.",
+  request: {
+    params: TournamentPlayerParamsSchema,
+    body: {
+      content: {
+        "application/json": { schema: RatingNonPlacementAccruedDeltaBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated player state",
+      content: {
+        "application/json": { schema: InGameUserStateSchema },
+      },
+    },
+    400: {
+      description: "Invalid JSON body or non-finite delta",
+      content: {
+        "application/json": {
+          schema: { type: "object", properties: { error: { type: "string" } } },
+        },
+      },
+    },
+    404: {
+      description: "Player not in tournament",
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: "post",
   path: `${basePath}/bounty/eliminate`,
   tags: ["Tournament Players"],
@@ -1341,7 +1379,7 @@ openApiRegistry.registerPath({
   operationId: "listPlayers",
   summary: "List players in tournament",
   description:
-    "Returns all in-game player states for a tournament. Each item includes allowedReentryCount (0 if freeze-out, else structure maxReentries, default 5). For live tournaments, eliminated (Out) players include `rating` frozen at elimination; it is recalculated when placements shift (e.g. return-to-game). For completed tournaments, responses use DB `rating_persisted` plus manual adjustment.",
+    "Returns all in-game player states for a tournament. Each item includes allowedReentryCount (0 if freeze-out, else structure maxReentries, default 5) and ratingNonPlacementAccrued (points outside placement matrix). For live tournaments, eliminated (Out) players include `rating` frozen at elimination; it is recalculated when placements shift (e.g. return-to-game). For completed tournaments, responses use DB `rating_persisted` plus manual adjustment.",
   request: {
     params: TournamentParamsSchema,
   },

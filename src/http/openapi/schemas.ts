@@ -176,6 +176,12 @@ export const TournamentRatingBreakdownSchema = z
       description: "(bountyCount × 0.5) × bountyCoefficient",
     }),
     bountyCoefficient: z.number(),
+    nonPlacementAccrued: z
+      .number()
+      .openapi({
+        description:
+          "Points accrued outside placement matrix (live tournament); merged into total before post-hoc manual adjustment",
+      }),
     manualAdjustment: z.number().openapi({ description: "Manual add/sub from admin" }),
     totalPoints: z.number(),
   })
@@ -271,6 +277,11 @@ export const InGameUserStateSchema = z
         example: 0,
       }),
     placement: z.number().nullable().openapi({ description: "Placement position" }),
+    ratingNonPlacementAccrued: z.number().openapi({
+      description:
+        "Rating points accrued outside placement matrix (admin PATCH); merged into frozen rating on elimination",
+      example: 0,
+    }),
     bonuses: z
       .array(InGameBonusSchema)
       .nullable()
@@ -725,6 +736,18 @@ export const FreeCountDeltaBodySchema = z
     delta: z.number().openapi({ description: "Change in count (positive to add, negative to subtract). Result is clamped to 0.", example: 2 }),
   })
   .openapi("FreeCountDeltaBody");
+
+/** Body: PATCH .../rating-non-placement */
+export const RatingNonPlacementAccruedDeltaBodySchema = z
+  .object({
+    delta: z
+      .number()
+      .openapi({
+        description: "Finite add/sub for rating points outside placement matrix",
+        example: 1.5,
+      }),
+  })
+  .openapi("RatingNonPlacementAccruedDeltaBody");
 
 /** Response: free entry count after update */
 export const FreeEntryCountResponseSchema = z

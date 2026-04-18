@@ -97,6 +97,11 @@ export interface InGameUserState {
   placement: number | null;
   /** Frozen rating when status is Out (set at elimination; cleared when returning to game). */
   ratingSnapshot: TournamentRatingBreakdown | null;
+  /**
+   * Accrued rating points not from placement matrix (admin +/- during tournament).
+   * Not cleared on return-to-game; merged into rating snapshot and totalPoints on elimination.
+   */
+  ratingNonPlacementAccrued: number;
   bonuses: BonusesByType | null;
   /** Размеры выдач custom-бонуса в фишках (каждый элемент — одна выдача). */
   customBonusChips: number[];
@@ -128,6 +133,7 @@ export function initInGameUserState(
     tournamentFreeReentryCount: 0,
     placement: null,
     ratingSnapshot: null,
+    ratingNonPlacementAccrued: 0,
     bonuses: null,
     customBonusChips: [],
     burnedStackEvents: [],

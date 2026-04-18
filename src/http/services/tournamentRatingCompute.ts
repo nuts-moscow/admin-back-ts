@@ -76,7 +76,9 @@ export function computeTournamentPlayerRating(
   const bountyCoef = tournament.ratingBountyCoefficient;
   const bountyPoints = bountyCount * TOURNAMENT_BOUNTY_RATING_BASE * bountyCoef;
 
-  const totalPoints = fromTableAfterCoefficient + bountyPoints + manualAdjustment;
+  const nonPlacementAccrued = 0;
+  const totalPoints =
+    fromTableAfterCoefficient + bountyPoints + nonPlacementAccrued + manualAdjustment;
 
   return {
     basePoints: base,
@@ -86,20 +88,37 @@ export function computeTournamentPlayerRating(
     bountyCount,
     bountyPoints,
     bountyCoefficient: bountyCoef,
+    nonPlacementAccrued,
     manualAdjustment,
     totalPoints,
   };
 }
 
-/** Apply DB manual adjustment; persisted breakdown keeps manual 0 at save time. */
+/** Merge Redis accrual into breakdown and fix totalPoints. */
+export function applyNonPlacementAccrued(
+  breakdown: TournamentRatingBreakdown,
+  accrued: number
+): TournamentRatingBreakdown {
+  const manual = breakdown.manualAdjustment;
+  return {
+    ...breakdown,
+    nonPlacementAccrued: accrued,
+    totalPoints:
+      breakdown.fromTableAfterCoefficient + breakdown.bountyPoints + accrued + manual,
+  };
+}
+
+/** Apply DB manual adjustment; keeps nonPlacementAccrued from persisted row. */
 export function ratingWithManualAdjustment(
   persisted: TournamentRatingBreakdown,
   manualAdjustment: number
 ): TournamentRatingBreakdown {
+  const np = persisted.nonPlacementAccrued ?? 0;
   return {
     ...persisted,
+    nonPlacementAccrued: np,
     manualAdjustment,
     totalPoints:
-      persisted.fromTableAfterCoefficient + persisted.bountyPoints + manualAdjustment,
+      persisted.fromTableAfterCoefficient + persisted.bountyPoints + np + manualAdjustment,
   };
 }

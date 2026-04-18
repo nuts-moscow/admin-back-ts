@@ -18,6 +18,7 @@ import {
 } from "../domain/cache/InGameUserState";
 import {
   isTournamentRatingBreakdown,
+  normalizeTournamentRatingBreakdown,
   type TournamentRatingBreakdown,
 } from "../domain/TournamentRatingBreakdown";
 
@@ -287,6 +288,17 @@ export interface InGameUserStateCache {
   ): Promise<InGameUserState | null>;
 
   /**
+   * Atomically adjusts rating points accrued outside the placement matrix (Redis HINCRBYFLOAT).
+   * @param delta - Finite number to add (negative to subtract)
+   * @returns Updated state or null if player not in tournament or on error
+   */
+  adjustRatingNonPlacementAccrued(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null>;
+
+  /**
    * Updates entry payment method in tournament.
    * @param playerId - Player ID
    * @param tournamentId - Tournament ID
@@ -518,6 +530,7 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
             : JSON.stringify(state.burnedStackEvents),
         rating_snapshot:
           state.ratingSnapshot == null ? "" : JSON.stringify(state.ratingSnapshot),
+        ratingNonPlacementAccrued: String(state.ratingNonPlacementAccrued),
       });
       logger.info(`${LOG_PREFIX} InGameUserStateCache.set result: stored`);
       return true;
@@ -832,6 +845,48 @@ class InGameUserStateCacheImpl implements InGameUserStateCache {
     const next: InGameUserState = { ...state, ratingSnapshot: snapshot };
     const ok = await this.set(playerId, tournamentId, next);
     return ok ? next : null;
+  }
+
+  async adjustRatingNonPlacementAccrued(
+    playerId: PlayerId,
+    tournamentId: TournamentId,
+    delta: number
+  ): Promise<InGameUserState | null> {
+    logger.info(
+      { playerId, tournamentId, delta },
+      `${LOG_PREFIX} InGameUserStateCache.adjustRatingNonPlacementAccrued entry`
+    );
+    if (typeof delta !== "number" || !Number.isFinite(delta)) {
+      logger.info(`${LOG_PREFIX} InGameUserStateCache.adjustRatingNonPlacementAccrued: invalid delta`);
+      return null;
+    }
+    try {
+      const k = key(tournamentId, playerId);
+      const exists = await RedisClient.instance.exists(k);
+      if (!exists) {
+        logger.info(
+          `${LOG_PREFIX} InGameUserStateCache.adjustRatingNonPlacementAccrued result: miss (key not found)`
+        );
+        return null;
+      }
+      await RedisClient.instance.hincrbyfloat(k, "ratingNonPlacementAccrued", delta);
+      const hash = await RedisClient.instance.hgetall(k);
+      if (!hash || Object.keys(hash).length === 0) {
+        logger.info(
+          `${LOG_PREFIX} InGameUserStateCache.adjustRatingNonPlacementAccrued result: miss (no data after incr)`
+        );
+        return null;
+      }
+      const state = parseHashToState(hash, playerId);
+      logger.info(
+        { state: !!state, ratingNonPlacementAccrued: state?.ratingNonPlacementAccrued },
+        `${LOG_PREFIX} InGameUserStateCache.adjustRatingNonPlacementAccrued result`
+      );
+      return state;
+    } catch (err) {
+      logger.info({ err }, `${LOG_PREFIX} InGameUserStateCache.adjustRatingNonPlacementAccrued failed`);
+      return null;
+    }
   }
 
   async updateEntryPaymentMethod(
@@ -1319,10 +1374,25 @@ function parseHashToState(
   if (rsRaw !== undefined && rsRaw !== null && rsRaw !== "") {
     try {
       const parsed = JSON.parse(String(rsRaw));
-      if (isTournamentRatingBreakdown(parsed)) ratingSnapshot = parsed;
+      if (isTournamentRatingBreakdown(parsed)) {
+        ratingSnapshot = normalizeTournamentRatingBreakdown(parsed as TournamentRatingBreakdown);
+      }
     } catch {
       logger.info({ rsRaw }, `${LOG_PREFIX} parseHashToState: invalid rating_snapshot JSON`);
     }
+  }
+  let ratingNonPlacementAccrued = 0;
+  if (
+    hash.ratingNonPlacementAccrued !== undefined &&
+    hash.ratingNonPlacementAccrued !== null &&
+    hash.ratingNonPlacementAccrued !== ""
+  ) {
+    const np = parseFloat(hash.ratingNonPlacementAccrued);
+    if (!Number.isFinite(np)) {
+      logger.info({ hash }, `${LOG_PREFIX} parseHashToState failed: invalid ratingNonPlacementAccrued`);
+      return null;
+    }
+    ratingNonPlacementAccrued = np;
   }
   const bonuses = parseBonuses(hash.bonuses);
   if (bonuses === undefined) {
@@ -1372,6 +1442,7 @@ function parseHashToState(
     tournamentFreeReentryCount,
     placement,
     ratingSnapshot,
+    ratingNonPlacementAccrued,
     bonuses,
     customBonusChips,
     burnedStackEvents,

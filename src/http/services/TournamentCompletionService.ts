@@ -20,7 +20,11 @@ import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType"
 import type { CashDeskResponse } from "./InGameUserStateService";
 import type { TournamentResultPlayerRow } from "../../postgres/TournamentResultRepository";
 import { writeTournamentAuditLog } from "./tournamentAuditLog";
-import { computeTournamentPlayerRating } from "./tournamentRatingCompute";
+import {
+  applyNonPlacementAccrued,
+  computeTournamentPlayerRating,
+} from "./tournamentRatingCompute";
+import { normalizeTournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
 
 /**
  * Runs tournament completion: save cash snapshot, save results, update players' free counts, delete cache.
@@ -107,9 +111,9 @@ export async function runTournamentCompletion(
 
     const finishPlaceForRating =
       placement != null ? N - placement + 1 : null;
-    const ratingPersisted =
+    const baseRating =
       state.status === InGamePlayerStatus.Out && state.ratingSnapshot != null
-        ? { ...state.ratingSnapshot }
+        ? normalizeTournamentRatingBreakdown(state.ratingSnapshot)
         : computeTournamentPlayerRating(
             N,
             finishPlaceForRating,
@@ -118,6 +122,10 @@ export async function runTournamentCompletion(
             tournament,
             ratingTable
           );
+    const ratingPersisted = applyNonPlacementAccrued(
+      baseRating,
+      state.ratingNonPlacementAccrued ?? 0
+    );
 
     resultRows.push({
       tournamentId,
