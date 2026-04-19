@@ -26,6 +26,7 @@ export function publicRoutes() {
             name: t.name,
             status: t.status,
             date: new Date(t.date).toISOString(),
+            lateRegistrationClosed: t.lateRegistrationClosed,
           })),
         });
       },

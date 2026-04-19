@@ -41,6 +41,9 @@ export const PublicTournamentItemSchema = z
     name: z.string().openapi({ example: "Freezeout 10K" }),
     status: z.enum(["registration_open", "in_progress"]).openapi({ example: "in_progress" }),
     date: z.string().openapi({ example: "2026-04-11T18:00:00.000Z" }),
+    lateRegistrationClosed: z
+      .boolean()
+      .openapi({ description: "True when late registration period is considered closed", example: false }),
   })
   .openapi("PublicTournamentItem");
 
@@ -963,6 +966,9 @@ export const TournamentResponseSchema = z
     ratingEnabled: z.boolean().openapi({ description: "False for non-rated tournaments", example: true }),
     ratingSeasonYear: z.number().int().nullable().openapi({ description: "Season year or null", example: 2026 }),
     ratingSeasonMonth: z.number().int().nullable().openapi({ description: "Season month 1–12 or null", example: 4 }),
+    lateRegistrationClosed: z
+      .boolean()
+      .openapi({ description: "True when late registration period is considered closed", example: false }),
   })
   .openapi("TournamentResponse");
 
@@ -994,6 +1000,9 @@ export const TournamentWithStructureResponseSchema = z
     ratingEnabled: z.boolean().openapi({ description: "False for non-rated tournaments", example: true }),
     ratingSeasonYear: z.number().int().nullable().openapi({ description: "Season year or null", example: 2026 }),
     ratingSeasonMonth: z.number().int().nullable().openapi({ description: "Season month 1–12 or null", example: 4 }),
+    lateRegistrationClosed: z
+      .boolean()
+      .openapi({ description: "True when late registration period is considered closed", example: false }),
     structure: TournamentStructureDataSchema.nullable(),
   })
   .openapi("TournamentWithStructureResponse");
@@ -1062,6 +1071,15 @@ export const RatingManualAdjustmentBodySchema = z
       .openapi({ description: "Added to total rating points (can be negative)" }),
   })
   .openapi("RatingManualAdjustmentBody");
+
+/** PATCH body: late registration closed flag (not settable via create tournament) */
+export const PatchLateRegistrationBodySchema = z
+  .object({
+    lateRegistrationClosed: z
+      .boolean()
+      .openapi({ description: "True when late registration period is considered closed", example: true }),
+  })
+  .openapi("PatchLateRegistrationBody");
 
 /** Full base-points matrix for admin reference */
 export const TournamentRatingMatrixPlaceRowSchema = z

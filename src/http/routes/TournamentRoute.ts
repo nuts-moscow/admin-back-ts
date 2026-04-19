@@ -492,6 +492,7 @@ export function tournamentRoutes() {
             ratingEnabled: t.ratingEnabled,
             ratingSeasonYear: t.ratingSeasonYear,
             ratingSeasonMonth: t.ratingSeasonMonth,
+            lateRegistrationClosed: t.lateRegistrationClosed,
           })),
         });
       },
@@ -1004,6 +1005,65 @@ export function tournamentRoutes() {
           manualAdjustment: o.manualAdjustment,
         });
         return new Response(null, { status: 204 });
+      },
+    },
+    "/api/tournaments/:id/late-registration": {
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:id/late-registration"> & { params: { id: string } }
+      ) => {
+        const idStr = req.params?.id;
+        if (!idStr) {
+          return new Response(
+            JSON.stringify({ error: "id is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const id = parseInt(idStr, 10);
+        if (Number.isNaN(id)) {
+          return new Response(
+            JSON.stringify({ error: "id must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        let body: unknown;
+        try {
+          body = await req.json();
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (typeof body !== "object" || body === null) {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const o = body as Record<string, unknown>;
+        if (typeof o.lateRegistrationClosed !== "boolean") {
+          return new Response(
+            JSON.stringify({ error: "lateRegistrationClosed must be a boolean" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.setLateRegistrationClosed(id, o.lateRegistrationClosed);
+        if (!result.ok) {
+          if (result.error === "not_found") {
+            return new Response(
+              JSON.stringify({ error: "Tournament not found" }),
+              { status: 404, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: "Failed to update late registration flag" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentLateRegistrationClosed, {
+          lateRegistrationClosed: o.lateRegistrationClosed,
+        });
+        return Response.json(result.tournament);
       },
     },
     "/api/seasonal-rating": {

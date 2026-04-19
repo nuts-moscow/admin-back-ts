@@ -37,7 +37,8 @@ create table if not exists tournaments
     rating_table_id               integer not null default 1 references rating_tables(id),
     rating_enabled                boolean not null default true,
     rating_season_year            integer,
-    rating_season_month           integer
+    rating_season_month           integer,
+    late_registration_closed      boolean not null default false
 );
 
 -- Append-only audit log (application inserts only; timestamps via occurred_at)

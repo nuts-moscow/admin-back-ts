@@ -34,6 +34,7 @@ import {
   PatchTournamentClockBodySchema,
   PlayerGameStartBodySchema,
   RatingManualAdjustmentBodySchema,
+  PatchLateRegistrationBodySchema,
   RatingNonPlacementAccruedDeltaBodySchema,
   PlayerSchema,
   RebuyCountResponseSchema,
@@ -428,6 +429,36 @@ openApiRegistry.registerPath({
     400: { description: "Invalid body" },
     404: { description: "Tournament not found or player not in results" },
     409: { description: "Tournament not completed" },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/tournaments/{id}/late-registration",
+  tags: ["Tournaments"],
+  operationId: "patchTournamentLateRegistration",
+  summary: "Set late registration closed flag",
+  description:
+    "Updates whether the late registration period is considered closed. Default on create is false; this field is not accepted in POST /api/tournaments.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: TournamentIdParamSchema,
+    body: {
+      content: {
+        "application/json": { schema: PatchLateRegistrationBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Tournament summary after update",
+      content: {
+        "application/json": { schema: TournamentResponseSchema },
+      },
+    },
+    400: { description: "Invalid body" },
+    404: { description: "Tournament not found" },
+    500: { description: "Failed to update" },
   },
 });
 

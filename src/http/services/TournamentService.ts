@@ -53,6 +53,7 @@ export type TournamentApiSummary = {
   ratingEnabled: boolean;
   ratingSeasonYear: number | null;
   ratingSeasonMonth: number | null;
+  lateRegistrationClosed: boolean;
 };
 
 export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
@@ -69,6 +70,7 @@ export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
     ratingEnabled: row.ratingEnabled,
     ratingSeasonYear: row.ratingSeasonYear,
     ratingSeasonMonth: row.ratingSeasonMonth,
+    lateRegistrationClosed: row.lateRegistrationClosed,
   };
 }
 
@@ -101,6 +103,10 @@ export type SetRatingManualAdjustmentResult =
   | { ok: false; error: "not_found" | "not_completed" | "failed" };
 
 export type GetSeasonalRatingResult = SeasonalRatingEntry[];
+
+export type SetLateRegistrationClosedResult =
+  | { ok: true; tournament: TournamentApiSummary }
+  | { ok: false; error: "not_found" | "failed" };
 
 export class TournamentService {
   constructor(
@@ -213,6 +219,7 @@ export class TournamentService {
       ratingEnabled: tournament.ratingEnabled,
       ratingSeasonYear: tournament.ratingSeasonYear,
       ratingSeasonMonth: tournament.ratingSeasonMonth,
+      lateRegistrationClosed: tournament.lateRegistrationClosed,
       structure: structureOut,
     };
   }
@@ -404,6 +411,15 @@ export class TournamentService {
 
   async getSeasonalRating(year: number, month: number): Promise<GetSeasonalRatingResult> {
     return playerTournamentRatingFactsRepository.getSeasonalRating(year, month);
+  }
+
+  async setLateRegistrationClosed(
+    tournamentId: number,
+    closed: boolean
+  ): Promise<SetLateRegistrationClosedResult> {
+    const row = await tournamentRepository.updateLateRegistrationClosed(tournamentId, closed);
+    if (!row) return { ok: false, error: "not_found" };
+    return { ok: true, tournament: tournamentRowToApi(row) };
   }
 
   async updateTournamentStructure(

@@ -32,6 +32,7 @@ export interface TournamentRow {
   ratingEnabled: boolean;
   ratingSeasonYear: number | null;
   ratingSeasonMonth: number | null;
+  lateRegistrationClosed: boolean;
 }
 
 const DEFAULT_STATUS = "registration_open";
@@ -57,6 +58,7 @@ function rowToTournament(row: Record<string, unknown>): TournamentRow {
     ratingEnabled: row.rating_enabled == null ? true : Boolean(row.rating_enabled),
     ratingSeasonYear: row.rating_season_year != null ? Number(row.rating_season_year) : null,
     ratingSeasonMonth: row.rating_season_month != null ? Number(row.rating_season_month) : null,
+    lateRegistrationClosed: Boolean(row.late_registration_closed ?? false),
   };
 }
 
@@ -81,7 +83,8 @@ const SELECT_COLUMNS = `
   id, name, status, date, entry_price, reentry_price,
   rating_guarantee_enabled, rating_guarantee_bonus_points,
   rating_points_coefficient, rating_bounty_coefficient,
-  rating_table_id, rating_enabled, rating_season_year, rating_season_month
+  rating_table_id, rating_enabled, rating_season_year, rating_season_month,
+  late_registration_closed
 `;
 
 export interface TournamentRepository {
@@ -89,7 +92,9 @@ export interface TournamentRepository {
   findById(id: number): Promise<TournamentRow | null>;
   list(options?: ListTournamentsOptions): Promise<TournamentRow[]>;
   /** Returns only registration_open and in_progress tournaments. */
-  listActive(): Promise<Pick<TournamentRow, "id" | "name" | "status" | "date">[]>;
+  listActive(): Promise<
+    Pick<TournamentRow, "id" | "name" | "status" | "date" | "lateRegistrationClosed">[]
+  >;
   /** Numeric ids only; cheap for background clock tick. */
   listIdsByStatus(status: string): Promise<number[]>;
   update(id: number, input: UpdateTournamentInput): Promise<TournamentRow | null>;
@@ -100,6 +105,7 @@ export interface TournamentRepository {
     year: number | null,
     month: number | null
   ): Promise<TournamentRow | null>;
+  updateLateRegistrationClosed(id: number, closed: boolean): Promise<TournamentRow | null>;
 }
 
 class TournamentRepositoryImpl implements TournamentRepository {
@@ -179,10 +185,12 @@ class TournamentRepositoryImpl implements TournamentRepository {
     }
   }
 
-  async listActive(): Promise<Pick<TournamentRow, "id" | "name" | "status" | "date">[]> {
+  async listActive(): Promise<
+    Pick<TournamentRow, "id" | "name" | "status" | "date" | "lateRegistrationClosed">[]
+  > {
     try {
       const result = await PostgresClient.instance.query(
-        `SELECT id, name, status, date
+        `SELECT id, name, status, date, late_registration_closed
          FROM tournaments
          WHERE status IN ('registration_open', 'in_progress')
          ORDER BY date ASC`
@@ -194,6 +202,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           name: String(r.name ?? ""),
           status: String(r.status ?? DEFAULT_STATUS),
           date: Number(r.date ?? 0),
+          lateRegistrationClosed: Boolean(r.late_registration_closed ?? false),
         };
       });
     } catch (err) {
@@ -288,6 +297,22 @@ class TournamentRepositoryImpl implements TournamentRepository {
       return rowToTournament(row as Record<string, unknown>);
     } catch (err) {
       logger.info({ err }, "[Postgres] TournamentRepository.updateStatus failed");
+      return null;
+    }
+  }
+
+  async updateLateRegistrationClosed(id: number, closed: boolean): Promise<TournamentRow | null> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `UPDATE tournaments SET late_registration_closed = $1 WHERE id = $2
+         RETURNING ${SELECT_COLUMNS}`,
+        [closed, id]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return rowToTournament(row as Record<string, unknown>);
+    } catch (err) {
+      logger.info({ err, id }, "[Postgres] TournamentRepository.updateLateRegistrationClosed failed");
       return null;
     }
   }
