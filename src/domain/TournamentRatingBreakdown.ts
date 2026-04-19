@@ -53,3 +53,18 @@ export function normalizeTournamentRatingBreakdown(b: TournamentRatingBreakdown)
     totalPoints: b.fromTableAfterCoefficient + b.bountyPoints + np + manual,
   };
 }
+
+/** Post-hoc manual rating points for persisted breakdown (DB); keeps nonPlacementAccrued from snapshot. */
+export function ratingWithManualAdjustment(
+  persisted: TournamentRatingBreakdown,
+  manualAdjustment: number
+): TournamentRatingBreakdown {
+  const np = persisted.nonPlacementAccrued ?? 0;
+  return {
+    ...persisted,
+    nonPlacementAccrued: np,
+    manualAdjustment,
+    totalPoints:
+      persisted.fromTableAfterCoefficient + persisted.bountyPoints + np + manualAdjustment,
+  };
+}

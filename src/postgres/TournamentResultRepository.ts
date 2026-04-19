@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import type { TournamentRatingBreakdown } from "../domain/TournamentRatingBreakdown";
 import {
   isTournamentRatingBreakdown,
@@ -53,10 +54,21 @@ export interface TournamentResultRepository {
     tournamentId: number,
     rows: TournamentResultPlayerRow[]
   ): Promise<boolean>;
+  insertResultsWithClient(
+    client: PoolClient,
+    tournamentId: number,
+    rows: TournamentResultPlayerRow[]
+  ): Promise<boolean>;
   findByTournamentId(
     tournamentId: number
   ): Promise<TournamentResultPlayerRow[]>;
   updateRatingManualAdjustment(
+    tournamentId: number,
+    playerId: string,
+    manualAdjustment: number
+  ): Promise<boolean>;
+  updateRatingManualAdjustmentWithClient(
+    client: PoolClient,
     tournamentId: number,
     playerId: string,
     manualAdjustment: number
@@ -111,8 +123,45 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
     if (rows.length === 0) return true;
     try {
       for (const r of rows) {
-        await PostgresClient.instance.query(
-          `INSERT INTO tournament_result_players (
+        await this.insertOneResultRow(PostgresClient.instance, tournamentId, r);
+      }
+      return true;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, rowCount: rows.length },
+        "[Postgres] TournamentResultRepository.insertResults failed"
+      );
+      return false;
+    }
+  }
+
+  async insertResultsWithClient(
+    client: PoolClient,
+    tournamentId: number,
+    rows: TournamentResultPlayerRow[]
+  ): Promise<boolean> {
+    if (rows.length === 0) return true;
+    try {
+      for (const r of rows) {
+        await this.insertOneResultRow(client, tournamentId, r);
+      }
+      return true;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, rowCount: rows.length },
+        "[Postgres] TournamentResultRepository.insertResultsWithClient failed"
+      );
+      return false;
+    }
+  }
+
+  private async insertOneResultRow(
+    client: Pick<PoolClient, "query">,
+    tournamentId: number,
+    r: TournamentResultPlayerRow
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO tournament_result_players (
             tournament_id, player_id, tournament_player_id, placement, status,
             entry_payment_method, entry_paid_amount, reentry_by_payment_method, reentry_payment_lines,
             total_reentry_count,
@@ -138,36 +187,27 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
             burned_stack_events = EXCLUDED.burned_stack_events,
             rating_manual_adjustment = tournament_result_players.rating_manual_adjustment,
             rating_persisted = tournament_result_players.rating_persisted`,
-          [
-            tournamentId,
-            r.playerId,
-            r.tournamentPlayerId,
-            r.placement,
-            r.status,
-            r.entryPaymentMethod,
-            r.entryPaidAmount,
-            r.reentryByPaymentMethod,
-            r.reentryPaymentLines,
-            r.totalReentryCount,
-            r.bountyCount,
-            r.bonuses,
-            r.customBonusChips,
-            r.bountyKills,
-            r.eliminatedBy,
-            r.burnedStackEvents,
-            r.ratingManualAdjustment ?? 0,
-            JSON.stringify(r.ratingPersisted ?? {}),
-          ]
-        );
-      }
-      return true;
-    } catch (err) {
-      logger.info(
-        { err, tournamentId, rowCount: rows.length },
-        "[Postgres] TournamentResultRepository.insertResults failed"
-      );
-      return false;
-    }
+      [
+        tournamentId,
+        r.playerId,
+        r.tournamentPlayerId,
+        r.placement,
+        r.status,
+        r.entryPaymentMethod,
+        r.entryPaidAmount,
+        r.reentryByPaymentMethod,
+        r.reentryPaymentLines,
+        r.totalReentryCount,
+        r.bountyCount,
+        r.bonuses,
+        r.customBonusChips,
+        r.bountyKills,
+        r.eliminatedBy,
+        r.burnedStackEvents,
+        r.ratingManualAdjustment ?? 0,
+        JSON.stringify(r.ratingPersisted ?? {}),
+      ]
+    );
   }
 
   async findByTournamentId(
@@ -216,6 +256,29 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
       logger.info(
         { err, tournamentId, playerId },
         "[Postgres] TournamentResultRepository.updateRatingManualAdjustment failed"
+      );
+      return false;
+    }
+  }
+
+  async updateRatingManualAdjustmentWithClient(
+    client: PoolClient,
+    tournamentId: number,
+    playerId: string,
+    manualAdjustment: number
+  ): Promise<boolean> {
+    try {
+      const result = await client.query(
+        `UPDATE tournament_result_players
+         SET rating_manual_adjustment = $3
+         WHERE tournament_id = $1 AND player_id = $2`,
+        [tournamentId, playerId, manualAdjustment]
+      );
+      return result.rowCount != null && result.rowCount > 0;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, playerId },
+        "[Postgres] TournamentResultRepository.updateRatingManualAdjustmentWithClient failed"
       );
       return false;
     }

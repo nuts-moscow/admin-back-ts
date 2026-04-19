@@ -10,12 +10,15 @@ import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { logger } from "../../logger";
 import {
   playerRepository,
+  playerTournamentRatingFactsRepository,
   ratingTableRepository,
   tournamentCashSnapshotRepository,
   tournamentEliminationSnapshotRepository,
   tournamentResultRepository,
   tournamentRepository,
+  withTransaction,
 } from "../../postgres";
+import type { PlayerTournamentRatingFactInsert } from "../../postgres/PlayerTournamentRatingFactsRepository";
 import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType";
 import type { CashDeskResponse } from "./InGameUserStateService";
 import type { TournamentResultPlayerRow } from "../../postgres/TournamentResultRepository";
@@ -97,6 +100,7 @@ export async function runTournamentCompletion(
   const N = states.length;
   const nRating = ratingParticipantCount(states);
   const resultRows: TournamentResultPlayerRow[] = [];
+  const ratingFactRows: PlayerTournamentRatingFactInsert[] = [];
 
   for (const state of states) {
     const [bountyKills, eliminatedBy] = await Promise.all([
@@ -140,6 +144,17 @@ export async function runTournamentCompletion(
       state.ratingNonPlacementAccrued ?? 0
     );
 
+    ratingFactRows.push({
+      playerId: state.playerId,
+      tournamentPlayerId: state.tournamentPlayerId,
+      tournamentDateMs: tournament.date,
+      ratingTableId: tournament.ratingTableId,
+      ratingFieldSize: nRating,
+      playerStatus: state.status,
+      placement,
+      breakdown: ratingPersisted,
+    });
+
     resultRows.push({
       tournamentId,
       playerId: state.playerId,
@@ -175,11 +190,30 @@ export async function runTournamentCompletion(
     });
   }
 
-  const resultsSaved = await tournamentResultRepository.insertResults(
-    tournamentId,
-    resultRows
-  );
-  if (!resultsSaved) {
+  try {
+    await withTransaction(async (c) => {
+      const inserted = await tournamentResultRepository.insertResultsWithClient(
+        c,
+        tournamentId,
+        resultRows
+      );
+      if (!inserted) {
+        throw new Error("insert_results_failed");
+      }
+      const factsOk = await playerTournamentRatingFactsRepository.replaceForTournamentWithClient(
+        c,
+        tournamentId,
+        ratingFactRows
+      );
+      if (!factsOk) {
+        throw new Error("replace_rating_facts_failed");
+      }
+    });
+  } catch (err) {
+    logger.info(
+      { err, tournamentId },
+      "[TournamentCompletion] results + rating facts transaction failed"
+    );
     return { ok: false, error: "results_save_failed" };
   }
 

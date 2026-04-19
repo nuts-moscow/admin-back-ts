@@ -1,4 +1,5 @@
 import type { TournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
+export { ratingWithManualAdjustment } from "../../domain/TournamentRatingBreakdown";
 import { InGamePlayerStatus, type InGameUserState } from "../../domain/cache/InGameUserState";
 import { getTableBaseRatingPoints } from "../../domain/tournamentRatingMatrix";
 import type { RatingTable } from "../../domain/RatingTable";
@@ -131,17 +132,3 @@ export function applyNonPlacementAccrued(
   };
 }
 
-/** Apply DB manual adjustment; keeps nonPlacementAccrued from persisted row. */
-export function ratingWithManualAdjustment(
-  persisted: TournamentRatingBreakdown,
-  manualAdjustment: number
-): TournamentRatingBreakdown {
-  const np = persisted.nonPlacementAccrued ?? 0;
-  return {
-    ...persisted,
-    nonPlacementAccrued: np,
-    manualAdjustment,
-    totalPoints:
-      persisted.fromTableAfterCoefficient + persisted.bountyPoints + np + manualAdjustment,
-  };
-}

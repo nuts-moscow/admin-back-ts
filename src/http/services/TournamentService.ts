@@ -3,9 +3,11 @@ import { effectiveAllowedReentryCount } from "../../domain/tournamentReentryPoli
 import type { TournamentStructure } from "../../domain/TournamentStructure";
 import { tournamentStructureCache } from "../../cache";
 import {
+  playerTournamentRatingFactsRepository,
   tournamentResultRepository,
   tournamentStructureRepository,
   tournamentRepository,
+  withTransaction,
 } from "../../postgres";
 import type { TournamentRow } from "../../postgres/TournamentRepository";
 import { runTournamentCompletion } from "./TournamentCompletionService";
@@ -303,12 +305,32 @@ export class TournamentService {
     const t = await tournamentRepository.findById(tournamentId);
     if (!t) return { ok: false, error: "not_found" };
     if (t.status !== "completed") return { ok: false, error: "not_completed" };
-    const ok = await tournamentResultRepository.updateRatingManualAdjustment(
-      tournamentId,
-      playerId,
-      manualAdjustment
-    );
-    if (!ok) return { ok: false, error: "failed" };
+    try {
+      await withTransaction(async (c) => {
+        const okResults =
+          await tournamentResultRepository.updateRatingManualAdjustmentWithClient(
+            c,
+            tournamentId,
+            playerId,
+            manualAdjustment
+          );
+        if (!okResults) {
+          throw new Error("result_update_failed");
+        }
+        const okFacts =
+          await playerTournamentRatingFactsRepository.updateManualAdjustmentWithClient(
+            c,
+            tournamentId,
+            playerId,
+            manualAdjustment
+          );
+        if (!okFacts) {
+          throw new Error("facts_update_failed");
+        }
+      });
+    } catch {
+      return { ok: false, error: "failed" };
+    }
     return { ok: true };
   }
 

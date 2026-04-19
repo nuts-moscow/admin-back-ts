@@ -101,3 +101,37 @@ create table if not exists tournament_result_players (
     rating_persisted          jsonb    not null default '{}'::jsonb,
     primary key (tournament_id, player_id)
 );
+
+-- Flat rating per (tournament, player) for analytics (seasons, time ranges); mirrors rating after completion / manual adjustment
+create table if not exists player_tournament_rating_facts (
+    tournament_id                integer not null references tournaments (id) on delete cascade,
+    player_id                    text    not null,
+    tournament_player_id         integer not null,
+    tournament_date_ms           bigint  not null,
+    rating_table_id              integer not null references rating_tables (id),
+    rating_field_size            integer not null,
+    player_status                text    not null,
+    placement                    integer,
+    base_points                  double precision not null,
+    guarantee_bonus              double precision not null,
+    points_coefficient           double precision not null,
+    from_table_after_coefficient double precision not null,
+    bounty_count                 double precision not null,
+    bounty_points                double precision not null,
+    bounty_coefficient           double precision not null,
+    non_placement_accrued        double precision not null,
+    manual_adjustment            double precision not null default 0,
+    total_points                 double precision not null,
+    breakdown                    jsonb   not null default '{}'::jsonb,
+    recorded_at                  timestamptz not null default now(),
+    primary key (tournament_id, player_id)
+);
+
+create index if not exists idx_ptrf_player_date
+  on player_tournament_rating_facts (player_id, tournament_date_ms desc);
+
+create index if not exists idx_ptrf_tournament_date
+  on player_tournament_rating_facts (tournament_date_ms);
+
+create index if not exists idx_ptrf_rating_table_date
+  on player_tournament_rating_facts (rating_table_id, tournament_date_ms);
