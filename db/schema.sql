@@ -34,7 +34,10 @@ create table if not exists tournaments
     rating_guarantee_bonus_points integer not null default 10,
     rating_points_coefficient     double precision not null default 1,
     rating_bounty_coefficient     double precision not null default 1,
-    rating_table_id               integer not null default 1 references rating_tables(id)
+    rating_table_id               integer not null default 1 references rating_tables(id),
+    rating_enabled                boolean not null default true,
+    rating_season_year            integer,
+    rating_season_month           integer
 );
 
 -- Append-only audit log (application inserts only; timestamps via occurred_at)
@@ -124,6 +127,8 @@ create table if not exists player_tournament_rating_facts (
     total_points                 double precision not null,
     breakdown                    jsonb   not null default '{}'::jsonb,
     recorded_at                  timestamptz not null default now(),
+    rating_season_year           integer,
+    rating_season_month          integer,
     primary key (tournament_id, player_id)
 );
 
@@ -135,3 +140,7 @@ create index if not exists idx_ptrf_tournament_date
 
 create index if not exists idx_ptrf_rating_table_date
   on player_tournament_rating_facts (rating_table_id, tournament_date_ms);
+
+create index if not exists idx_ptrf_season
+  on player_tournament_rating_facts (rating_season_year, rating_season_month)
+  where rating_season_year is not null;

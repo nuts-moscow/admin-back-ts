@@ -891,6 +891,28 @@ export const MakeTournamentBodySchema = z
         description: "Multiplier for bounty points (0.5 per bounty); default 1",
         example: 1,
       }),
+    ratingEnabled: z
+      .boolean()
+      .optional()
+      .openapi({
+        description: "When false, this tournament has no rating and points are not recorded; default true",
+      }),
+    ratingSeasonYear: z
+      .number()
+      .int()
+      .min(2000)
+      .max(2100)
+      .nullable()
+      .optional()
+      .openapi({ description: "Season year (e.g. 2026); null means no season assigned", example: 2026 }),
+    ratingSeasonMonth: z
+      .number()
+      .int()
+      .min(1)
+      .max(12)
+      .nullable()
+      .optional()
+      .openapi({ description: "Season month 1–12; null means no season assigned", example: 4 }),
   })
   .openapi("MakeTournamentBody");
 
@@ -938,6 +960,9 @@ export const TournamentResponseSchema = z
       .openapi({ description: "Bonus for places 1–10 when guarantee is on", example: 10 }),
     ratingPointsCoefficient: z.number(),
     ratingBountyCoefficient: z.number(),
+    ratingEnabled: z.boolean().openapi({ description: "False for non-rated tournaments", example: true }),
+    ratingSeasonYear: z.number().int().nullable().openapi({ description: "Season year or null", example: 2026 }),
+    ratingSeasonMonth: z.number().int().nullable().openapi({ description: "Season month 1–12 or null", example: 4 }),
   })
   .openapi("TournamentResponse");
 
@@ -966,6 +991,9 @@ export const TournamentWithStructureResponseSchema = z
     ratingGuaranteeBonusPoints: z.number().int().min(0),
     ratingPointsCoefficient: z.number(),
     ratingBountyCoefficient: z.number(),
+    ratingEnabled: z.boolean().openapi({ description: "False for non-rated tournaments", example: true }),
+    ratingSeasonYear: z.number().int().nullable().openapi({ description: "Season year or null", example: 2026 }),
+    ratingSeasonMonth: z.number().int().nullable().openapi({ description: "Season month 1–12 or null", example: 4 }),
     structure: TournamentStructureDataSchema.nullable(),
   })
   .openapi("TournamentWithStructureResponse");
@@ -1015,6 +1043,13 @@ export const UpdateTournamentBodySchema = z
     ratingGuaranteeBonusPoints: z.number().int().min(0).optional(),
     ratingPointsCoefficient: z.number().finite().optional(),
     ratingBountyCoefficient: z.number().finite().optional(),
+    ratingEnabled: z.boolean().optional().openapi({ description: "When false, disables rating for this tournament" }),
+    ratingSeasonYear: z
+      .number().int().min(2000).max(2100).nullable().optional()
+      .openapi({ description: "Season year or null to clear; changing season syncs completed-tournament facts" }),
+    ratingSeasonMonth: z
+      .number().int().min(1).max(12).nullable().optional()
+      .openapi({ description: "Season month 1–12 or null to clear" }),
   })
   .openapi("UpdateTournamentBody");
 
@@ -1074,6 +1109,37 @@ export const PatchTournamentClockBodySchema = z
     }
   )
   .openapi("PatchTournamentClockBody");
+
+/** Seasonal rating entry: one player's aggregated points for a season */
+export const SeasonalRatingEntrySchema = z
+  .object({
+    playerId: z.string().openapi({ description: "Player ID", example: "42" }),
+    totalPoints: z
+      .number()
+      .openapi({ description: "Sum of total_points across all tournaments in the season", example: 153.5 }),
+    tournamentCount: z
+      .number()
+      .int()
+      .openapi({ description: "Number of tournaments the player participated in this season", example: 3 }),
+  })
+  .openapi("SeasonalRatingEntry");
+
+/** Response: seasonal rating for a given year/month */
+export const SeasonalRatingResponseSchema = z
+  .object({
+    year: z.number().int().openapi({ example: 2026 }),
+    month: z.number().int().min(1).max(12).openapi({ example: 4 }),
+    entries: z.array(SeasonalRatingEntrySchema),
+  })
+  .openapi("SeasonalRatingResponse");
+
+/** Query params: get seasonal rating */
+export const SeasonalRatingQuerySchema = z
+  .object({
+    year: z.string().openapi({ description: "Season year (e.g. 2026)", example: "2026" }),
+    month: z.string().openapi({ description: "Season month 1–12 (e.g. 4 for April)", example: "4" }),
+  })
+  .openapi("SeasonalRatingQuery");
 
 /** WebSocket tick payload (~1/s) for tournament blind clock */
 export const TournamentClockTickSchema = z

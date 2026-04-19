@@ -19,6 +19,14 @@ export interface PlayerTournamentRatingFactInsert {
   playerStatus: string;
   placement: number | null;
   breakdown: TournamentRatingBreakdown;
+  ratingSeasonYear: number | null;
+  ratingSeasonMonth: number | null;
+}
+
+export interface SeasonalRatingEntry {
+  playerId: string;
+  totalPoints: number;
+  tournamentCount: number;
 }
 
 export interface PlayerTournamentRatingFactsRepository {
@@ -37,6 +45,13 @@ export interface PlayerTournamentRatingFactsRepository {
     playerId: string,
     manualAdjustment: number
   ): Promise<boolean>;
+  updateSeasonForTournamentWithClient(
+    client: PoolClient,
+    tournamentId: number,
+    year: number | null,
+    month: number | null
+  ): Promise<boolean>;
+  getSeasonalRating(year: number, month: number): Promise<SeasonalRatingEntry[]>;
 }
 
 function breakdownToRowParams(b: TournamentRatingBreakdown): {
@@ -113,10 +128,10 @@ class PlayerTournamentRatingFactsRepositoryImpl
           rating_table_id, rating_field_size, player_status, placement,
           base_points, guarantee_bonus, points_coefficient, from_table_after_coefficient,
           bounty_count, bounty_points, bounty_coefficient, non_placement_accrued,
-          manual_adjustment, total_points, breakdown
+          manual_adjustment, total_points, breakdown, rating_season_year, rating_season_month
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb
+          $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21
         )`,
         [
           tournamentId,
@@ -138,6 +153,8 @@ class PlayerTournamentRatingFactsRepositoryImpl
           p.manualAdjustment,
           p.totalPoints,
           JSON.stringify(r.breakdown),
+          r.ratingSeasonYear,
+          r.ratingSeasonMonth,
         ]
       );
     }
@@ -184,6 +201,53 @@ class PlayerTournamentRatingFactsRepositoryImpl
       [tournamentId, playerId, manualAdjustment, merged.totalPoints, JSON.stringify(merged)]
     );
     return res.rowCount != null && res.rowCount > 0;
+  }
+
+  async updateSeasonForTournamentWithClient(
+    client: PoolClient,
+    tournamentId: number,
+    year: number | null,
+    month: number | null
+  ): Promise<boolean> {
+    try {
+      await client.query(
+        `UPDATE player_tournament_rating_facts
+         SET rating_season_year = $2, rating_season_month = $3
+         WHERE tournament_id = $1`,
+        [tournamentId, year, month]
+      );
+      return true;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId },
+        `${LOG_PREFIX} updateSeasonForTournamentWithClient failed`
+      );
+      return false;
+    }
+  }
+
+  async getSeasonalRating(year: number, month: number): Promise<SeasonalRatingEntry[]> {
+    try {
+      const res = await PostgresClient.instance.query(
+        `SELECT player_id, SUM(total_points) AS total_points, COUNT(*) AS tournament_count
+         FROM player_tournament_rating_facts
+         WHERE rating_season_year = $1 AND rating_season_month = $2
+         GROUP BY player_id
+         ORDER BY SUM(total_points) DESC`,
+        [year, month]
+      );
+      return res.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          playerId: String(r.player_id),
+          totalPoints: Number(r.total_points),
+          tournamentCount: Number(r.tournament_count),
+        };
+      });
+    } catch (err) {
+      logger.info({ err, year, month }, `${LOG_PREFIX} getSeasonalRating failed`);
+      return [];
+    }
   }
 }
 

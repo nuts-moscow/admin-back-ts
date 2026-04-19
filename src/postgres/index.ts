@@ -9,6 +9,7 @@ export { tournamentResultRepository } from "./TournamentResultRepository";
 export {
   playerTournamentRatingFactsRepository,
   type PlayerTournamentRatingFactInsert,
+  type SeasonalRatingEntry,
 } from "./PlayerTournamentRatingFactsRepository";
 export { withTransaction } from "./withTransaction";
 export { tournamentStructureRepository } from "./TournamentStructureRepository";

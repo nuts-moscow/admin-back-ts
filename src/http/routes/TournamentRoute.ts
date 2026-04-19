@@ -188,6 +188,9 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
   ratingTableId?: number;
+  ratingEnabled?: boolean;
+  ratingSeasonYear?: number | null;
+  ratingSeasonMonth?: number | null;
 } | { ok: false; error: string } {
   let ratingGuaranteeEnabled: boolean | undefined;
   if ("ratingGuaranteeEnabled" in body && body.ratingGuaranteeEnabled !== undefined) {
@@ -236,6 +239,43 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
     }
     ratingTableId = body.ratingTableId;
   }
+  let ratingEnabled: boolean | undefined;
+  if ("ratingEnabled" in body && body.ratingEnabled !== undefined) {
+    if (typeof body.ratingEnabled !== "boolean") {
+      return { ok: false, error: "ratingEnabled must be a boolean" };
+    }
+    ratingEnabled = body.ratingEnabled;
+  }
+  let ratingSeasonYear: number | null | undefined;
+  if ("ratingSeasonYear" in body) {
+    if (body.ratingSeasonYear === null) {
+      ratingSeasonYear = null;
+    } else if (
+      typeof body.ratingSeasonYear === "number" &&
+      Number.isInteger(body.ratingSeasonYear) &&
+      body.ratingSeasonYear >= 2000 &&
+      body.ratingSeasonYear <= 2100
+    ) {
+      ratingSeasonYear = body.ratingSeasonYear;
+    } else if (body.ratingSeasonYear !== undefined) {
+      return { ok: false, error: "ratingSeasonYear must be an integer year (2000–2100) or null" };
+    }
+  }
+  let ratingSeasonMonth: number | null | undefined;
+  if ("ratingSeasonMonth" in body) {
+    if (body.ratingSeasonMonth === null) {
+      ratingSeasonMonth = null;
+    } else if (
+      typeof body.ratingSeasonMonth === "number" &&
+      Number.isInteger(body.ratingSeasonMonth) &&
+      body.ratingSeasonMonth >= 1 &&
+      body.ratingSeasonMonth <= 12
+    ) {
+      ratingSeasonMonth = body.ratingSeasonMonth;
+    } else if (body.ratingSeasonMonth !== undefined) {
+      return { ok: false, error: "ratingSeasonMonth must be an integer 1–12 or null" };
+    }
+  }
   return {
     ok: true,
     ratingGuaranteeEnabled,
@@ -243,6 +283,9 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
     ratingPointsCoefficient,
     ratingBountyCoefficient,
     ratingTableId,
+    ratingEnabled,
+    ratingSeasonYear,
+    ratingSeasonMonth,
   };
 }
 
@@ -446,6 +489,9 @@ export function tournamentRoutes() {
             ratingPointsCoefficient: t.ratingPointsCoefficient,
             ratingBountyCoefficient: t.ratingBountyCoefficient,
             ratingTableId: t.ratingTableId,
+            ratingEnabled: t.ratingEnabled,
+            ratingSeasonYear: t.ratingSeasonYear,
+            ratingSeasonMonth: t.ratingSeasonMonth,
           })),
         });
       },
@@ -501,6 +547,9 @@ export function tournamentRoutes() {
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
           ratingTableId: ratingParsed.ratingTableId,
+          ratingEnabled: ratingParsed.ratingEnabled,
+          ratingSeasonYear: ratingParsed.ratingSeasonYear,
+          ratingSeasonMonth: ratingParsed.ratingSeasonMonth,
         });
         if (!result.ok) {
           return new Response(
@@ -612,6 +661,9 @@ export function tournamentRoutes() {
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
           ratingTableId: ratingParsed.ratingTableId,
+          ratingEnabled: ratingParsed.ratingEnabled,
+          ratingSeasonYear: ratingParsed.ratingSeasonYear,
+          ratingSeasonMonth: ratingParsed.ratingSeasonMonth,
         });
         if (!result.ok) {
           if (result.error === "not_found") {
@@ -952,6 +1004,35 @@ export function tournamentRoutes() {
           manualAdjustment: o.manualAdjustment,
         });
         return new Response(null, { status: 204 });
+      },
+    },
+    "/api/seasonal-rating": {
+      GET: async (req: BunRequest<"/api/seasonal-rating">) => {
+        const url = new URL(req.url);
+        const yearRaw = url.searchParams.get("year");
+        const monthRaw = url.searchParams.get("month");
+        if (!yearRaw || !monthRaw) {
+          return new Response(
+            JSON.stringify({ error: "year and month query parameters are required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const year = parseInt(yearRaw, 10);
+        const month = parseInt(monthRaw, 10);
+        if (Number.isNaN(year) || year < 2000 || year > 2100) {
+          return new Response(
+            JSON.stringify({ error: "year must be an integer between 2000 and 2100" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (Number.isNaN(month) || month < 1 || month > 12) {
+          return new Response(
+            JSON.stringify({ error: "month must be an integer between 1 and 12" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const entries = await service.getSeasonalRating(year, month);
+        return Response.json({ year, month, entries });
       },
     },
   };

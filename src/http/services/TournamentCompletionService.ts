@@ -50,8 +50,10 @@ export async function runTournamentCompletion(
     return { ok: false, error: "tournament_not_found" };
   }
 
-  const ratingTable = await ratingTableRepository.findById(tournament.ratingTableId);
-  if (!ratingTable) {
+  const ratingTable = tournament.ratingEnabled
+    ? await ratingTableRepository.findById(tournament.ratingTableId)
+    : null;
+  if (tournament.ratingEnabled && !ratingTable) {
     return { ok: false, error: "rating_table_not_found" };
   }
 
@@ -116,44 +118,63 @@ export async function runTournamentCompletion(
           ? state.placement
           : null;
 
-    const elimPlForRating =
-      state.status === InGamePlayerStatus.Registered
-        ? null
-        : state.status === InGamePlayerStatus.Out
-          ? state.placement
-          : nRating >= 1
-            ? nRating
-            : null;
-    const finishPlaceForRating = matrixFinishPlaceFromEliminationSlot(
-      nRating,
-      elimPlForRating
-    );
-    const baseRating =
-      state.status === InGamePlayerStatus.Out && state.ratingSnapshot != null
-        ? normalizeTournamentRatingBreakdown(state.ratingSnapshot)
-        : computeTournamentPlayerRating(
-            nRating,
-            finishPlaceForRating,
-            state.bountyCount,
-            0,
-            tournament,
-            ratingTable
-          );
-    const ratingPersisted = applyNonPlacementAccrued(
-      baseRating,
-      state.ratingNonPlacementAccrued ?? 0
-    );
+    let ratingPersisted: ReturnType<typeof applyNonPlacementAccrued>;
 
-    ratingFactRows.push({
-      playerId: state.playerId,
-      tournamentPlayerId: state.tournamentPlayerId,
-      tournamentDateMs: tournament.date,
-      ratingTableId: tournament.ratingTableId,
-      ratingFieldSize: nRating,
-      playerStatus: state.status,
-      placement,
-      breakdown: ratingPersisted,
-    });
+    if (tournament.ratingEnabled && ratingTable) {
+      const elimPlForRating =
+        state.status === InGamePlayerStatus.Registered
+          ? null
+          : state.status === InGamePlayerStatus.Out
+            ? state.placement
+            : nRating >= 1
+              ? nRating
+              : null;
+      const finishPlaceForRating = matrixFinishPlaceFromEliminationSlot(
+        nRating,
+        elimPlForRating
+      );
+      const baseRating =
+        state.status === InGamePlayerStatus.Out && state.ratingSnapshot != null
+          ? normalizeTournamentRatingBreakdown(state.ratingSnapshot)
+          : computeTournamentPlayerRating(
+              nRating,
+              finishPlaceForRating,
+              state.bountyCount,
+              0,
+              tournament,
+              ratingTable
+            );
+      ratingPersisted = applyNonPlacementAccrued(
+        baseRating,
+        state.ratingNonPlacementAccrued ?? 0
+      );
+
+      ratingFactRows.push({
+        playerId: state.playerId,
+        tournamentPlayerId: state.tournamentPlayerId,
+        tournamentDateMs: tournament.date,
+        ratingTableId: tournament.ratingTableId,
+        ratingFieldSize: nRating,
+        playerStatus: state.status,
+        placement,
+        breakdown: ratingPersisted,
+        ratingSeasonYear: tournament.ratingSeasonYear,
+        ratingSeasonMonth: tournament.ratingSeasonMonth,
+      });
+    } else {
+      ratingPersisted = {
+        basePoints: 0,
+        guaranteeBonus: 0,
+        pointsCoefficient: 1,
+        fromTableAfterCoefficient: 0,
+        bountyCount: 0,
+        bountyPoints: 0,
+        bountyCoefficient: 1,
+        nonPlacementAccrued: 0,
+        manualAdjustment: 0,
+        totalPoints: 0,
+      };
+    }
 
     resultRows.push({
       tournamentId,
@@ -200,13 +221,15 @@ export async function runTournamentCompletion(
       if (!inserted) {
         throw new Error("insert_results_failed");
       }
-      const factsOk = await playerTournamentRatingFactsRepository.replaceForTournamentWithClient(
-        c,
-        tournamentId,
-        ratingFactRows
-      );
-      if (!factsOk) {
-        throw new Error("replace_rating_facts_failed");
+      if (tournament.ratingEnabled && ratingFactRows.length > 0) {
+        const factsOk = await playerTournamentRatingFactsRepository.replaceForTournamentWithClient(
+          c,
+          tournamentId,
+          ratingFactRows
+        );
+        if (!factsOk) {
+          throw new Error("replace_rating_facts_failed");
+        }
       }
     });
   } catch (err) {

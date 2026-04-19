@@ -9,6 +9,7 @@ import {
   tournamentRepository,
   withTransaction,
 } from "../../postgres";
+import type { SeasonalRatingEntry } from "../../postgres";
 import type { TournamentRow } from "../../postgres/TournamentRepository";
 import { runTournamentCompletion } from "./TournamentCompletionService";
 import type { InGameUserStateService } from "./InGameUserStateService";
@@ -34,6 +35,9 @@ export interface MakeTournamentBody {
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
   ratingTableId?: number;
+  ratingEnabled?: boolean;
+  ratingSeasonYear?: number | null;
+  ratingSeasonMonth?: number | null;
 }
 
 export type TournamentApiSummary = {
@@ -46,6 +50,9 @@ export type TournamentApiSummary = {
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
   ratingTableId: number;
+  ratingEnabled: boolean;
+  ratingSeasonYear: number | null;
+  ratingSeasonMonth: number | null;
 };
 
 export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
@@ -59,6 +66,9 @@ export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
     ratingPointsCoefficient: row.ratingPointsCoefficient,
     ratingBountyCoefficient: row.ratingBountyCoefficient,
     ratingTableId: row.ratingTableId,
+    ratingEnabled: row.ratingEnabled,
+    ratingSeasonYear: row.ratingSeasonYear,
+    ratingSeasonMonth: row.ratingSeasonMonth,
   };
 }
 
@@ -89,6 +99,8 @@ export type UpdateTournamentStatusResult =
 export type SetRatingManualAdjustmentResult =
   | { ok: true }
   | { ok: false; error: "not_found" | "not_completed" | "failed" };
+
+export type GetSeasonalRatingResult = SeasonalRatingEntry[];
 
 export class TournamentService {
   constructor(
@@ -129,6 +141,7 @@ export class TournamentService {
   }
 
   async createTournament(input: MakeTournamentBody): Promise<CreateTournamentResult> {
+    const ratingEnabled = input.ratingEnabled ?? true;
     const tournament = await tournamentRepository.create({
       name: input.name,
       date: input.date,
@@ -137,6 +150,9 @@ export class TournamentService {
       ratingPointsCoefficient: input.ratingPointsCoefficient,
       ratingBountyCoefficient: input.ratingBountyCoefficient,
       ratingTableId: input.ratingTableId,
+      ratingEnabled,
+      ratingSeasonYear: ratingEnabled ? (input.ratingSeasonYear ?? null) : null,
+      ratingSeasonMonth: ratingEnabled ? (input.ratingSeasonMonth ?? null) : null,
     });
     if (!tournament) return { ok: false, error: "failed" };
 
@@ -194,6 +210,9 @@ export class TournamentService {
       ratingPointsCoefficient: tournament.ratingPointsCoefficient,
       ratingBountyCoefficient: tournament.ratingBountyCoefficient,
       ratingTableId: tournament.ratingTableId,
+      ratingEnabled: tournament.ratingEnabled,
+      ratingSeasonYear: tournament.ratingSeasonYear,
+      ratingSeasonMonth: tournament.ratingSeasonMonth,
       structure: structureOut,
     };
   }
@@ -248,6 +267,9 @@ export class TournamentService {
       ratingPointsCoefficient?: number;
       ratingBountyCoefficient?: number;
       ratingTableId?: number;
+      ratingEnabled?: boolean;
+      ratingSeasonYear?: number | null;
+      ratingSeasonMonth?: number | null;
     }
   ): Promise<UpdateTournamentResult> {
     const validStatuses = ["registration_open", "in_progress", "completed"];
@@ -272,7 +294,27 @@ export class TournamentService {
         };
       }
     }
-    const tournament = await tournamentRepository.update(id, {
+
+    const ratingEnabledInput = input.ratingEnabled ?? null;
+    // Effective ratingEnabled after the update (use new value if provided, else keep current)
+    const effectiveRatingEnabled = ratingEnabledInput !== null ? ratingEnabledInput : current.ratingEnabled;
+    // Season fields: if disabling rating force null; if provided use them; else keep current
+    const seasonProvided = input.ratingSeasonYear !== undefined || input.ratingSeasonMonth !== undefined;
+    const newSeasonYear = !effectiveRatingEnabled
+      ? null
+      : seasonProvided
+        ? (input.ratingSeasonYear ?? null)
+        : current.ratingSeasonYear;
+    const newSeasonMonth = !effectiveRatingEnabled
+      ? null
+      : seasonProvided
+        ? (input.ratingSeasonMonth ?? null)
+        : current.ratingSeasonMonth;
+
+    const seasonChanged =
+      newSeasonYear !== current.ratingSeasonYear || newSeasonMonth !== current.ratingSeasonMonth;
+
+    let tournament = await tournamentRepository.update(id, {
       name: input.name,
       date: input.date,
       status: input.status,
@@ -281,8 +323,34 @@ export class TournamentService {
       ratingPointsCoefficient: input.ratingPointsCoefficient ?? null,
       ratingBountyCoefficient: input.ratingBountyCoefficient ?? null,
       ratingTableId: input.ratingTableId ?? null,
+      ratingEnabled: ratingEnabledInput,
     });
     if (!tournament) return { ok: false, error: "not_found" };
+
+    // Sync season on tournament + facts in one transaction when season changes
+    if (seasonChanged) {
+      try {
+        await withTransaction(async (c) => {
+          const updated = await tournamentRepository.updateSeasonWithClient(
+            c,
+            id,
+            newSeasonYear,
+            newSeasonMonth
+          );
+          if (!updated) throw new Error("tournament_season_update_failed");
+          tournament = updated;
+          const factsOk = await playerTournamentRatingFactsRepository.updateSeasonForTournamentWithClient(
+            c,
+            id,
+            newSeasonYear,
+            newSeasonMonth
+          );
+          if (!factsOk) throw new Error("facts_season_update_failed");
+        });
+      } catch {
+        return { ok: false, error: "failed" };
+      }
+    }
 
     if (tournament.status === "in_progress") {
       await tournamentClockService.ensureStarted(tournament.id);
@@ -332,6 +400,10 @@ export class TournamentService {
       return { ok: false, error: "failed" };
     }
     return { ok: true };
+  }
+
+  async getSeasonalRating(year: number, month: number): Promise<GetSeasonalRatingResult> {
+    return playerTournamentRatingFactsRepository.getSeasonalRating(year, month);
   }
 
   async updateTournamentStructure(

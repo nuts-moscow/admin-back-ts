@@ -12,6 +12,9 @@ export interface MakeTournamentInput {
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
   ratingTableId?: number;
+  ratingEnabled?: boolean;
+  ratingSeasonYear?: number | null;
+  ratingSeasonMonth?: number | null;
 }
 
 export interface TournamentRow {
@@ -26,6 +29,9 @@ export interface TournamentRow {
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
   ratingTableId: number;
+  ratingEnabled: boolean;
+  ratingSeasonYear: number | null;
+  ratingSeasonMonth: number | null;
 }
 
 const DEFAULT_STATUS = "registration_open";
@@ -48,6 +54,9 @@ function rowToTournament(row: Record<string, unknown>): TournamentRow {
     ratingPointsCoefficient: Number(row.rating_points_coefficient ?? 1),
     ratingBountyCoefficient: Number(row.rating_bounty_coefficient ?? 1),
     ratingTableId: Number(row.rating_table_id ?? DEFAULT_RATING_TABLE_ID),
+    ratingEnabled: row.rating_enabled == null ? true : Boolean(row.rating_enabled),
+    ratingSeasonYear: row.rating_season_year != null ? Number(row.rating_season_year) : null,
+    ratingSeasonMonth: row.rating_season_month != null ? Number(row.rating_season_month) : null,
   };
 }
 
@@ -65,13 +74,14 @@ export interface UpdateTournamentInput {
   ratingPointsCoefficient?: number | null;
   ratingBountyCoefficient?: number | null;
   ratingTableId?: number | null;
+  ratingEnabled?: boolean | null;
 }
 
 const SELECT_COLUMNS = `
   id, name, status, date, entry_price, reentry_price,
   rating_guarantee_enabled, rating_guarantee_bonus_points,
   rating_points_coefficient, rating_bounty_coefficient,
-  rating_table_id
+  rating_table_id, rating_enabled, rating_season_year, rating_season_month
 `;
 
 export interface TournamentRepository {
@@ -84,6 +94,12 @@ export interface TournamentRepository {
   listIdsByStatus(status: string): Promise<number[]>;
   update(id: number, input: UpdateTournamentInput): Promise<TournamentRow | null>;
   updateStatus(id: number, status: string): Promise<TournamentRow | null>;
+  updateSeasonWithClient(
+    client: import("pg").PoolClient,
+    id: number,
+    year: number | null,
+    month: number | null
+  ): Promise<TournamentRow | null>;
 }
 
 class TournamentRepositoryImpl implements TournamentRepository {
@@ -95,14 +111,17 @@ class TournamentRepositoryImpl implements TournamentRepository {
       const ratingPointsCoefficient = input.ratingPointsCoefficient ?? 1;
       const ratingBountyCoefficient = input.ratingBountyCoefficient ?? 1;
       const ratingTableId = input.ratingTableId ?? DEFAULT_RATING_TABLE_ID;
+      const ratingEnabled = input.ratingEnabled ?? true;
+      const ratingSeasonYear = ratingEnabled ? (input.ratingSeasonYear ?? null) : null;
+      const ratingSeasonMonth = ratingEnabled ? (input.ratingSeasonMonth ?? null) : null;
       const result = await PostgresClient.instance.query(
         `INSERT INTO tournaments (
            name, status, date, entry_price, reentry_price,
            rating_guarantee_enabled, rating_guarantee_bonus_points,
            rating_points_coefficient, rating_bounty_coefficient,
-           rating_table_id
+           rating_table_id, rating_enabled, rating_season_year, rating_season_month
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING ${SELECT_COLUMNS}`,
         [
           input.name,
@@ -115,6 +134,9 @@ class TournamentRepositoryImpl implements TournamentRepository {
           ratingPointsCoefficient,
           ratingBountyCoefficient,
           ratingTableId,
+          ratingEnabled,
+          ratingSeasonYear,
+          ratingSeasonMonth,
         ]
       );
       const row = result.rows[0];
@@ -204,7 +226,8 @@ class TournamentRepositoryImpl implements TournamentRepository {
            rating_guarantee_bonus_points = COALESCE($6, rating_guarantee_bonus_points),
            rating_points_coefficient = COALESCE($7, rating_points_coefficient),
            rating_bounty_coefficient = COALESCE($8, rating_bounty_coefficient),
-           rating_table_id = COALESCE($9, rating_table_id)
+           rating_table_id = COALESCE($9, rating_table_id),
+           rating_enabled = COALESCE($10, rating_enabled)
          WHERE id = $4
          RETURNING ${SELECT_COLUMNS}`,
         [
@@ -217,6 +240,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           input.ratingPointsCoefficient ?? null,
           input.ratingBountyCoefficient ?? null,
           input.ratingTableId ?? null,
+          input.ratingEnabled ?? null,
         ]
       );
       const row = result.rows[0];
@@ -224,6 +248,30 @@ class TournamentRepositoryImpl implements TournamentRepository {
       return rowToTournament(row as Record<string, unknown>);
     } catch (err) {
       logger.info({ err }, "[Postgres] TournamentRepository.update failed");
+      return null;
+    }
+  }
+
+  async updateSeasonWithClient(
+    client: import("pg").PoolClient,
+    id: number,
+    year: number | null,
+    month: number | null
+  ): Promise<TournamentRow | null> {
+    try {
+      const result = await client.query(
+        `UPDATE tournaments SET
+           rating_season_year = $2,
+           rating_season_month = $3
+         WHERE id = $1
+         RETURNING ${SELECT_COLUMNS}`,
+        [id, year, month]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return rowToTournament(row as Record<string, unknown>);
+    } catch (err) {
+      logger.info({ err, id }, "[Postgres] TournamentRepository.updateSeasonWithClient failed");
       return null;
     }
   }
