@@ -4,13 +4,22 @@ import { logger } from "../logger";
 import { withCors, corsHeaders } from "./cors";
 import { createRouter } from "./router";
 import { authRoutes } from "./routes/AuthRoute";
+import { hallOfFameRoutes } from "./routes/HallOfFameRoute";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
+import { playerAuthRoutes } from "./routes/PlayerAuthRoute";
+import { playerRoutes } from "./routes/PlayerRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
 import { publicRoutes } from "./routes/PublicRoute";
 import { tournamentRoutes } from "./routes/TournamentRoute";
 import { requireAuth } from "./middleware/auth";
+import {
+  isPlayerAuthPublicPath,
+  requirePlayerAuth,
+  type PlayerAuthContext,
+} from "./middleware/playerAuth";
 import { initDummyHash } from "./services/AuthService";
+import { initPlayerDummyHash } from "./services/PlayerAuthService";
 import type { AuthContext } from "./middleware/auth";
 import {
   onTournamentClockSocketClose,
@@ -23,6 +32,7 @@ const CLOCK_WS_PATH = /^\/ws\/tournaments\/(\d+)\/clock\/?$/;
 export async function createHttpServer() {
   // Pre-compute dummy hash for timing-safe login (prevents username enumeration via response time)
   await initDummyHash();
+  await initPlayerDummyHash();
 
   const routes = {
     ...authRoutes(),
@@ -31,6 +41,9 @@ export async function createHttpServer() {
     ...playersRoutes(),
     ...tournamentRoutes(),
     ...openApiRoutes(),
+    ...hallOfFameRoutes(),
+    ...playerAuthRoutes(),
+    ...playerRoutes(),
   };
 
   // Route handlers expect BunRequest; router passes Request with params (compatible at runtime)
@@ -66,7 +79,24 @@ export async function createHttpServer() {
           return new Response("WebSocket upgrade failed", { status: 400 });
         }
 
-        // Auth middleware — runs before all HTTP routes
+        // Routing split: player-app endpoints are gated by playerAuth, never by admin auth.
+        if (
+          url.pathname.startsWith("/api/player-auth/") ||
+          url.pathname.startsWith("/api/player/")
+        ) {
+          if (!isPlayerAuthPublicPath(req.method.toUpperCase(), url.pathname)) {
+            const { response: pResp, ctx: pCtx } = await requirePlayerAuth(req);
+            if (pResp) {
+              return withCors(pResp, origin);
+            }
+            Object.assign(req, { playerAuthCtx: pCtx as PlayerAuthContext });
+          }
+          const playerResponse = await router(req);
+          if (playerResponse) return withCors(playerResponse, origin);
+          return withCors(new Response("Not Found", { status: 404 }), origin);
+        }
+
+        // Admin auth middleware — runs before remaining HTTP routes
         const { response: authResponse, ctx } = await requireAuth(req);
         if (authResponse) {
           return withCors(authResponse, origin);

@@ -13,6 +13,8 @@ const PUBLIC_EXACT_ROUTES: Array<{ method: string; path: string }> = [
 function isPublicRoute(method: string, pathname: string): boolean {
   if (PUBLIC_EXACT_ROUTES.some((r) => r.method === method && r.path === pathname)) return true;
   if (method === "GET" && pathname.startsWith("/public/")) return true;
+  // Player auth subsystem owns its own routing — admin middleware never touches it.
+  if (pathname.startsWith("/api/player-auth/") || pathname.startsWith("/api/player/")) return true;
   return false;
 }
 
