@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens — mirror app.html.
+   Use Tailwind classes via tailwind.config.ts; raw CSS vars stay available for one-off
+   gradients and components ported straight from the prototype. */
+:root {
+  --bg: #f4ecdd;
+  --bg-2: #ede2ce;
+  --bg-3: #e4d5ba;
+  --paper: #fbf5e9;
+  --ink: #1b1612;
+  --ink-2: #4a3f33;
+  --ink-3: #8a7b68;
+  --line: rgba(27, 22, 18, 0.12);
+  --line-2: rgba(27, 22, 18, 0.07);
+  --gold: #b58a3c;
+  --gold-2: #8c6520;
+  --crimson: #7a2e2e;
+  --green: #4a6b3e;
+
+  --r-sm: 10px;
+  --r-md: 18px;
+  --r-lg: 24px;
+  --r-xl: 32px;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background:
+    radial-gradient(1200px 800px at 20% 0%, #f8f0de 0%, transparent 60%),
+    radial-gradient(900px 700px at 100% 100%, #e9d9bc 0%, transparent 55%),
+    #e8dcc2;
+  color: var(--ink);
+  font-family: var(--font-sans), -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+/* Hide scrollbars inside scrollable panes — matches the prototype's `.scroll` class. */
+.scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.scroll {
+  scrollbar-width: none;
+}
+
+.serif {
+  font-family: var(--font-sans), -apple-system, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+.cinzel {
+  font-family: var(--font-cinzel), 'Trajan Pro', serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--crimson);
+  box-shadow: 0 0 0 3px rgba(122, 46, 46, 0.18);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(122, 46, 46, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(122, 46, 46, 0.05);
+  }
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(27, 22, 18, 0.06) 1px, transparent 1px);
+  background-size: 3px 3px;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+}
