@@ -9,7 +9,8 @@
     "start": "bun run src/index.ts",
     "build": "bun build src/index.ts --target=bun --outdir=dist",
     "lint": "biome check .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "seed:player-user": "bun run scripts/seed-player-user.ts"
   },
   "dependencies": {
     "@admin/schemas": "workspace:*",

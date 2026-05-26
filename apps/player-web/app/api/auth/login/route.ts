@@ -18,11 +18,33 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'email and password required' }, { status: 400 });
   }
 
-  const upstream = await fetch(`${apiBaseUrl()}/api/player-auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+  const upstreamUrl = `${apiBaseUrl()}/api/player-auth/login`;
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(upstreamUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (err) {
+    // Surface the real fetch failure (connection refused, DNS, TLS, etc.) so
+    // we get a useful message in Vercel function logs instead of a bare 500.
+    console.error('[login] upstream fetch failed', {
+      upstreamUrl,
+      hasApiUrlEnv: Boolean(process.env.NEXT_PUBLIC_API_URL),
+      error: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : String(err),
+    });
+    return NextResponse.json(
+      {
+        error: 'Backend unreachable',
+        detail: err instanceof Error ? err.message : String(err),
+        upstreamUrl,
+      },
+      { status: 502 },
+    );
+  }
+
   const text = await upstream.text();
   let data: unknown;
   try {
@@ -32,12 +54,18 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   if (!upstream.ok) {
+    console.warn('[login] upstream non-2xx', {
+      upstreamUrl,
+      status: upstream.status,
+      body: text.slice(0, 500),
+    });
     return NextResponse.json(
       data ?? { error: `HTTP ${upstream.status}` },
       { status: upstream.status },
     );
   }
   if (!data || typeof data !== 'object' || !('token' in data)) {
+    console.error('[login] upstream returned bad body', { upstreamUrl, body: text.slice(0, 500) });
     return NextResponse.json({ error: 'Bad upstream response' }, { status: 502 });
   }
 
