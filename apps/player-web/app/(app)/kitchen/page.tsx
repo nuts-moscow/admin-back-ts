@@ -1,9 +1,7 @@
-import { requirePlayerSession } from '@/lib/auth';
+'use client';
+
 import { KitchenScreen } from './kitchen-screen';
 
-export const dynamic = 'force-dynamic';
-
-export default async function KitchenPage() {
-  await requirePlayerSession();
+export default function KitchenPage() {
   return <KitchenScreen />;
 }

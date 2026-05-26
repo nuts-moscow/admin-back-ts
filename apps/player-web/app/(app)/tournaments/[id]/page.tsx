@@ -1,47 +1,77 @@
-import { notFound } from 'next/navigation';
+'use client';
+
+import { notFound, useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
   PlayerTournamentPlayer,
   PlayerTournamentTable,
 } from '@admin/schemas';
-import { fetchPlayerApi, PlayerApiError } from '@/lib/api';
-import { requirePlayerSession } from '@/lib/auth';
+import { PlayerApiError, fetchPlayerApi } from '@/lib/api';
 import { TournamentScreen } from './tournament-screen';
 
-export const dynamic = 'force-dynamic';
+interface TournamentData {
+  detail: PlayerTournamentDetail;
+  players: PlayerTournamentPlayer[];
+  tables: PlayerTournamentTable[];
+  myState: PlayerMyTournamentState | null;
+}
 
-export default async function TournamentPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePlayerSession();
-  const { id } = await params;
-  const tournamentId = parseInt(id, 10);
-  if (Number.isNaN(tournamentId)) notFound();
+export default function TournamentPage() {
+  const params = useParams<{ id: string }>();
+  const tournamentId = parseInt(params.id, 10);
+  const [data, setData] = useState<TournamentData | null>(null);
+  const [missing, setMissing] = useState(false);
 
-  let detail: PlayerTournamentDetail;
-  try {
-    detail = await fetchPlayerApi<PlayerTournamentDetail>(`/api/player/tournaments/${tournamentId}`);
-  } catch (err) {
-    if (err instanceof PlayerApiError && err.status === 404) notFound();
-    throw err;
-  }
-  const [playersRes, tablesRes, myState] = await Promise.all([
-    fetchPlayerApi<{ players: PlayerTournamentPlayer[] }>(
-      `/api/player/tournaments/${tournamentId}/players`,
-    ).catch(() => ({ players: [] })),
-    fetchPlayerApi<{ tables: PlayerTournamentTable[] }>(
-      `/api/player/tournaments/${tournamentId}/tables`,
-    ).catch(() => ({ tables: [] })),
-    fetchPlayerApi<PlayerMyTournamentState>(
-      `/api/player/me/tournaments/${tournamentId}/state`,
-    ).catch(() => null),
-  ]);
+  useEffect(() => {
+    if (Number.isNaN(tournamentId)) {
+      setMissing(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const detail = await fetchPlayerApi<PlayerTournamentDetail>(
+          `/api/player/tournaments/${tournamentId}`,
+        );
+        const [playersRes, tablesRes, myState] = await Promise.all([
+          fetchPlayerApi<{ players: PlayerTournamentPlayer[] }>(
+            `/api/player/tournaments/${tournamentId}/players`,
+          ).catch(() => ({ players: [] })),
+          fetchPlayerApi<{ tables: PlayerTournamentTable[] }>(
+            `/api/player/tournaments/${tournamentId}/tables`,
+          ).catch(() => ({ tables: [] })),
+          fetchPlayerApi<PlayerMyTournamentState>(
+            `/api/player/me/tournaments/${tournamentId}/state`,
+          ).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setData({
+          detail,
+          players: playersRes.players,
+          tables: tablesRes.tables,
+          myState,
+        });
+      } catch (err) {
+        if (err instanceof PlayerApiError && err.status === 404) {
+          if (!cancelled) setMissing(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId]);
 
+  if (missing) notFound();
+  if (!data) return null;
   return (
     <TournamentScreen
-      detail={detail}
-      players={playersRes.players}
-      tables={tablesRes.tables}
-      myState={myState}
+      detail={data.detail}
+      players={data.players}
+      tables={data.tables}
+      myState={data.myState}
     />
   );
 }

@@ -8,6 +8,7 @@ import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
 import { LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
+import { logoutPlayer } from '@/lib/auth';
 import { formatJoinedAt, formatNumberRu, formatTournamentDate } from '@/lib/format';
 
 type Tab = 'stats' | 'achievements' | 'history';
@@ -23,7 +24,7 @@ export function ProfileScreen({ me, history }: Props) {
   const [pending, startTransition] = useTransition();
 
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+    await logoutPlayer();
     startTransition(() => {
       router.replace('/login');
       router.refresh();

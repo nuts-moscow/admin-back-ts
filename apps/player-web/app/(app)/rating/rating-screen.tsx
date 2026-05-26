@@ -11,6 +11,7 @@ import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
 import { ArrowDownIcon, ArrowUpIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
+import { fetchPlayerApi } from '@/lib/api';
 import { formatNumberRu } from '@/lib/format';
 
 type Tab = 'season' | 'elo' | 'hof';
@@ -45,12 +46,12 @@ export function RatingScreen({
     const [y, m] = seasonKey.split('-').map(Number);
     let cancelled = false;
     void Promise.all([
-      fetch(`/api/player-proxy/rating/season?year=${y}&month=${m}&limit=50`)
-        .then((r) => r.json())
-        .catch(() => ({ entries: [] })) as Promise<{ entries: PlayerSeasonRatingEntry[] }>,
-      fetch(`/api/player-proxy/rating/elo-lite?year=${y}&month=${m}&limit=50`)
-        .then((r) => r.json())
-        .catch(() => ({ entries: [] })) as Promise<{ entries: PlayerEloLiteEntry[] }>,
+      fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
+        `/api/player/rating/season?year=${y}&month=${m}&limit=50`,
+      ).catch(() => ({ entries: [] })),
+      fetchPlayerApi<{ entries: PlayerEloLiteEntry[] }>(
+        `/api/player/rating/elo-lite?year=${y}&month=${m}&limit=50`,
+      ).catch(() => ({ entries: [] })),
     ]).then(([s, e]) => {
       if (cancelled) return;
       setEntries(s.entries);

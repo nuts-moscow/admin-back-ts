@@ -9,6 +9,7 @@ import { ChevRIcon, UsersIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { SectionTitle } from '@/components/section-title';
+import { fetchPlayerApi } from '@/lib/api';
 import { formatNumberRu, formatRub, formatTournamentDate } from '@/lib/format';
 
 type Tab = 'upcoming' | 'history';
@@ -211,16 +212,16 @@ function UpcomingCard({ u }: { u: PlayerTournamentSummary }) {
 
   async function register() {
     setError(null);
-    const res = await fetch(`/api/player-proxy/tournaments/${u.id}/register`, {
-      method: 'POST',
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? 'Ошибка');
-      return;
+    try {
+      await fetchPlayerApi(`/api/player/tournaments/${u.id}/register`, {
+        method: 'POST',
+        body: {},
+      });
+      setRegistered(true);
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка');
     }
-    setRegistered(true);
-    startTransition(() => router.refresh());
   }
 
   return (

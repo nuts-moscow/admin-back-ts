@@ -1,7 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getStoredToken } from '@/lib/api';
+import { loginPlayer } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -10,24 +12,21 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // If user is already logged in, bounce home.
+  useEffect(() => {
+    if (getStoredToken()) {
+      router.replace('/');
+    }
+  }, [router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
-      });
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) {
-        setError(data?.error ?? `Ошибка входа (${res.status})`);
-        return;
-      }
+      await loginPlayer(email, password);
       router.replace('/');
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Сетевая ошибка');
     } finally {
@@ -50,9 +49,7 @@ export default function LoginPage() {
           className="bg-paper border border-line-2 rounded-md p-6 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset,0_6px_14px_-10px_rgba(27,22,18,0.18)]"
         >
           <label className="block">
-            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">
-              Email
-            </span>
+            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">Email</span>
             <input
               type="email"
               autoComplete="email"
@@ -64,9 +61,7 @@ export default function LoginPage() {
           </label>
 
           <label className="block mt-5">
-            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">
-              Пароль
-            </span>
+            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">Пароль</span>
             <input
               type="password"
               autoComplete="current-password"

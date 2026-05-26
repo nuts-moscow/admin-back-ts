@@ -1,31 +1,90 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import type { PlayerAuthMeResponse } from '@admin/schemas';
-import { PLAYER_TOKEN_COOKIE, PlayerApiError, fetchPlayerApi } from './api';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import type { PlayerAuthMeResponse, PlayerLoginResponse } from '@admin/schemas';
+import { apiBaseUrl, clearStoredToken, fetchPlayerApi, getStoredToken, setStoredToken } from './api';
 
 export type PlayerSession = PlayerAuthMeResponse;
 
-/**
- * Returns the current player session, or null if no/invalid token.
- * Use in RSC layouts/pages. Does not redirect.
- */
-export async function getPlayerSession(): Promise<PlayerSession | null> {
-  const store = await cookies();
-  const token = store.get(PLAYER_TOKEN_COOKIE)?.value ?? null;
-  if (!token) return null;
+export async function loginPlayer(email: string, password: string): Promise<PlayerLoginResponse> {
+  const res = await fetch(`${apiBaseUrl()}/api/player-auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    credentials: 'omit',
+  });
+  const text = await res.text();
+  let data: unknown;
   try {
-    return await fetchPlayerApi<PlayerSession>('/api/player-auth/me', { token });
-  } catch (err) {
-    if (err instanceof PlayerApiError && err.status === 401) return null;
-    throw err;
+    data = text.length > 0 ? JSON.parse(text) : null;
+  } catch {
+    data = null;
   }
+  if (!res.ok) {
+    const msg =
+      data && typeof data === 'object' && 'error' in data
+        ? String((data as { error: unknown }).error)
+        : `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  if (!data || typeof data !== 'object' || !('token' in data)) {
+    throw new Error('Bad response');
+  }
+  const token = (data as { token: unknown }).token;
+  if (typeof token !== 'string') throw new Error('Bad response');
+  setStoredToken(token);
+  return data as PlayerLoginResponse;
+}
+
+export async function logoutPlayer(): Promise<void> {
+  try {
+    await fetchPlayerApi('/api/player-auth/logout', { method: 'POST' });
+  } catch {
+    // even if upstream fails, drop the token so the user lands on /login
+  }
+  clearStoredToken();
 }
 
 /**
- * Returns the session or redirects to /login. Use in auth-guarded layouts.
+ * Hook that ensures the user is logged in. While auth check is in flight
+ * returns `status: 'loading'`. If no token, kicks to /login and returns
+ * `'loading'` forever (UI shows nothing). If token is good, returns
+ * `'ready'` with the resolved session.
  */
-export async function requirePlayerSession(): Promise<PlayerSession> {
-  const session = await getPlayerSession();
-  if (!session) redirect('/login');
-  return session;
+export function usePlayerSession(): {
+  status: 'loading' | 'ready';
+  session: PlayerSession | null;
+} {
+  const router = useRouter();
+  const [state, setState] = useState<{ status: 'loading' | 'ready'; session: PlayerSession | null }>(
+    {
+      status: 'loading',
+      session: null,
+    },
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = getStoredToken();
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+    fetchPlayerApi<PlayerSession>('/api/player-auth/me')
+      .then((session) => {
+        if (cancelled) return;
+        setState({ status: 'ready', session });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        clearStoredToken();
+        router.replace('/login');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  return state;
 }
