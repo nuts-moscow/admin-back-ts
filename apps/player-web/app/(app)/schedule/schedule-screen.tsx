@@ -45,7 +45,7 @@ export function ScheduleScreen({
             <button
               key={x.id}
               onClick={() => setTab(x.id)}
-              className="flex-1 px-3 py-2 border-0 rounded-[9px] cursor-pointer text-xs font-bold uppercase tracking-wider"
+              className="flex-1 px-3 py-2 border-0 rounded-full cursor-pointer text-xs font-bold uppercase tracking-wider"
               style={{
                 background: tab === x.id ? 'var(--paper)' : 'transparent',
                 color: tab === x.id ? 'var(--ink)' : 'var(--ink-3)',

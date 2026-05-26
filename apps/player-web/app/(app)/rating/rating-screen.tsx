@@ -81,7 +81,7 @@ export function RatingScreen({
             <button
               key={x.id}
               onClick={() => setTab(x.id)}
-              className="flex-1 px-2 py-2 border-0 rounded-[9px] cursor-pointer font-bold uppercase tracking-wider"
+              className="flex-1 px-2 py-2 border-0 rounded-full cursor-pointer font-bold uppercase tracking-wider"
               style={{
                 fontSize: 11.5,
                 background: tab === x.id ? 'var(--paper)' : 'transparent',

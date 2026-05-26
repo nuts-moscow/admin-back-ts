@@ -158,8 +158,14 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
           </div>
         </div>
 
+        {/*
+          justify-between spreads the 4 stats so the visual gap between each
+          adjacent pair is equal, regardless of how wide each stat's content
+          actually is. Equal-width grid columns made ИГРОКИ leave a big hole
+          before СРЕДНИЙ СТЭК; this fixes that.
+        */}
         <div
-          className="mt-4 relative grid grid-cols-2 gap-2"
+          className="mt-4 relative flex flex-nowrap justify-between overflow-hidden"
           style={{
             padding: 12,
             borderRadius: 14,
@@ -181,60 +187,13 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
             and surface it in PlayerTournamentDetail.
           */}
           <DarkStat
-            label="Late reg"
+            label="Поздняя регистрация"
             v={detail.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
           />
         </div>
       </div>
 
-      <div className="px-5 pt-4">
-        <Card padding={14} className="bg-bg-3">
-          <div className="flex items-center gap-3">
-            <Avatar name={myState ? 'Вы' : '?'} ring size={44} />
-            <div className="flex-1">
-              <div
-                className="uppercase font-bold"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: 0.6,
-                  color: 'var(--ink-3)',
-                }}
-              >
-                Моё положение
-              </div>
-              <div className="serif text-[22px] font-semibold mt-0.5">
-                {myState
-                  ? `Стол ${myState.table ?? '—'}  место ${myState.seat ?? '—'}`
-                  : 'Не зарегистрированы'}
-              </div>
-            </div>
-            <div className="text-right">
-              <div
-                className="uppercase font-bold"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: 0.6,
-                  color: 'var(--ink-3)',
-                }}
-              >
-                Мой стек
-              </div>
-              <div
-                className="mono serif"
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: 'var(--gold-2)',
-                }}
-              >
-                {formatNumberRu(myState?.stack)}
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="px-5 pt-3.5 pb-3">
+      <div className="px-5 pt-4 pb-3">
         <div
           className="flex gap-1 rounded-xl p-1"
           style={{ background: 'rgba(27,22,18,0.06)' }}
@@ -247,7 +206,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
             <button
               key={x.id}
               onClick={() => setView(x.id)}
-              className="flex-1 border-0 rounded-[9px] cursor-pointer font-bold uppercase tracking-wider"
+              className="flex-1 border-0 rounded-full cursor-pointer font-bold uppercase tracking-wider"
               style={{
                 padding: '8px 12px',
                 fontSize: 11.5,
@@ -280,11 +239,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               <KV k="Орг. взнос" v={formatNumberRu(detail.buyin)} />
               <KV k="Стартовый стек" v={formatNumberRu(detail.startingStack)} />
               <KV
-                k="Поздняя регистрация"
-                v={detail.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
-              />
-              <KV
-                k="Ре-ентри"
+                k="Ограничение по повторным входам до:"
                 v={
                   detail.structure
                     ? detail.structure.freezeOutEnabled
@@ -295,61 +250,72 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               />
             </div>
           </Card>
-          <Card padding={14}>
-            <div className="flex justify-between items-center mb-2">
-              <div
-                className="uppercase font-bold"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: 0.6,
-                  color: 'var(--ink-3)',
-                }}
-              >
-                Распределение игроков
-              </div>
-              <div className="mono text-[11px] font-semibold text-ink">
-                {detail.aliveCount}/{detail.registeredCount}
-              </div>
-            </div>
-            <PlayerBar reg={detail.registeredCount} alive={detail.aliveCount} />
-          </Card>
         </div>
       )}
 
       {view === 'players' && (
         <div className="px-5">
           <Card padding={0}>
-            {players.map((p, i) => (
-              <div
-                key={`${p.playerId}-${i}`}
-                className="flex items-center gap-2.5 px-3 py-2.5"
-                style={{
-                  borderBottom: i < players.length - 1 ? '1px solid var(--line-2)' : 'none',
-                  background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
-                  opacity: p.status === 'out' ? 0.4 : 1,
-                }}
-              >
-                <Avatar name={p.nickname} size={32} ring={p.isMe} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-ink">{p.nickname}</div>
-                  <div className="mono text-[10.5px] text-ink-3 mt-0.5">
-                    {p.status === 'out' ? `выбыл #${p.place ?? '—'}` : `Стол ${p.table ?? '—'}`}
-                  </div>
-                </div>
-                <div className="text-right">
+            {/* Column header */}
+            <div
+              className="px-3 py-2 uppercase font-bold text-ink-3"
+              style={{
+                fontSize: 10,
+                letterSpacing: 0.6,
+                borderBottom: '1px solid var(--line-2)',
+              }}
+            >
+              Место
+            </div>
+            {/* Active players (place === null) at the top. Among the
+                eliminated, sort by display ASC: first-to-bust (#1) just
+                below the active section, then #2, #3, …, runner-up at the
+                very bottom. */}
+            {[...players]
+              .sort((a, b) => {
+                if (a.place === null && b.place === null) return 0;
+                if (a.place === null) return -1;
+                if (b.place === null) return 1;
+                return b.place - a.place;
+              })
+              .map((p, i, sorted) => {
+                /* Eliminated → inverted order from the start of the
+                   tournament (#1 = first to bust). Sole remaining alive
+                   player → автоматически "1" (1st place, the de-facto
+                   winner). Multiple still in game → no number yet. */
+                const displayPlace =
+                  p.status === 'out' && p.place != null
+                    ? detail.registeredCount - p.place + 1
+                    : p.status !== 'out' && detail.aliveCount === 1
+                      ? 1
+                      : null;
+                return (
                   <div
-                    className="mono"
+                    key={`${p.playerId}-${i}`}
+                    className="flex items-center gap-2.5 px-3 py-2.5"
                     style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: p.status === 'out' ? 'var(--ink-3)' : 'var(--ink)',
+                      borderBottom: i < sorted.length - 1 ? '1px solid var(--line-2)' : 'none',
+                      background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
+                      opacity: p.status === 'out' ? 0.4 : 1,
                     }}
                   >
-                    {p.status === 'out' ? '—' : formatNumberRu(p.stack)}
+                    <div
+                      className="serif font-bold text-ink shrink-0 text-center"
+                      style={{
+                        fontSize: 22,
+                        lineHeight: 1,
+                        minWidth: 32,
+                      }}
+                    >
+                      {displayPlace ?? ''}
+                    </div>
+                    <Avatar name={p.nickname} size={32} ring={p.isMe} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-ink">{p.nickname}</div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
             {players.length === 0 && (
               <div className="text-center text-[11px] text-ink-3 py-6">Никто не зарегистрирован</div>
             )}
@@ -418,11 +384,15 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
 function DarkStat({ label, v, sub }: { label: string; v: string; sub?: string }) {
   return (
     <div>
+      {/* nowrap on the label so it stays on one line and the cell is sized
+          by its natural width — the parent uses flex-nowrap, so all 4 stats
+          pack into a single row. */}
       <div
         className="uppercase font-bold"
         style={{
-          fontSize: 9,
-          letterSpacing: 0.6,
+          fontSize: 8.5,
+          letterSpacing: 0.3,
+          whiteSpace: 'nowrap',
           color: 'rgba(251,245,233,0.5)',
         }}
       >
@@ -431,11 +401,12 @@ function DarkStat({ label, v, sub }: { label: string; v: string; sub?: string })
       <div
         className="serif"
         style={{
-          fontSize: 19,
+          fontSize: 17,
           fontWeight: 600,
           color: 'var(--paper)',
           lineHeight: 1.1,
           marginTop: 2,
+          whiteSpace: 'nowrap',
         }}
       >
         {v}
@@ -452,14 +423,3 @@ function DarkStat({ label, v, sub }: { label: string; v: string; sub?: string })
   );
 }
 
-function PlayerBar({ reg, alive }: { reg: number; alive: number }) {
-  const pct = reg > 0 ? (alive / reg) * 100 : 0;
-  return (
-    <div
-      className="rounded-[5px] overflow-hidden flex"
-      style={{ height: 10, background: 'rgba(122,46,46,0.18)' }}
-    >
-      <div style={{ width: `${pct}%`, background: 'var(--green)' }} />
-    </div>
-  );
-}

@@ -139,7 +139,7 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                     {p.rank}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-bold text-ink truncate">{p.name ?? p.nickname}</div>
+                    <div className="text-[11px] font-bold text-ink truncate">{p.nickname}</div>
                     <div className="mono text-[9.5px] text-ink-3">
                       {formatNumberRu(p.points)} pts
                     </div>
