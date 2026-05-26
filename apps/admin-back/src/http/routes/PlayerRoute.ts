@@ -348,9 +348,25 @@ export function playerRoutes() {
         );
         const fieldByTournament = new Map<number, number>();
         for (const { id, rows } of resultsByTournament) {
+          // Field size = number of players who actually played. Some
+          // historic tournaments have fewer result rows than the highest
+          // recorded placement (e.g. partial backfill / lost rows), which
+          // would make "fieldSize - place + 1" go negative on the FE.
+          // Floor with the max placement found in either the result rows
+          // or the rating facts to keep the inversion well-defined.
+          const rowCount = rows.filter(
+            (r) => r.status !== "Registered" && r.status !== "registered"
+          ).length || rows.length;
+          const maxPlacementInResults = rows.reduce(
+            (m, r) => Math.max(m, r.placement ?? 0),
+            0
+          );
+          const maxPlacementInFacts = factsRes
+            .filter((f) => f.tournamentId === id)
+            .reduce((m, f) => Math.max(m, f.placement ?? 0), 0);
           fieldByTournament.set(
             id,
-            rows.filter((r) => r.status !== "Registered" && r.status !== "registered").length || rows.length
+            Math.max(rowCount, maxPlacementInResults, maxPlacementInFacts)
           );
         }
 
@@ -570,17 +586,50 @@ export function playerRoutes() {
         const id = parseInt(req.params.id, 10);
         if (Number.isNaN(id) || id < 1) return badRequest("Invalid id");
         const { states, nicknameByPlayerId } = await loadStatesAndNicknames(id);
+        // Active / in-progress tournaments come from the InGameUserState cache.
+        if (states.length > 0) {
+          return Response.json({
+            players: states.map((s) => {
+              const pid = Number(s.playerId);
+              return {
+                playerId: pid,
+                nickname: nicknameByPlayerId.get(pid) ?? `#${pid}`,
+                status: statusForWire(s),
+                stack: null,
+                table: tableFromState(s),
+                seat: null,
+                place: s.placement,
+                isMe: pid === ctx.playerId,
+              };
+            }),
+          });
+        }
+        // Completed tournaments have their cache wiped — fall back to the
+        // persisted snapshot in tournament_result_players.
+        const resultRows = await tournamentResultRepository.findByTournamentId(id);
+        if (resultRows.length === 0) {
+          return Response.json({ players: [] });
+        }
+        const nicknames = new Map<number, string>();
+        await Promise.all(
+          resultRows.map(async (r) => {
+            const pid = Number(r.playerId);
+            if (Number.isNaN(pid) || nicknames.has(pid)) return;
+            const nick = await playerRepository.getNicknameById(String(pid));
+            if (nick) nicknames.set(pid, nick);
+          })
+        );
         return Response.json({
-          players: states.map((s) => {
-            const pid = Number(s.playerId);
+          players: resultRows.map((r) => {
+            const pid = Number(r.playerId);
             return {
               playerId: pid,
-              nickname: nicknameByPlayerId.get(pid) ?? `#${pid}`,
-              status: statusForWire(s),
+              nickname: nicknames.get(pid) ?? `#${pid}`,
+              status: "out" as const,
               stack: null,
-              table: tableFromState(s),
+              table: null,
               seat: null,
-              place: s.placement,
+              place: r.placement,
               isMe: pid === ctx.playerId,
             };
           }),

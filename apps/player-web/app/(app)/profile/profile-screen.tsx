@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { PlayerMeProfile, PlayerTournamentHistoryEntry } from '@admin/schemas';
@@ -260,46 +261,61 @@ export function ProfileScreen({ me, history }: Props) {
             </Card>
           )}
           {history.map((h) => (
-            <Card key={h.tournamentId} padding={14}>
-              <div className="flex justify-between items-start">
-                <div>
-                  <div
-                    className="mono"
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--ink-3)',
-                      fontWeight: 600,
-                      letterSpacing: 0.4,
-                    }}
-                  >
-                    {formatTournamentDate(new Date(h.date).getTime()).date}
+            <Link key={h.tournamentId} href={`/tournaments/${h.tournamentId}`} className="block">
+              <Card padding={14}>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div
+                      className="mono"
+                      style={{
+                        fontSize: 10,
+                        color: 'var(--ink-3)',
+                        fontWeight: 600,
+                        letterSpacing: 0.4,
+                      }}
+                    >
+                      {formatTournamentDate(new Date(h.date).getTime()).date}
+                    </div>
+                    <div className="serif text-[17px] font-semibold leading-tight mt-1">{h.name}</div>
                   </div>
-                  <div className="serif text-[17px] font-semibold leading-tight mt-1">{h.name}</div>
+                  <div className="text-right">
+                    {(() => {
+                      /* Backend `placement` is elimination order from start
+                         (1 = first bust, N = winner). Invert for display. */
+                      const displayPlace =
+                        h.place != null && h.fieldSize > 0
+                          ? h.fieldSize - h.place + 1
+                          : null;
+                      return (
+                        <div
+                          className="serif font-bold"
+                          style={{
+                            fontSize: 18,
+                            color:
+                              displayPlace != null && displayPlace <= 3
+                                ? 'var(--gold-2)'
+                                : 'var(--ink)',
+                          }}
+                        >
+                          {displayPlace ?? '—'}
+                          <span className="text-xs text-ink-3"> / {h.fieldSize}</span>
+                        </div>
+                      );
+                    })()}
+                    <div
+                      className="mono mt-0.5"
+                      style={{
+                        fontSize: 11,
+                        color: h.pointsDelta >= 0 ? 'var(--green)' : 'var(--crimson)',
+                      }}
+                    >
+                      {h.pointsDelta >= 0 ? '+' : ''}
+                      {formatNumberRu(h.pointsDelta)} баллов
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div
-                    className="serif font-bold"
-                    style={{
-                      fontSize: 18,
-                      color: h.place != null && h.place <= 3 ? 'var(--gold-2)' : 'var(--ink)',
-                    }}
-                  >
-                    {h.place ?? '—'}
-                    <span className="text-xs text-ink-3"> / {h.fieldSize}</span>
-                  </div>
-                  <div
-                    className="mono mt-0.5"
-                    style={{
-                      fontSize: 11,
-                      color: h.pointsDelta >= 0 ? 'var(--green)' : 'var(--crimson)',
-                    }}
-                  >
-                    {h.pointsDelta >= 0 ? '+' : ''}
-                    {formatNumberRu(h.pointsDelta)} pts
-                  </div>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
