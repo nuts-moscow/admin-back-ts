@@ -10,7 +10,7 @@ import type {
 } from '@admin/schemas';
 import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
-import { ChevLIcon, PauseIcon, PlayIcon } from '@/components/icons';
+import { ChevLIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { formatNumberRu, formatSeconds } from '@/lib/format';
@@ -26,7 +26,6 @@ interface Props {
 
 export function TournamentScreen({ detail, players, tables, myState }: Props) {
   const [view, setView] = useState<Tab>('overview');
-  const [running, setRunning] = useState(true);
   const [s, setS] = useState<number>(detail.levelTimeRemainingSec ?? 0);
 
   useEffect(() => {
@@ -34,10 +33,9 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
   }, [detail.levelTimeRemainingSec]);
 
   useEffect(() => {
-    if (!running) return;
     const id = setInterval(() => setS((v) => (v > 0 ? v - 1 : 0)), 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, []);
 
   const levelTotal = (detail.currentBlinds?.durationMin ?? 20) * 60;
   const pct = Math.max(0, Math.min(100, (s / levelTotal) * 100));
@@ -110,8 +108,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                   : '— / —'}
                 {detail.currentBlinds && detail.currentBlinds.ante > 0 && (
                   <span style={{ color: 'rgba(251,245,233,0.5)' }}>
-                    {' '}
-                    · ante {detail.currentBlinds.ante}
+                    {'  '}ante {detail.currentBlinds.ante}
                   </span>
                 )}
               </div>
@@ -135,7 +132,6 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
             </div>
           </div>
           <div
-            className="flex justify-between items-center"
             style={{
               fontFamily: 'var(--font-mono), ui-monospace, monospace',
               fontSize: 64,
@@ -145,20 +141,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               color: 'var(--paper)',
             }}
           >
-            <span>{formatSeconds(s)}</span>
-            <button
-              type="button"
-              onClick={() => setRunning((r) => !r)}
-              className="w-11 h-11 rounded-full flex items-center justify-center cursor-pointer"
-              style={{
-                background: 'rgba(251,245,233,0.1)',
-                border: '1px solid rgba(251,245,233,0.2)',
-                color: 'var(--paper)',
-              }}
-              aria-label={running ? 'Пауза' : 'Запустить'}
-            >
-              {running ? <PauseIcon size={16} className="text-paper" /> : <PlayIcon size={16} className="text-paper" />}
-            </button>
+            {formatSeconds(s)}
           </div>
           <div
             className="rounded-sm mt-3 overflow-hidden"
@@ -176,7 +159,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         </div>
 
         <div
-          className="mt-4 relative grid grid-cols-4 gap-2"
+          className="mt-4 relative grid grid-cols-2 gap-2"
           style={{
             padding: 12,
             borderRadius: 14,
@@ -184,17 +167,22 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
             border: '1px solid rgba(251,245,233,0.08)',
           }}
         >
-          <DarkStat label="Игроки" v={String(detail.aliveCount)} sub={`из ${detail.registeredCount}`} />
-          <DarkStat label="Средний стэк" v={formatNumberRu(detail.averageStack)} sub="фишек" />
           <DarkStat
-            label="Стэк"
-            v={formatNumberRu(detail.startingStack)}
-            sub="старт"
+            label="Игроки"
+            v={`${detail.aliveCount} / ${detail.registeredCount}`}
           />
+          <DarkStat label="Средний стэк" v={formatNumberRu(detail.averageStack)} />
+          <DarkStat label="Стартовый стэк" v={formatNumberRu(detail.startingStack)} />
+          {/*
+            Placeholder for the late-reg countdown. Backend currently only
+            exposes lateRegistrationClosed (boolean), so we can only show the
+            current status. To turn this into a live timer, add a
+            late_registration_closes_at timestamp to the tournaments table
+            and surface it in PlayerTournamentDetail.
+          */}
           <DarkStat
-            label="Выбыли"
-            v={String(detail.eliminatedCount)}
-            sub="игр."
+            label="Late reg"
+            v={detail.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
           />
         </div>
       </div>
@@ -216,7 +204,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               </div>
               <div className="serif text-[22px] font-semibold mt-0.5">
                 {myState
-                  ? `Стол ${myState.table ?? '—'} · место ${myState.seat ?? '—'}`
+                  ? `Стол ${myState.table ?? '—'}  место ${myState.seat ?? '—'}`
                   : 'Не зарегистрированы'}
               </div>
             </div>
@@ -345,7 +333,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] font-semibold text-ink">{p.nickname}</div>
                   <div className="mono text-[10.5px] text-ink-3 mt-0.5">
-                    {p.status === 'out' ? `выбыл · #${p.place ?? '—'}` : `Стол ${p.table ?? '—'}`}
+                    {p.status === 'out' ? `выбыл #${p.place ?? '—'}` : `Стол ${p.table ?? '—'}`}
                   </div>
                 </div>
                 <div className="text-right">
