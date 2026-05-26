@@ -164,7 +164,7 @@ async function buildTournamentSummary(
     id: tournament.id,
     name: tournament.name,
     status: tournament.status,
-    date: tournament.date,
+    date: epochMs(tournament.date),
     buyin: tournament.entryPrice,
     reentryPrice: tournament.reentryPrice,
     guarantee: null,
@@ -195,6 +195,22 @@ async function loadStatesAndNicknames(tournamentId: number): Promise<{
     })
   );
   return { states, nicknameByPlayerId };
+}
+
+/**
+ * The `tournaments.date` column is `bigint` and the rest of the codebase has been
+ * inconsistent about whether it stores Unix **seconds** or **milliseconds**. Old
+ * production rows are seconds (e.g. 1779897600 → 2026-05-21), but JS `new Date()`
+ * and the player-web FE expect milliseconds. Normalize on the API boundary so
+ * downstream consumers always see ms, without having to migrate the DB.
+ *
+ * Heuristic: any value below 10^12 must be seconds (10^12 ms = year 33658, so
+ * any realistic "now"-ish ms value is ≥ 10^12; 10^12 seconds is year 33658, so
+ * any realistic seconds value is ≤ 10^11). Threshold sits comfortably between.
+ */
+function epochMs(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return value < 1_000_000_000_000 ? Math.round(value * 1000) : value;
 }
 
 function tableFromState(state: InGameUserState): number | null {
@@ -344,7 +360,7 @@ export function playerRoutes() {
             if (!t) return null;
             return {
               tournamentId: f.tournamentId,
-              date: t.date,
+              date: epochMs(t.date),
               name: t.name,
               buyin: t.entryPrice,
               place: f.placement,
