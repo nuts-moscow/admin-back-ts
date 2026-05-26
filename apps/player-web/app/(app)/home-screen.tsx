@@ -76,14 +76,14 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                   <Link
                     key={u.id}
                     href={`/tournaments/${u.id}`}
-                    className="h-12 flex items-center gap-2.5 px-3"
+                    className="h-12 flex items-start gap-2.5 px-3 py-1.5"
                     style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none' }}
                   >
-                    {/* Stacked date column (СР on top, 21 big below) next to
-                        the tournament name + time/price block. */}
+                    {/* Stacked date column — day-of-week and number are
+                        grouped at the top, no spacing in between. */}
                     <div className="shrink-0 text-center min-w-[28px]">
                       <div
-                        className="font-semibold uppercase text-ink-3"
+                        className="font-semibold uppercase text-ink-3 leading-none"
                         style={{ fontSize: 10, letterSpacing: 0.5 }}
                       >
                         {fd.day}
@@ -96,7 +96,7 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                       <div className="text-[11px] font-semibold text-ink leading-tight">
                         {u.name}
                       </div>
-                      <div className="mono text-[10px] text-ink-3 mt-px flex gap-2">
+                      <div className="mono text-[10px] text-ink-3 flex gap-2 mt-0.5 leading-none">
                         <span>{fd.time}</span>
                         <span>{formatNumberRu(u.buyin)}</span>
                       </div>
@@ -115,7 +115,7 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
           <Card padding={0} className="overflow-hidden">
             <div className="px-3 pt-3 pb-2 border-b border-line-2">
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
-                Лидеры
+                Лидеры сезона
               </div>
             </div>
             <div>
