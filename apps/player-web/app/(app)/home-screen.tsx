@@ -197,51 +197,41 @@ function ActiveTournamentCard({ t, primary }: { t: PlayerTournamentSummary; prim
         <div className="p-4 relative">
           {(() => {
             const fd = formatTournamentDate(t.date);
+            const dim = primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)';
             return (
               <div className="flex justify-between items-start mb-3.5 gap-3">
-                {/* Date badge to the left of the title — day-of-week on top, day number large below */}
-                <div
-                  className="flex flex-col items-center justify-center flex-shrink-0 pt-0.5"
-                  style={{ minWidth: 40 }}
-                >
-                  <div
-                    className="font-bold uppercase"
-                    style={{
-                      fontSize: 10,
-                      letterSpacing: 0.6,
-                      color: primary ? 'rgba(251,245,233,0.55)' : 'var(--ink-3)',
-                    }}
-                  >
-                    {fd.day}
-                  </div>
-                  <div
-                    className="serif font-bold leading-none mt-0.5"
-                    style={{
-                      fontSize: 30,
-                      color: primary ? 'var(--paper)' : 'var(--ink)',
-                    }}
-                  >
-                    {fd.date.split('.')[0]}
-                  </div>
-                </div>
-
                 <div className="flex-1 min-w-0">
+                  {/*
+                    Metadata row: date + time + status pill, all on one line as
+                    dot-separated chunks. Keeps the title row clean and
+                    full-width below.
+                  */}
+                  {/*
+                    Metadata row: date / time / status as plain space-separated
+                    chunks (no bullet dots). Larger gap between chunks does the
+                    visual separation.
+                  */}
                   <div
-                    className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase"
-                    style={{
-                      letterSpacing: 1,
-                      color: primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)',
-                    }}
+                    className="flex items-center gap-3 text-[10px] font-bold uppercase flex-wrap"
+                    style={{ letterSpacing: 1, color: dim }}
                   >
-                    {t.status === 'in_progress' && <span className="live-dot" />}
-                    {t.status === 'in_progress'
-                      ? `Идёт · уровень ${t.currentLevelNo ?? '—'}`
-                      : 'Поздняя регистрация'}
+                    <span>
+                      {fd.day} {fd.date.split('.')[0]}
+                    </span>
+                    <span>{fd.time}</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      {t.status === 'in_progress' && <span className="live-dot" />}
+                      <span>
+                        {t.status === 'in_progress'
+                          ? `Идёт уровень ${t.currentLevelNo ?? '—'}`
+                          : 'Поздняя регистрация'}
+                      </span>
+                    </span>
                   </div>
                   <div
                     className="serif mt-1.5"
                     style={{
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: 600,
                       lineHeight: 1.1,
                       color: primary ? 'var(--paper)' : 'var(--ink)',
@@ -253,6 +243,7 @@ function ActiveTournamentCard({ t, primary }: { t: PlayerTournamentSummary; prim
 
                 <ChevRIcon
                   size={18}
+                  className="mt-1"
                   style={{ color: primary ? 'rgba(251,245,233,0.5)' : 'var(--ink-3)' }}
                 />
               </div>
