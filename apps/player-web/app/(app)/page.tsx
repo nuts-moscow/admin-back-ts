@@ -33,7 +33,7 @@ export default function HomePage() {
         '/api/player/tournaments/upcoming?limit=5',
       ).catch(() => ({ tournaments: [] })),
       fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
-        `/api/player/rating/season?year=${year}&month=${month}&limit=5`,
+        `/api/player/rating/season?year=${year}&month=${month}&limit=6`,
       ).catch(() => ({ entries: [] })),
     ])
       .then(([me, active, upcoming, season]) => {

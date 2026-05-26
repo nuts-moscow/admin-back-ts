@@ -57,26 +57,26 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
           Ближайшие турниры
         </SectionTitleWithLink>
         {/*
-          Two side-by-side cards. Each row in both cards is a fixed height
-          (ROW_H), so 5 schedule rows and 5 leader rows produce the same
-          card height naturally — no stretching, no filler. Row N on the
-          left ends up at the same vertical position as row N on the right.
+          Equal-width columns. Both cards stretch to the same total height
+          via items-stretch + h-full; inside each card the row container is
+          flex-1 and rows split that height equally — left 5 rows naturally
+          taller than right 6 rows. Card heights match, no filler space.
         */}
-        <div className="grid grid-cols-2 gap-2.5 px-5 items-start">
-          <Card padding={0} className="overflow-hidden">
+        <div className="grid grid-cols-2 gap-2.5 px-5 items-stretch">
+          <Card padding={0} className="overflow-hidden flex flex-col h-full">
             <div className="px-3 pt-3 pb-2 border-b border-line-2">
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
                 Расписание
               </div>
             </div>
-            <div>
+            <div className="flex-1 flex flex-col">
               {upcoming.slice(0, 5).map((u, i, arr) => {
                 const fd = formatTournamentDate(u.date);
                 return (
                   <Link
                     key={u.id}
                     href={`/tournaments/${u.id}`}
-                    className="h-12 flex items-start gap-2.5 px-3 py-1.5"
+                    className="flex-1 flex items-start gap-2.5 px-3 py-2 min-h-[56px]"
                     style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none' }}
                   >
                     {/* Stacked date column — day-of-week and number are
@@ -105,24 +105,24 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                 );
               })}
               {upcoming.length === 0 && (
-                <div className="h-12 flex items-center justify-center text-[11px] text-ink-3">
+                <div className="flex-1 flex items-center justify-center text-[11px] text-ink-3">
                   Нет турниров
                 </div>
               )}
             </div>
           </Card>
 
-          <Card padding={0} className="overflow-hidden">
+          <Card padding={0} className="overflow-hidden flex flex-col h-full">
             <div className="px-3 pt-3 pb-2 border-b border-line-2">
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
                 Лидеры сезона
               </div>
             </div>
-            <div>
-              {leaders.slice(0, 5).map((p, i, arr) => (
+            <div className="flex-1 flex flex-col">
+              {leaders.slice(0, 6).map((p, i, arr) => (
                 <div
                   key={`${p.rank}-${p.playerId}`}
-                  className="h-12 flex items-center gap-2 px-2.5"
+                  className="flex-1 flex items-center gap-2 px-2.5 min-h-[44px]"
                   style={{
                     borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
                     background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
@@ -147,7 +147,7 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                 </div>
               ))}
               {leaders.length === 0 && (
-                <div className="h-12 flex items-center justify-center text-[11px] text-ink-3">
+                <div className="flex-1 flex items-center justify-center text-[11px] text-ink-3">
                   Сезон не начат
                 </div>
               )}
@@ -259,13 +259,13 @@ function ActiveTournamentCard({ t, primary }: { t: PlayerTournamentSummary; prim
           })()}
 
           {/*
-            Asymmetric columns: first two cells (Орг.взнос / Игроки) have short
-            values, the last (Блайнды) carries a wide mono "150000/300000"-style
-            string. Give cols 1-2 a tighter share so cols 3-4 slide left and
-            the long blinds value fits the card width.
+            Flex with fixed gap instead of an equal-width grid — each cell
+            takes its natural content width and items pack left, so cells
+            with short values (Орг. взнос / Игроки) don't leave gaping holes
+            before the wider Средний стэк / Блайнды.
           */}
           <div
-            className="grid grid-cols-[0.65fr_0.65fr_1fr_1.3fr] gap-2 py-3"
+            className="flex flex-nowrap gap-x-4 py-3 overflow-hidden"
             style={{
               borderTop: primary ? '1px solid rgba(251,245,233,0.12)' : '1px solid var(--line-2)',
               borderBottom: primary ? '1px solid rgba(251,245,233,0.12)' : '1px solid var(--line-2)',
@@ -281,12 +281,9 @@ function ActiveTournamentCard({ t, primary }: { t: PlayerTournamentSummary; prim
             />
           </div>
 
-          {/*
-            Same idea as the 4-col row above: shrink the first column (short
-            "30 000" value) so "Поздняя регистрация" slides left and gets the
-            room its long label needs.
-          */}
-          <div className="grid grid-cols-[0.7fr_1.3fr_1fr] gap-2 mt-3">
+          {/* Same flex layout as the 4-stat row above — items pack left with
+              uniform gap so both rows have the same visual rhythm. */}
+          <div className="flex flex-nowrap gap-x-4 mt-3 overflow-hidden">
             <MiniStat
               label="Старт. стек"
               v={formatNumberRu(t.startingStack)}
