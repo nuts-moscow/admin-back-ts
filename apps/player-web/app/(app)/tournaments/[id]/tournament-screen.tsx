@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, useTransition } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
@@ -13,6 +14,7 @@ import { Card } from '@/components/card';
 import { ChevLIcon, MedalIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
+import { fetchPlayerApi } from '@/lib/api';
 import { formatNumberRu, formatSeconds } from '@/lib/format';
 
 type Tab = 'overview' | 'players';
@@ -131,17 +133,24 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               </div>
             </div>
           </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono), ui-monospace, monospace',
-              fontSize: 64,
-              fontWeight: 600,
-              letterSpacing: -1,
-              lineHeight: 1,
-              color: 'var(--paper)',
-            }}
-          >
-            {formatSeconds(s)}
+          <div className="flex items-center justify-between gap-3">
+            <div
+              style={{
+                fontFamily: 'var(--font-mono), ui-monospace, monospace',
+                fontSize: 64,
+                fontWeight: 600,
+                letterSpacing: -1,
+                lineHeight: 1,
+                color: 'var(--paper)',
+              }}
+            >
+              {formatSeconds(s)}
+            </div>
+            <RegisterButton
+              tournamentId={detail.id}
+              initiallyRegistered={myState != null}
+              lateRegClosed={detail.lateRegistrationClosed}
+            />
           </div>
           <div
             className="rounded-sm mt-3 overflow-hidden"
@@ -359,6 +368,74 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
       )}
 
     </ScrollScreen>
+  );
+}
+
+function RegisterButton({
+  tournamentId,
+  initiallyRegistered,
+  lateRegClosed,
+}: {
+  tournamentId: number;
+  initiallyRegistered: boolean;
+  lateRegClosed: boolean;
+}) {
+  const router = useRouter();
+  const [registered, setRegistered] = useState(initiallyRegistered);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  // Hide entirely when late registration has closed AND player isn't already
+  // signed up — they can still see (and cancel) an existing registration.
+  if (lateRegClosed && !registered) return null;
+
+  async function toggle() {
+    setError(null);
+    try {
+      if (registered) {
+        await fetchPlayerApi(`/api/player/tournaments/${tournamentId}/register`, {
+          method: 'DELETE',
+        });
+        setRegistered(false);
+      } else {
+        await fetchPlayerApi(`/api/player/tournaments/${tournamentId}/register`, {
+          method: 'POST',
+          body: {},
+        });
+        setRegistered(true);
+      }
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка');
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={pending}
+        className="border-0 rounded-full font-bold uppercase tracking-wider cursor-pointer disabled:cursor-default"
+        style={{
+          padding: '10px 16px',
+          fontSize: 12,
+          // Cancel: subtle dark transparent; Register: cream paper button.
+          background: registered ? 'rgba(251,245,233,0.1)' : 'var(--paper)',
+          color: registered ? 'var(--paper)' : 'var(--ink)',
+          border: registered ? '1px solid rgba(251,245,233,0.2)' : 'none',
+          fontFamily: 'inherit',
+          opacity: pending ? 0.6 : 1,
+        }}
+      >
+        {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+      </button>
+      {error && (
+        <div className="text-[10px] text-crimson max-w-[140px] text-right">
+          {error}
+        </div>
+      )}
+    </div>
   );
 }
 
