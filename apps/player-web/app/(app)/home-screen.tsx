@@ -68,7 +68,6 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
                 Расписание
               </div>
-              <div className="serif text-base font-semibold mt-px">Эта неделя</div>
             </div>
             <div>
               {upcoming.slice(0, 5).map((u, i, arr) => {
@@ -77,19 +76,29 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                   <Link
                     key={u.id}
                     href={`/tournaments/${u.id}`}
-                    className="h-12 flex items-center gap-2 px-3"
+                    className="h-12 flex items-center gap-2.5 px-3"
                     style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none' }}
                   >
-                    <div className="text-center min-w-[28px]">
-                      <div className="text-[9px] text-ink-3 font-semibold">{fd.day}</div>
-                      <div className="serif text-sm font-bold leading-none">
+                    {/* Stacked date column (СР on top, 21 big below) next to
+                        the tournament name + time/price block. */}
+                    <div className="shrink-0 text-center min-w-[28px]">
+                      <div
+                        className="font-semibold uppercase text-ink-3"
+                        style={{ fontSize: 10, letterSpacing: 0.5 }}
+                      >
+                        {fd.day}
+                      </div>
+                      <div className="serif text-base font-bold leading-none text-ink mt-0.5">
                         {fd.date.split('.')[0]}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-semibold text-ink truncate">{u.name}</div>
-                      <div className="mono text-[10px] text-ink-3 mt-px">
-                        {fd.time} · {formatNumberRu(u.buyin)}
+                      <div className="text-[11px] font-semibold text-ink leading-tight">
+                        {u.name}
+                      </div>
+                      <div className="mono text-[10px] text-ink-3 mt-px flex gap-2">
+                        <span>{fd.time}</span>
+                        <span>{formatNumberRu(u.buyin)}</span>
                       </div>
                     </div>
                   </Link>
@@ -108,7 +117,6 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
                 Лидеры
               </div>
-              <div className="serif text-base font-semibold mt-px">Сезон</div>
             </div>
             <div>
               {leaders.slice(0, 5).map((p, i, arr) => (
