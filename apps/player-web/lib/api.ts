@@ -10,11 +10,11 @@
 
 export const PLAYER_TOKEN_KEY = 'nuts_player_token';
 
+/** Production backend URL, baked into the bundle. Override locally with NEXT_PUBLIC_API_URL. */
+const DEFAULT_API_URL = 'https://nuts.moscow/v2';
+
 export function apiBaseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_API_URL;
-  if (!url) {
-    throw new Error('NEXT_PUBLIC_API_URL is not set');
-  }
+  const url = process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API_URL;
   return url.replace(/\/$/, '');
 }
 
