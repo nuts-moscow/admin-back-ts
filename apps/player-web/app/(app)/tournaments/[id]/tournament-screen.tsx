@@ -10,12 +10,12 @@ import type {
 } from '@admin/schemas';
 import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
-import { ChevLIcon } from '@/components/icons';
+import { ChevLIcon, MedalIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { formatNumberRu, formatSeconds } from '@/lib/format';
 
-type Tab = 'overview' | 'players' | 'tables';
+type Tab = 'overview' | 'players';
 
 interface Props {
   detail: PlayerTournamentDetail;
@@ -201,7 +201,6 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
           {([
             { id: 'overview', l: 'Обзор' },
             { id: 'players', l: 'Игроки' },
-            { id: 'tables', l: 'Столы' },
           ] as const).map((x) => (
             <button
               key={x.id}
@@ -309,7 +308,43 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                     >
                       {displayPlace ?? ''}
                     </div>
-                    <Avatar name={p.nickname} size={32} ring={p.isMe} />
+                    {/* Top-3 finishers get a small medal badge attached to
+                        the bottom-right of the avatar — gold / silver / bronze. */}
+                    {(() => {
+                      const medalColor =
+                        displayPlace === 1
+                          ? '#D4A645'
+                          : displayPlace === 2
+                            ? '#B8B0A0'
+                            : displayPlace === 3
+                              ? '#A87750'
+                              : null;
+                      return (
+                        <div className="relative shrink-0">
+                          <Avatar name={p.nickname} size={32} ring={p.isMe} />
+                          {medalColor != null && (
+                            <div
+                              className="flex items-center justify-center"
+                              style={{
+                                position: 'absolute',
+                                bottom: -2,
+                                right: -2,
+                                width: 16,
+                                height: 16,
+                                borderRadius: '50%',
+                                background: `radial-gradient(circle at 35% 30%, ${medalColor}ee, ${medalColor}88)`,
+                                border: '1.5px solid var(--paper)',
+                                color: 'var(--paper)',
+                                boxShadow:
+                                  'inset 0 -1px 2px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15)',
+                              }}
+                            >
+                              <MedalIcon size={10} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
                       <div className="text-[13px] font-semibold text-ink">{p.nickname}</div>
                     </div>
@@ -323,60 +358,6 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         </div>
       )}
 
-      {view === 'tables' && (
-        <div className="px-5">
-          <div className="grid grid-cols-3 gap-2">
-            {tables.map((tb) => (
-              <div
-                key={tb.table}
-                className="rounded-[14px] flex flex-col items-center justify-center p-2 cursor-pointer"
-                style={{
-                  aspectRatio: '1',
-                  background: tb.mine ? 'var(--ink)' : 'var(--paper)',
-                  color: tb.mine ? 'var(--paper)' : 'var(--ink)',
-                  border: tb.mine ? '1px solid var(--gold)' : '1px solid var(--line-2)',
-                }}
-              >
-                <div
-                  className="uppercase font-semibold"
-                  style={{
-                    fontSize: 9,
-                    letterSpacing: 0.6,
-                    opacity: 0.5,
-                  }}
-                >
-                  Стол
-                </div>
-                <div className="serif text-[28px] font-bold leading-none">T{tb.table}</div>
-                <div
-                  className="mono mt-1 font-semibold"
-                  style={{
-                    fontSize: 10,
-                    color: tb.mine ? 'var(--gold)' : 'var(--ink-3)',
-                  }}
-                >
-                  {tb.playersCount} игр.
-                </div>
-                {tb.mine && (
-                  <div
-                    className="uppercase font-bold mt-0.5"
-                    style={{
-                      fontSize: 8,
-                      letterSpacing: 0.6,
-                      color: 'var(--gold)',
-                    }}
-                  >
-                    Мой
-                  </div>
-                )}
-              </div>
-            ))}
-            {tables.length === 0 && (
-              <div className="col-span-3 text-center text-[11px] text-ink-3 py-6">Столы не назначены</div>
-            )}
-          </div>
-        </div>
-      )}
     </ScrollScreen>
   );
 }
