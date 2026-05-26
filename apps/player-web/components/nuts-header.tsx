@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef, type RefObject } from 'react';
 
 interface NUTSHeaderProps {
@@ -76,6 +77,23 @@ export function NUTSHeader({ scrollRef, dark = false }: NUTSHeaderProps) {
           gap: 10,
         }}
       >
+        <Image
+          src="/assets/nuts-logo.png"
+          alt=""
+          width={28}
+          height={28}
+          priority
+          style={{
+            width: 28,
+            height: 28,
+            objectFit: 'contain',
+            // On dark hero screens, the logo is pure black on a near-black background
+            // → invert it (with a touch of warmth) to keep it readable, same as design.
+            filter: dark
+              ? 'invert(0.92) sepia(0.3) saturate(1.5) hue-rotate(-10deg)'
+              : 'none',
+          }}
+        />
         <div
           className="cinzel"
           style={{

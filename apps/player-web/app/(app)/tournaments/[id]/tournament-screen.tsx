@@ -185,7 +185,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
           }}
         >
           <DarkStat label="Игроки" v={String(detail.aliveCount)} sub={`из ${detail.registeredCount}`} />
-          <DarkStat label="AVG" v={formatNumberRu(detail.averageStack)} sub="фишек" />
+          <DarkStat label="Средний стэк" v={formatNumberRu(detail.averageStack)} sub="фишек" />
           <DarkStat
             label="Стэк"
             v={formatNumberRu(detail.startingStack)}
@@ -289,10 +289,10 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               Структура турнира
             </div>
             <div className="grid grid-cols-2 gap-x-3.5 gap-y-2.5">
-              <KV k="Бай-ин" v={formatNumberRu(detail.buyin)} />
+              <KV k="Орг. взнос" v={formatNumberRu(detail.buyin)} />
               <KV k="Стартовый стек" v={formatNumberRu(detail.startingStack)} />
               <KV
-                k="Late reg"
+                k="Поздняя регистрация"
                 v={detail.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
               />
               <KV

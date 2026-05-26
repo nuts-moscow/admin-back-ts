@@ -30,7 +30,7 @@ export default function HomePage() {
         '/api/player/tournaments?status=in_progress',
       ).catch(() => ({ tournaments: [] })),
       fetchPlayerApi<{ tournaments: PlayerTournamentSummary[] }>(
-        '/api/player/tournaments/upcoming?limit=4',
+        '/api/player/tournaments/upcoming?limit=5',
       ).catch(() => ({ tournaments: [] })),
       fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
         `/api/player/rating/season?year=${year}&month=${month}&limit=5`,

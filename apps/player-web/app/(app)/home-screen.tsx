@@ -56,7 +56,13 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
         <SectionTitleWithLink href="/schedule" action="Открыть">
           Ближайшие турниры
         </SectionTitleWithLink>
-        <div className="grid grid-cols-2 gap-2.5 px-5">
+        {/*
+          Two side-by-side cards. Each row in both cards is a fixed height
+          (ROW_H), so 5 schedule rows and 5 leader rows produce the same
+          card height naturally — no stretching, no filler. Row N on the
+          left ends up at the same vertical position as row N on the right.
+        */}
+        <div className="grid grid-cols-2 gap-2.5 px-5 items-start">
           <Card padding={0} className="overflow-hidden">
             <div className="px-3 pt-3 pb-2 border-b border-line-2">
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
@@ -64,14 +70,14 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
               </div>
               <div className="serif text-base font-semibold mt-px">Эта неделя</div>
             </div>
-            <div className="py-1.5">
-              {upcoming.slice(0, 4).map((u, i, arr) => {
+            <div>
+              {upcoming.slice(0, 5).map((u, i, arr) => {
                 const fd = formatTournamentDate(u.date);
                 return (
                   <Link
                     key={u.id}
                     href={`/tournaments/${u.id}`}
-                    className="flex items-center gap-2 px-3 py-2"
+                    className="h-12 flex items-center gap-2 px-3"
                     style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none' }}
                   >
                     <div className="text-center min-w-[28px]">
@@ -90,7 +96,9 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                 );
               })}
               {upcoming.length === 0 && (
-                <div className="text-center text-[11px] text-ink-3 py-4">Нет турниров</div>
+                <div className="h-12 flex items-center justify-center text-[11px] text-ink-3">
+                  Нет турниров
+                </div>
               )}
             </div>
           </Card>
@@ -102,11 +110,11 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
               </div>
               <div className="serif text-base font-semibold mt-px">Сезон</div>
             </div>
-            <div className="py-1.5">
+            <div>
               {leaders.slice(0, 5).map((p, i, arr) => (
                 <div
                   key={`${p.rank}-${p.playerId}`}
-                  className="flex items-center gap-2 px-2.5 py-1.5"
+                  className="h-12 flex items-center gap-2 px-2.5"
                   style={{
                     borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
                     background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
@@ -131,7 +139,9 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
                 </div>
               ))}
               {leaders.length === 0 && (
-                <div className="text-center text-[11px] text-ink-3 py-4">Сезон не начат</div>
+                <div className="h-12 flex items-center justify-center text-[11px] text-ink-3">
+                  Сезон не начат
+                </div>
               )}
             </div>
           </Card>
@@ -185,48 +195,86 @@ function ActiveTournamentCard({ t, primary }: { t: PlayerTournamentSummary; prim
           <div className="grain" style={{ opacity: 0.15, mixBlendMode: 'screen' }} />
         )}
         <div className="p-4 relative">
-          <div className="flex justify-between items-start mb-3.5">
-            <div>
-              <div
-                className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase"
-                style={{
-                  letterSpacing: 1,
-                  color: primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)',
-                }}
-              >
-                {t.status === 'in_progress' && <span className="live-dot" />}
-                {t.status === 'in_progress'
-                  ? `Идёт · уровень ${t.currentLevelNo ?? '—'}`
-                  : 'Late reg'}
-              </div>
-              <div
-                className="serif mt-1.5"
-                style={{
-                  fontSize: 24,
-                  fontWeight: 600,
-                  lineHeight: 1.1,
-                  color: primary ? 'var(--paper)' : 'var(--ink)',
-                }}
-              >
-                {t.name}
-              </div>
-            </div>
-            <ChevRIcon
-              size={18}
-              style={{ color: primary ? 'rgba(251,245,233,0.5)' : 'var(--ink-3)' }}
-            />
-          </div>
+          {(() => {
+            const fd = formatTournamentDate(t.date);
+            return (
+              <div className="flex justify-between items-start mb-3.5 gap-3">
+                {/* Date badge to the left of the title — day-of-week on top, day number large below */}
+                <div
+                  className="flex flex-col items-center justify-center flex-shrink-0 pt-0.5"
+                  style={{ minWidth: 40 }}
+                >
+                  <div
+                    className="font-bold uppercase"
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: 0.6,
+                      color: primary ? 'rgba(251,245,233,0.55)' : 'var(--ink-3)',
+                    }}
+                  >
+                    {fd.day}
+                  </div>
+                  <div
+                    className="serif font-bold leading-none mt-0.5"
+                    style={{
+                      fontSize: 30,
+                      color: primary ? 'var(--paper)' : 'var(--ink)',
+                    }}
+                  >
+                    {fd.date.split('.')[0]}
+                  </div>
+                </div>
 
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase"
+                    style={{
+                      letterSpacing: 1,
+                      color: primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)',
+                    }}
+                  >
+                    {t.status === 'in_progress' && <span className="live-dot" />}
+                    {t.status === 'in_progress'
+                      ? `Идёт · уровень ${t.currentLevelNo ?? '—'}`
+                      : 'Поздняя регистрация'}
+                  </div>
+                  <div
+                    className="serif mt-1.5"
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 600,
+                      lineHeight: 1.1,
+                      color: primary ? 'var(--paper)' : 'var(--ink)',
+                    }}
+                  >
+                    {t.name}
+                  </div>
+                </div>
+
+                <ChevRIcon
+                  size={18}
+                  style={{ color: primary ? 'rgba(251,245,233,0.5)' : 'var(--ink-3)' }}
+                />
+              </div>
+            );
+          })()}
+
+          {/*
+            Asymmetric columns: first two cells (Орг.взнос / Игроки) have short
+            values, the last (Блайнды) carries a wide mono "150000/300000"-style
+            string. Give cols 1-2 a tighter share so cols 3-4 slide left and
+            the long blinds value fits the card width.
+          */}
           <div
-            className="grid grid-cols-4 gap-2 py-3"
+            className="grid grid-cols-[0.65fr_0.65fr_1fr_1.3fr] gap-2 py-3"
             style={{
               borderTop: primary ? '1px solid rgba(251,245,233,0.12)' : '1px solid var(--line-2)',
               borderBottom: primary ? '1px solid rgba(251,245,233,0.12)' : '1px solid var(--line-2)',
             }}
           >
-            <MiniStat label="Бай-ин" v={formatNumberRu(t.buyin)} primary={primary} />
+            <MiniStat label="Орг. взнос" v={formatNumberRu(t.buyin)} primary={primary} />
             <MiniStat label="Игроки" v={`${t.aliveCount}/${t.registeredCount}`} primary={primary} />
-            <MiniStat label="AVG" v={formatNumberRu(t.averageStack)} primary={primary} />
+            <MiniStat label="Средний стэк" v={formatNumberRu(t.averageStack)} primary={primary} />
             <MiniStat
               label="Блайнды"
               v={t.currentBlinds ? `${t.currentBlinds.smallBlind}/${t.currentBlinds.bigBlind}` : '—'}
@@ -234,14 +282,19 @@ function ActiveTournamentCard({ t, primary }: { t: PlayerTournamentSummary; prim
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-3">
+          {/*
+            Same idea as the 4-col row above: shrink the first column (short
+            "30 000" value) so "Поздняя регистрация" slides left and gets the
+            room its long label needs.
+          */}
+          <div className="grid grid-cols-[0.7fr_1.3fr_1fr] gap-2 mt-3">
             <MiniStat
               label="Старт. стек"
               v={formatNumberRu(t.startingStack)}
               primary={primary}
             />
             <MiniStat
-              label="Late reg"
+              label="Поздняя регистрация"
               v={t.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
               primary={primary}
             />
@@ -274,8 +327,12 @@ function MiniStat({
       <div
         className="font-bold uppercase"
         style={{
-          fontSize: 9,
-          letterSpacing: 0.6,
+          // Slightly tighter than the prototype's 9px/0.6 so longer Russian
+          // labels (e.g. "Поздняя регистрация" / "Текущий уровень") fit on a
+          // single line in the 3-column grid without wrapping.
+          fontSize: 8.5,
+          letterSpacing: 0.3,
+          whiteSpace: 'nowrap',
           color: primary ? 'rgba(251,245,233,0.5)' : 'var(--ink-3)',
         }}
       >

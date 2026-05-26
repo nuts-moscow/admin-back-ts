@@ -82,7 +82,7 @@ export function ScheduleScreen({
                             >
                               {t.status === 'in_progress'
                                 ? `Идёт · L${t.currentLevelNo ?? '—'}`
-                                : 'Late reg'}
+                                : 'Поздняя регистрация'}
                             </span>
                           </div>
                           <div className="serif text-[19px] font-semibold leading-tight">
@@ -93,7 +93,7 @@ export function ScheduleScreen({
                       </div>
                       <div className="grid grid-cols-3 gap-1.5 mt-3">
                         <KV k="Игроки" v={`${t.aliveCount}/${t.registeredCount}`} />
-                        <KV k="Стек avg" v={formatNumberRu(t.averageStack)} />
+                        <KV k="Средний стэк" v={formatNumberRu(t.averageStack)} />
                         <KV
                           k="Блайнды"
                           v={
@@ -150,7 +150,7 @@ export function ScheduleScreen({
                         letterSpacing: 0.4,
                       }}
                     >
-                      {formatTournamentDate(new Date(h.date).getTime()).date} · бай-ин{' '}
+                      {formatTournamentDate(new Date(h.date).getTime()).date} · орг. взнос{' '}
                       {formatNumberRu(h.buyin)}
                     </div>
                     <div className="serif text-[17px] font-semibold leading-tight mt-1">
@@ -239,9 +239,9 @@ function UpcomingCard({ u }: { u: PlayerTournamentSummary }) {
         <div className="flex-1 p-3">
           <div className="serif text-[17px] font-semibold leading-tight">{u.name}</div>
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mt-2.5">
-            <KV k="Бай-ин" v={formatRub(u.buyin)} />
+            <KV k="Орг. взнос" v={formatRub(u.buyin)} />
             <KV k="Стек" v={formatNumberRu(u.startingStack)} />
-            <KV k="Late reg" v={u.lateRegistrationClosed ? 'Закрыта' : 'Открыта'} />
+            <KV k="Поздняя регистрация" v={u.lateRegistrationClosed ? 'Закрыта' : 'Открыта'} />
             <KV k="Игроков" v={String(u.registeredCount)} />
           </div>
           <div className="flex justify-between items-center mt-2.5 pt-2.5 border-t border-line-2">
