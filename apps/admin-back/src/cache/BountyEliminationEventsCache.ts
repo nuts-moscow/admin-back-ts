@@ -17,6 +17,12 @@ export interface BountyEliminationEventRecord {
   recordedBounty: boolean;
   /** Increment applied per killer when recordedBounty (1 / killerPlayerIds.length). */
   bountyShare: number;
+  /**
+   * Epoch ms when the elimination was recorded. Used to order events
+   * chronologically (eventId is a random UUID and is not time-ordered).
+   * Absent on records created before this field was introduced.
+   */
+  recordedAt?: number;
 }
 
 function eventKey(tournamentId: TournamentId, eventId: string): string {
@@ -95,7 +101,11 @@ class BountyEliminationEventsCacheImpl implements BountyEliminationEventsCache {
           /* skip corrupt entry */
         }
       }
-      out.sort((a, b) => a.eventId.localeCompare(b.eventId));
+      out.sort(
+        (a, b) =>
+          (a.recordedAt ?? 0) - (b.recordedAt ?? 0) ||
+          a.eventId.localeCompare(b.eventId)
+      );
       logger.info({ tournamentId, count: out.length }, `${LOG_PREFIX} listAll`);
       return out;
     } catch (err) {

@@ -5,4 +5,9 @@ export interface BountyEliminationEventForPlayer {
   eventId: string;
   eliminatedPlayerId: PlayerId;
   killerPlayerIds: PlayerId[];
+  /**
+   * Epoch ms when recorded; events are returned ordered by this ascending
+   * (earliest first). null for events recorded before this field existed.
+   */
+  recordedAt: number | null;
 }

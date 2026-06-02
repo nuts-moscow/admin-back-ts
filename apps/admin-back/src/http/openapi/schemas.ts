@@ -156,6 +156,14 @@ export const BountyEliminationEventForPlayerSchema = z
         description: "Players who shared this elimination / bounty (may be empty if not recorded)",
         example: ["player-a", "player-b"],
       }),
+    recordedAt: z
+      .number()
+      .nullable()
+      .openapi({
+        description:
+          "Epoch ms when recorded. Events are ordered by this ascending (earliest knockout first). null for events recorded before this field existed.",
+        example: 1748534717716,
+      }),
   })
   .openapi("BountyEliminationEventForPlayer");
 

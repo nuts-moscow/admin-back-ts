@@ -1605,6 +1605,7 @@ export class InGameUserStateService {
       burnedChips: burnedStack ? burnedChips : 0,
       recordedBounty,
       bountyShare,
+      recordedAt: Date.now(),
     };
     const saved = await BountyEliminationEventsCache.save(record, tournamentId);
     if (!saved) {
@@ -2133,10 +2134,17 @@ export function eliminationEventsForPlayer(
         e.eliminatedPlayerId === playerId ||
         e.killerPlayerIds.includes(playerId)
     )
-    .sort((a, b) => a.eventId.localeCompare(b.eventId))
+    // Chronological order (earliest knockout first). eventId is a random UUID
+    // so it is not time-ordered; sort by recordedAt and tie-break on eventId.
+    .sort(
+      (a, b) =>
+        (a.recordedAt ?? 0) - (b.recordedAt ?? 0) ||
+        a.eventId.localeCompare(b.eventId)
+    )
     .map((e) => ({
       eventId: e.eventId,
       eliminatedPlayerId: e.eliminatedPlayerId,
       killerPlayerIds: [...e.killerPlayerIds],
+      recordedAt: e.recordedAt ?? null,
     }));
 }
