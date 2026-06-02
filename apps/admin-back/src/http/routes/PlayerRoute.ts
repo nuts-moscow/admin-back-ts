@@ -371,6 +371,11 @@ export function playerRoutes() {
         }
 
         const entries: PlayerHistoryRow[] = factsRes
+          // Skip rows where the player wasn't actually eliminated at
+          // tournament-completion time. Admin force-completion gives those
+          // players placement=N (treated as winner), which would render as
+          // "1/N" on the FE even though they didn't actually finish first.
+          .filter((f) => f.playerStatus === "Out")
           .map((f) => {
             const t = tournamentById.get(f.tournamentId);
             if (!t) return null;
@@ -828,11 +833,16 @@ export function playerRoutes() {
 // helpers
 // ─────────────────────────────────────────────────────────────
 async function queryPlayerRatingFacts(playerId: number): Promise<
-  Array<{ tournamentId: number; totalPoints: number; placement: number | null }>
+  Array<{
+    tournamentId: number;
+    totalPoints: number;
+    placement: number | null;
+    playerStatus: string;
+  }>
 > {
   try {
     const res = await PostgresClient.instance.query(
-      `SELECT tournament_id, total_points, placement
+      `SELECT tournament_id, total_points, placement, player_status
        FROM player_tournament_rating_facts
        WHERE player_id = $1`,
       [String(playerId)]
@@ -843,6 +853,7 @@ async function queryPlayerRatingFacts(playerId: number): Promise<
         tournamentId: Number(r.tournament_id),
         totalPoints: Number(r.total_points),
         placement: r.placement != null ? Number(r.placement) : null,
+        playerStatus: String(r.player_status ?? ""),
       };
     });
   } catch (err) {

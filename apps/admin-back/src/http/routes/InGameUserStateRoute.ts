@@ -267,6 +267,7 @@ export function inGameUserStateRoutes() {
           let status = 400;
           if (msg === "Failed to persist elimination event") status = 500;
           else if (msg.includes("not found")) status = 404;
+          else if (msg === "already_out") status = 409;
           return new Response(JSON.stringify({ error: msg }), {
             status,
             headers: { "Content-Type": "application/json" },

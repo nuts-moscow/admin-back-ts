@@ -158,6 +158,28 @@ export type TournamentChipPoolSummaryResult =
   | { ok: true; summary: TournamentChipPoolSummary }
   | { ok: false; error: TournamentChipPoolSummaryError };
 
+/**
+ * Serializes async operations that share a key. Used so concurrent duplicate
+ * submits (e.g. a double-clicked "Out" elimination — observed as two POSTs
+ * ~146ms apart) can't interleave their read-modify-write and both slip past the
+ * already-Out guard. In-process only; sufficient for the single-process API.
+ */
+const keyedLocks = new Map<string, Promise<unknown>>();
+async function withKeyedLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = keyedLocks.get(key) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.then(
+    () => undefined,
+    () => undefined
+  );
+  keyedLocks.set(key, tail);
+  try {
+    return await run;
+  } finally {
+    if (keyedLocks.get(key) === tail) keyedLocks.delete(key);
+  }
+}
+
 export class InGameUserStateService {
   private async rejectsPaidEntryForStructure(
     tournamentId: TournamentId,
@@ -1413,6 +1435,29 @@ export class InGameUserStateService {
     burnedStack: boolean,
     burnedChips: number
   ): Promise<{ ok: true; eventId: string } | { ok: false; error: string }> {
+    // Serialize per (tournament, victim): a duplicate submit for the same
+    // player must wait for the first to finish writing, so the second sees the
+    // updated status and is rejected by the already-Out guard below.
+    return withKeyedLock(`bountyElim:${tournamentId}:${eliminatedPlayerId}`, () =>
+      this.recordBountyEliminationImpl(
+        tournamentId,
+        eliminatedPlayerId,
+        killerPlayerIds,
+        type,
+        burnedStack,
+        burnedChips
+      )
+    );
+  }
+
+  private async recordBountyEliminationImpl(
+    tournamentId: TournamentId,
+    eliminatedPlayerId: PlayerId,
+    killerPlayerIds: PlayerId[],
+    type: BountyEliminationTypeValue,
+    burnedStack: boolean,
+    burnedChips: number
+  ): Promise<{ ok: true; eventId: string } | { ok: false; error: string }> {
     const normalizedKillers = [
       ...new Set(killerPlayerIds.filter((id) => typeof id === "string" && id.length > 0)),
     ];
@@ -1473,6 +1518,12 @@ export class InGameUserStateService {
       );
       if (!eliminatedState) {
         return { ok: false, error: "Eliminated player not found in tournament" };
+      }
+      // A player can be eliminated (Out) only once. Without this guard a
+      // duplicate submit recorded a second Out event (and an extra bounty +
+      // eliminated_by entry), inflating the "who knocked me out" list.
+      if (eliminatedState.status === InGamePlayerStatus.Out) {
+        return { ok: false, error: "already_out" };
       }
       const allStates = await InGameUserStateCache.getAllByTournament(tournamentId);
       const outCount = allStates.filter((s) => s.status === InGamePlayerStatus.Out).length;
