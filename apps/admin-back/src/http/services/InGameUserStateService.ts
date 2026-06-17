@@ -2182,6 +2182,7 @@ export function eliminationEventsForPlayer(
       eventId: e.eventId,
       eliminatedPlayerId: e.eliminatedPlayerId,
       killerPlayerIds: [...e.killerPlayerIds],
+      type: e.type,
       recordedAt: e.recordedAt ?? null,
     }));
 }

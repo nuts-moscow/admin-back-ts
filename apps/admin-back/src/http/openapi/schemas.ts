@@ -164,6 +164,9 @@ export const BountyEliminationEventForPlayerSchema = z
         description: "Players who shared this elimination / bounty (may be empty if not recorded)",
         example: ["player-a", "player-b"],
       }),
+    type: z
+      .enum(["Rebuy", "Out"])
+      .openapi({ description: "Elimination type: Out — final knockout, Rebuy — elimination on rebuy", example: "Out" }),
     recordedAt: z
       .number()
       .nullable()
