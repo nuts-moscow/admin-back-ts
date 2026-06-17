@@ -12,7 +12,8 @@ import {
   InGameBonus,
   type InGameUserState,
 } from "../../domain/cache/InGameUserState";
-import { playerRepository } from "../../postgres";
+import { playerRepository, tournamentRepository } from "../../postgres";
+import { RedisClient } from "../../redis";
 import { toApiResponse } from "../serializers/InGameUserStateSerializer";
 import {
   eliminationEventsForPlayer,
@@ -28,6 +29,9 @@ const VALID_ENTRY_PAYMENT_METHODS = new Set<string>(
 const VALID_PAIR_BONUSES = new Set<string>(
   Object.values(InGameBonus).filter((b) => b !== InGameBonus.Custom)
 );
+
+/** How long an Idempotency-Key for POST .../bounty/eliminate is remembered (replay/dedup window). */
+const BOUNTY_ELIMINATE_IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 
 async function allowedReentryCountForTournament(tournamentId: string): Promise<number> {
   const structure = await tournamentStructureCache.get(tournamentId);
@@ -254,6 +258,42 @@ export function inGameUserStateRoutes() {
           );
         }
         const eliminationType = type as "Rebuy" | "Out";
+
+        // Idempotency: collapse a re-fired identical action (double-click / client
+        // retry / network retry) carrying the same Idempotency-Key. Distinct user
+        // actions carry distinct keys, so a legitimate second re-entry still
+        // records. Cross-process-safe via Redis (unlike the in-process lock).
+        const idemKeyRaw =
+          req.headers.get("Idempotency-Key") ??
+          ((body as { idempotencyKey?: unknown }).idempotencyKey as unknown);
+        const idemRedisKey =
+          typeof idemKeyRaw === "string" && idemKeyRaw.length > 0
+            ? `idem:elim:${tournamentId}:${idemKeyRaw}`
+            : null;
+        if (idemRedisKey) {
+          const claimed = await RedisClient.instance.set(
+            idemRedisKey,
+            "pending",
+            "PX",
+            BOUNTY_ELIMINATE_IDEMPOTENCY_TTL_MS,
+            "NX"
+          );
+          if (claimed === null) {
+            // Identical action already in-flight or completed under this key.
+            const prior = await RedisClient.instance.get(idemRedisKey);
+            if (prior && prior !== "pending") {
+              return new Response(prior, {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+            }
+            return new Response(JSON.stringify({ error: "in_progress" }), {
+              status: 409,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+        }
+
         const result = await service.recordBountyElimination(
           tournamentId,
           eliminatedPlayerId,
@@ -263,11 +303,15 @@ export function inGameUserStateRoutes() {
           burnedStack ? (burnedChips as number) : 0
         );
         if (!result.ok) {
+          // Free the idempotency key so a genuine retry isn't blocked by a
+          // failed attempt.
+          if (idemRedisKey) await RedisClient.instance.del(idemRedisKey);
           const msg = result.error ?? "Failed to record elimination";
           let status = 400;
           if (msg === "Failed to persist elimination event") status = 500;
           else if (msg.includes("not found")) status = 404;
           else if (msg === "already_out") status = 409;
+          else if (msg === "late_registration_closed") status = 409;
           return new Response(JSON.stringify({ error: msg }), {
             status,
             headers: { "Content-Type": "application/json" },
@@ -285,7 +329,20 @@ export function inGameUserStateRoutes() {
             eventId: result.eventId,
           }
         );
-        return Response.json({ eventId: result.eventId });
+        const responseBody = JSON.stringify({ eventId: result.eventId });
+        if (idemRedisKey) {
+          // Store the result so a later re-fire of this key replays it.
+          await RedisClient.instance.set(
+            idemRedisKey,
+            responseBody,
+            "PX",
+            BOUNTY_ELIMINATE_IDEMPOTENCY_TTL_MS
+          );
+        }
+        return new Response(responseBody, {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       },
     },
     "/api/tournaments/:tournamentId/bounty/eliminate/undo": {
@@ -776,6 +833,20 @@ export function inGameUserStateRoutes() {
             JSON.stringify({ error: "count is required and must be a number" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
+        }
+        // Adding re-entries is blocked once late registration (the rebuy zone) is
+        // closed. Negative counts (manual corrections) are still allowed.
+        if (body.count > 0) {
+          const tIdNum = parseInt(tournamentId, 10);
+          const tRow = Number.isNaN(tIdNum)
+            ? null
+            : await tournamentRepository.findById(tIdNum);
+          if (tRow?.lateRegistrationClosed) {
+            return new Response(
+              JSON.stringify({ error: "late_registration_closed" }),
+              { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+          }
         }
         const state = await service.addReentryCount(
           playerId,

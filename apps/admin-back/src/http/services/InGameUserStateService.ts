@@ -1397,6 +1397,10 @@ export class InGameUserStateService {
       );
       return;
     }
+    if (!row.ratingEnabled) {
+      // Non-rated tournament: don't compute or store a live rating snapshot.
+      return;
+    }
     const ratingTable = await ratingTableRepository.findById(row.ratingTableId);
     if (!ratingTable) {
       logger.info(
@@ -1489,6 +1493,15 @@ export class InGameUserStateService {
           ok: false,
           error: "Eliminated player not found in tournament",
         };
+      }
+      // Once late registration is closed, the rebuy zone is closed: a bust after
+      // that point is an Out, not a re-entry. Block Rebuy-type eliminations.
+      const tIdNum = parseInt(tournamentId, 10);
+      const tRow = Number.isNaN(tIdNum)
+        ? null
+        : await tournamentRepository.findById(tIdNum);
+      if (tRow?.lateRegistrationClosed) {
+        return { ok: false, error: "late_registration_closed" };
       }
       const structure = await tournamentStructureCache.get(tournamentId);
       if (structure) {
@@ -2075,6 +2088,30 @@ export class InGameUserStateService {
       return { ok: false, error: "internal" };
     }
 
+    // The bust that put this player Out has led to a buy-back-in (we just added a
+    // re-entry above). Reclassify their latest Out elimination event to Rebuy so
+    // the events stay consistent: the killer keeps the bounty they earned, the
+    // event is no longer a dangling "Out", and a later genuine elimination won't
+    // leave two Out events for the same player. Best-effort (don't fail the
+    // return if reclassification fails).
+    try {
+      const events = await BountyEliminationEventsCache.listAll(tournamentId);
+      const latestOut = events
+        .filter((e) => e.eliminatedPlayerId === playerId && e.type === "Out")
+        .sort((a, b) => (b.recordedAt ?? 0) - (a.recordedAt ?? 0))[0];
+      if (latestOut) {
+        await BountyEliminationEventsCache.save(
+          { ...latestOut, type: "Rebuy" },
+          tournamentId
+        );
+      }
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, playerId },
+        "[InGameUserStateService] returnBustedPlayerToGame: reclassify Out→Rebuy failed"
+      );
+    }
+
     return { ok: true, state: final };
   }
 
@@ -2145,6 +2182,7 @@ export function eliminationEventsForPlayer(
       eventId: e.eventId,
       eliminatedPlayerId: e.eliminatedPlayerId,
       killerPlayerIds: [...e.killerPlayerIds],
+      type: e.type,
       recordedAt: e.recordedAt ?? null,
     }));
 }

@@ -29,6 +29,11 @@ export interface Break {
   type: "Break";
   id: BlindId;
   duration: BreakDuration;
+  /**
+   * When true, reaching this break automatically closes late registration
+   * (the rebuy zone) and signals the live screen to show rating points.
+   */
+  endsLateRegistration?: boolean;
 }
 
 /** Blind level or break */

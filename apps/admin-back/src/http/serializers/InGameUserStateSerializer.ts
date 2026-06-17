@@ -189,6 +189,7 @@ export function toApiResponse(
       eventId: e.eventId,
       eliminatedPlayerId: e.eliminatedPlayerId,
       killerPlayerIds: [...e.killerPlayerIds],
+      type: e.type,
       recordedAt: e.recordedAt,
     })),
     ...(ratingSnapshot != null ? { rating: ratingSnapshot } : {}),

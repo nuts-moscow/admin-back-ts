@@ -52,6 +52,19 @@ export function publicRoutes() {
           });
         }
 
+        if (!row.ratingEnabled) {
+          // Non-rated tournament: no points are awarded, so there is no
+          // distribution to show. Signal it explicitly to the client.
+          return Response.json({
+            tournamentId: id,
+            rated: false,
+            playersInTournament: 0,
+            ratingMatrixFieldSize: 0,
+            prizePlacesDepth: 0,
+            places: [],
+          });
+        }
+
         const ratingTable = await ratingTableRepository.findById(row.ratingTableId);
         if (!ratingTable) {
           return new Response(JSON.stringify({ error: "Rating table not found" }), {
@@ -87,6 +100,7 @@ export function publicRoutes() {
 
         return Response.json({
           tournamentId: id,
+          rated: true,
           playersInTournament: playersForPlaceList,
           ratingMatrixFieldSize,
           prizePlacesDepth: matrixMaxPlaceWithPoints,
