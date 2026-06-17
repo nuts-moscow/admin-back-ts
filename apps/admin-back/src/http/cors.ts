@@ -27,6 +27,20 @@ export function resolveAllowedOrigin(requestOrigin: string | null): string | nul
   return null;
 }
 
+/** Request headers the API must always accept, even if CORS_HEADERS env omits them. */
+const REQUIRED_ALLOWED_HEADERS = ["Idempotency-Key"];
+
+/** Merge the configured allow-headers with the always-required ones (case-insensitive, no dups). */
+export function buildAllowedHeaders(configured: string): string {
+  const list = configured.split(",").map((h) => h.trim()).filter(Boolean);
+  for (const required of REQUIRED_ALLOWED_HEADERS) {
+    if (!list.some((h) => h.toLowerCase() === required.toLowerCase())) {
+      list.push(required);
+    }
+  }
+  return list.join(", ");
+}
+
 export function corsHeaders(requestOrigin?: string | null): Record<string, string> {
   const { corsMethods, corsHeaders: allowedHeaders } =
     ApplicationConfigs.instance.server;
@@ -35,7 +49,7 @@ export function corsHeaders(requestOrigin?: string | null): Record<string, strin
 
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": corsMethods,
-    "Access-Control-Allow-Headers": allowedHeaders,
+    "Access-Control-Allow-Headers": buildAllowedHeaders(allowedHeaders),
     "Access-Control-Max-Age": "86400",
   };
 

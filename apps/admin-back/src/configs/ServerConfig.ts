@@ -31,7 +31,7 @@ export function loadServerConfig(): ServerConfig {
     port: parseInt(process.env.PORT ?? "3000", 10),
     corsOrigin: process.env.CORS_ORIGIN ?? "*",
     corsMethods: process.env.CORS_METHODS ?? "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    corsHeaders: process.env.CORS_HEADERS ?? "Content-Type, Authorization",
+    corsHeaders: process.env.CORS_HEADERS ?? "Content-Type, Authorization, Idempotency-Key",
     jwtSecret,
     playerJwtSecret,
   };
