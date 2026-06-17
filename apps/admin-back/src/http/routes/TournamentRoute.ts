@@ -30,7 +30,13 @@ function isValidBlind(x: unknown): x is Extract<BlindType, { type: "Blind" }> {
 function isValidBreak(x: unknown): x is Extract<BlindType, { type: "Break" }> {
   if (typeof x !== "object" || x === null) return false;
   const o = x as Record<string, unknown>;
-  return o.type === "Break" && typeof o.id === "number" && typeof o.duration === "number";
+  return (
+    o.type === "Break" &&
+    typeof o.id === "number" &&
+    typeof o.duration === "number" &&
+    (o.endsLateRegistration === undefined ||
+      typeof o.endsLateRegistration === "boolean")
+  );
 }
 
 function parseBlinds(arr: unknown): BlindType[] | null {

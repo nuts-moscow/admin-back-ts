@@ -48,4 +48,11 @@ export interface TournamentClockTick {
   secondsUntilNextBreak: number | null;
   /** True when the blinds schedule has fully elapsed */
   structureFinished: boolean;
+  /** True once late registration is closed for this tournament. */
+  lateRegistrationClosed: boolean;
+  /**
+   * True when the live screen should display rating points — set when the clock
+   * has reached a Break flagged `endsLateRegistration` (late reg just closed).
+   */
+  showRatingPoints: boolean;
 }

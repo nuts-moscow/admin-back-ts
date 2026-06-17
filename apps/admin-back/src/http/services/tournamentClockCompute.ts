@@ -156,6 +156,22 @@ export function reconcileAfterStructureChange(
   const j = Math.min(Math.max(0, oldIndex), blinds.length - 1);
   const step = blinds[j]!;
   const stepDur = stepDurationSec(step);
+  // Still on the current level — its id changed (e.g. the editor regenerated ids)
+  // but the position didn't. Preserve real elapsed time and recompute the end
+  // from the original segment start, so a duration edit yields
+  // remaining = newDuration - elapsed (same as the id-matched main case above)
+  // instead of capping at the old remaining (which looked like "no update").
+  if (j === oldIndex) {
+    const candidateEnd = state.segmentStartedAtMs + stepDur * 1000;
+    return {
+      ...state,
+      currentStepIndex: j,
+      currentStepId: step.id,
+      segmentEndAtMs: Math.max(candidateEnd, nowEff),
+    };
+  }
+  // Genuinely a different level now occupies this slot: restart the segment now,
+  // capped at the new step duration.
   const remainingCap = Math.min(R, stepDur);
   const segmentEndAtMs = nowEff + remainingCap * 1000;
   const segmentStartedAtMs = segmentEndAtMs - stepDur * 1000;

@@ -6,6 +6,8 @@ import type {
 } from "../../domain/TournamentClockState";
 import { tournamentClockCache, tournamentStructureCache } from "../../cache";
 import { tournamentRepository } from "../../postgres";
+import { TournamentAuditEventType } from "../../domain/TournamentAuditEventType";
+import { logger } from "../../logger";
 import {
   advanceClockWhileElapsed,
   getSecondsRemaining,
@@ -13,6 +15,14 @@ import {
   initialStateFromFirstStep,
   reconcileAfterStructureChange,
 } from "./tournamentClockCompute";
+import { writeTournamentAuditLog } from "./tournamentAuditLog";
+
+/** Index of the first Break flagged to end late registration, or -1 if none. */
+function lateRegEndBreakIndex(blinds: BlindType[]): number {
+  return blinds.findIndex(
+    (b) => b.type === "Break" && b.endsLateRegistration === true
+  );
+}
 
 function stepTypeAt(
   blinds: BlindType[],
@@ -171,7 +181,12 @@ export class TournamentClockService {
     const blinds = structure?.blindsStructure ?? [];
 
     if (status !== "in_progress") {
-      return this.inactiveTick(tournamentId, status, now);
+      return this.inactiveTick(
+        tournamentId,
+        status,
+        now,
+        row.lateRegistrationClosed
+      );
     }
 
     let state = await tournamentClockCache.get(idStr);
@@ -189,6 +204,8 @@ export class TournamentClockService {
         secondsRemaining: null,
         secondsUntilNextBreak: null,
         structureFinished: false,
+        lateRegistrationClosed: row.lateRegistrationClosed,
+        showRatingPoints: false,
       };
     }
 
@@ -204,6 +221,30 @@ export class TournamentClockService {
     const stepType = stepTypeAt(blinds, idx);
     const secondsUntilNextBreak = getSecondsUntilNextBreak(state, blinds, now);
 
+    // Auto-close late registration when the clock reaches (or passes) a Break
+    // flagged endsLateRegistration. Idempotent: guarded by the current flag.
+    const lateRegBreakIdx = lateRegEndBreakIndex(blinds);
+    const reachedLateRegEnd = lateRegBreakIdx >= 0 && idx >= lateRegBreakIdx;
+    let lateRegistrationClosed = row.lateRegistrationClosed;
+    if (reachedLateRegEnd && !lateRegistrationClosed) {
+      const updated = await tournamentRepository.updateLateRegistrationClosed(
+        tournamentId,
+        true
+      );
+      if (updated) {
+        lateRegistrationClosed = true;
+        await writeTournamentAuditLog(
+          tournamentId,
+          TournamentAuditEventType.TournamentLateRegistrationClosed,
+          { lateRegistrationClosed: true, reason: "auto", stepIndex: idx }
+        );
+        logger.info(
+          { tournamentId, stepIndex: idx },
+          "[TournamentClockService] auto-closed late registration at flagged break"
+        );
+      }
+    }
+
     return {
       type: "tournament_clock_tick",
       tournamentId,
@@ -217,13 +258,16 @@ export class TournamentClockService {
       secondsRemaining: secRem,
       secondsUntilNextBreak,
       structureFinished: state.finished,
+      lateRegistrationClosed,
+      showRatingPoints: reachedLateRegEnd,
     };
   }
 
   private inactiveTick(
     tournamentId: number,
     status: TournamentClockTournamentStatus,
-    now: number
+    now: number,
+    lateRegistrationClosed: boolean
   ): TournamentClockTick {
     return {
       type: "tournament_clock_tick",
@@ -238,6 +282,8 @@ export class TournamentClockService {
       secondsRemaining: null,
       secondsUntilNextBreak: null,
       structureFinished: false,
+      lateRegistrationClosed,
+      showRatingPoints: false,
     };
   }
 }

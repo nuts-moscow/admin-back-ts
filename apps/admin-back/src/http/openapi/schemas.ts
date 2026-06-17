@@ -74,6 +74,14 @@ export const PublicRatingPlaceRowSchema = z
 export const PublicRatingDistributionResponseSchema = z
   .object({
     tournamentId: z.number().int(),
+    rated: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "False when the tournament does not count toward rating (ratingEnabled=false); places is empty and no points are awarded",
+        example: true,
+      }),
     playersInTournament: z
       .number()
       .int()
@@ -831,6 +839,14 @@ export const BreakSchema = z
         description: "Break length in minutes (tournament clock uses seconds = minutes × 60)",
         example: 5,
       }),
+    endsLateRegistration: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "When true, reaching this break auto-closes late registration (rebuy zone) and signals the live screen to show rating points",
+        example: false,
+      }),
   })
   .openapi("Break");
 
@@ -1192,5 +1208,12 @@ export const TournamentClockTickSchema = z
         example: 900,
       }),
     structureFinished: z.boolean(),
+    lateRegistrationClosed: z.boolean().openapi({
+      description: "True once late registration is closed for this tournament",
+    }),
+    showRatingPoints: z.boolean().openapi({
+      description:
+        "True when the live screen should show rating points — set once the clock reaches a Break flagged endsLateRegistration",
+    }),
   })
   .openapi("TournamentClockTick");
