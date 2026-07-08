@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "arch-existing": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/arch-existing/SKILL.md",
+      "computedHash": "6184eb67a779d5ed8a33216ef3d89506a9fe4dc5f05e76fe9ebc41238ab496d4"
+    },
+    "archi": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/archi/SKILL.md",
+      "computedHash": "2198ad658da5d6fbf94bbc611f34944447460ed7ff1bfde560b3fd4bae4094f4"
+    },
+    "archi-explain": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/archi-explain/SKILL.md",
+      "computedHash": "89313799befd40a7f2af4943c9800875e33107a65fdedf97bb167d786cc123f7"
+    },
+    "archi-implement": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/archi-implement/SKILL.md",
+      "computedHash": "a21fd7fc87388411184a3ec96ec0721938518b5594a6791559ce401b3c47fe0a"
+    },
+    "archi-plan": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/archi-plan/SKILL.md",
+      "computedHash": "90fb9c03d494d87ecb1770b97ee9775a8381f329c85d55c693d55943f83dc117"
+    },
+    "archi-report": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/archi-report/SKILL.md",
+      "computedHash": "1ac27efcb0af0468b182755eed03370dc20044dd98f3b741253d1151294858c9"
+    },
+    "archi-stress": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/archi-stress/SKILL.md",
+      "computedHash": "1aea248231ae4dec12d352bc29505d42420a8e411dbd4bd3c6137e2f853d5354"
+    },
+    "code-link": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-link/SKILL.md",
+      "computedHash": "b502a31e1e566d33d55a87b49af6143e4e69c660565af0bd704b71a9c1d40a67"
+    },
+    "setup": {
+      "source": "archiplan-ai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/setup/SKILL.md",
+      "computedHash": "d872f876d65e02c0b582a328fc650b7ede068cb11457ef7fc16a44ed75195fc4"
+    }
+  }
+}

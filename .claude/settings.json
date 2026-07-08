@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(.fractal/**)",
+      "Glob(.fractal/**)",
+      "Grep(.fractal/**)"
+    ]
+  }
+}
