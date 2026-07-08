@@ -159,6 +159,72 @@ export type TournamentChipPoolSummaryResult =
   | { ok: false; error: TournamentChipPoolSummaryError };
 
 /**
+ * Pure chip-pool computation over already-loaded live states. Shared by the
+ * broadcast/public chip-pool-summary endpoint and the player tournament
+ * summary so both report the same averageStack (totalChips ÷ playersActive)
+ * without re-reading the live store.
+ */
+export function computeChipPoolSummaryFromStates(
+  states: InGameUserState[],
+  stackSize: number
+): TournamentChipPoolSummary {
+  let playersArrived = 0;
+  let playersActive = 0;
+  let rebuyCount = 0;
+  let burnedStackChipsTotal = 0;
+  const bonusCounts = new Map<InGameBonus, number>();
+  const customArrays: number[][] = [];
+
+  for (const state of states) {
+    rebuyCount += state.totalReentryCount;
+    burnedStackChipsTotal += sumBurnedStackChips(state.burnedStackEvents);
+    if (state.status !== InGamePlayerStatus.Registered) {
+      playersArrived += 1;
+    }
+    if (
+      state.status === InGamePlayerStatus.InGamePaid ||
+      state.status === InGamePlayerStatus.InGameNotPaid
+    ) {
+      playersActive += 1;
+    }
+    if (state.status !== InGamePlayerStatus.Registered) {
+      mergeBonusesIntoCounts(bonusCounts, state.bonuses);
+      customArrays.push([...state.customBonusChips]);
+    }
+  }
+
+  const entryUnits = playersArrived;
+  const baseChips = (entryUnits + rebuyCount) * stackSize;
+  const { lines: baseBonusLines, bonusChipsTotal: baseBonusTotal } =
+    breakdownFromMergedCounts(bonusCounts);
+  const { line: customLine, totalChips: customBonusTotal } =
+    aggregateCustomBonusChipsForBreakdown(customArrays);
+  const bonusChipsTotal = baseBonusTotal + customBonusTotal;
+  const bonuses = [...baseBonusLines];
+  if (customLine) bonuses.push(customLine);
+  bonuses.sort((a, b) => a.bonus.localeCompare(b.bonus));
+  const totalChips = Math.max(
+    0,
+    baseChips + bonusChipsTotal - burnedStackChipsTotal
+  );
+  const averageStack = playersActive === 0 ? null : totalChips / playersActive;
+
+  return {
+    playersArrived,
+    playersActive,
+    rebuyCount,
+    averageStack,
+    stackSize,
+    entryUnits,
+    baseChips,
+    bonuses,
+    bonusChipsTotal,
+    burnedStackChipsTotal,
+    totalChips,
+  };
+}
+
+/**
  * Serializes async operations that share a key. Used so concurrent duplicate
  * submits (e.g. a double-clicked "Out" elimination — observed as two POSTs
  * ~146ms apart) can't interleave their read-modify-write and both slip past the
@@ -532,64 +598,9 @@ export class InGameUserStateService {
     }
 
     const states = await InGameUserStateCache.getAllByTournament(tournamentId);
-    let playersArrived = 0;
-    let playersActive = 0;
-    let rebuyCount = 0;
-    let burnedStackChipsTotal = 0;
-    const bonusCounts = new Map<InGameBonus, number>();
-    const customArrays: number[][] = [];
-
-    for (const state of states) {
-      rebuyCount += state.totalReentryCount;
-      burnedStackChipsTotal += sumBurnedStackChips(state.burnedStackEvents);
-      if (state.status !== InGamePlayerStatus.Registered) {
-        playersArrived += 1;
-      }
-      if (
-        state.status === InGamePlayerStatus.InGamePaid ||
-        state.status === InGamePlayerStatus.InGameNotPaid
-      ) {
-        playersActive += 1;
-      }
-      if (state.status !== InGamePlayerStatus.Registered) {
-        mergeBonusesIntoCounts(bonusCounts, state.bonuses);
-        customArrays.push([...state.customBonusChips]);
-      }
-    }
-
-    const stackSize = structure.stackSize;
-    const entryUnits = playersArrived;
-    const baseChips = (entryUnits + rebuyCount) * stackSize;
-    const { lines: baseBonusLines, bonusChipsTotal: baseBonusTotal } =
-      breakdownFromMergedCounts(bonusCounts);
-    const { line: customLine, totalChips: customBonusTotal } =
-      aggregateCustomBonusChipsForBreakdown(customArrays);
-    const bonusChipsTotal = baseBonusTotal + customBonusTotal;
-    const bonuses = [...baseBonusLines];
-    if (customLine) bonuses.push(customLine);
-    bonuses.sort((a, b) => a.bonus.localeCompare(b.bonus));
-    const totalChips = Math.max(
-      0,
-      baseChips + bonusChipsTotal - burnedStackChipsTotal
-    );
-    const averageStack =
-      playersActive === 0 ? null : totalChips / playersActive;
-
     return {
       ok: true,
-      summary: {
-        playersArrived,
-        playersActive,
-        rebuyCount,
-        averageStack,
-        stackSize,
-        entryUnits,
-        baseChips,
-        bonuses,
-        bonusChipsTotal,
-        burnedStackChipsTotal,
-        totalChips,
-      },
+      summary: computeChipPoolSummaryFromStates(states, structure.stackSize),
     };
   }
 

@@ -1,8 +1,11 @@
+'use client';
+
 import Link from 'next/link';
 import type { PlayerTournamentSummary } from '@admin/schemas';
 import { Card } from '@/components/card';
 import { ChevRIcon } from '@/components/icons';
 import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
+import { useLevelCountdown } from '@/lib/use-level-countdown';
 
 /**
  * Active / in-game tournament card used on both Home ("Сейчас идёт") and
@@ -18,6 +21,7 @@ export function ActiveTournamentCard({
 }) {
   const fd = formatTournamentDate(t.date);
   const dim = primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)';
+  const levelTimeRemainingSec = useLevelCountdown(t.levelTimeRemainingSec);
   return (
     <Link href={`/tournaments/${t.id}`} className="block">
       <Card
@@ -81,7 +85,12 @@ export function ActiveTournamentCard({
             }}
           >
             <MiniStat label="Орг. взнос" v={formatNumberRu(t.buyin)} primary={primary} />
-            <MiniStat label="Игроки" v={`${t.aliveCount}/${t.registeredCount}`} primary={primary} />
+            <MiniStat
+              label="Игроки"
+              // "в игре / вошедшие": alive + eliminated (без не пришедших по записи)
+              v={`${t.aliveCount}/${t.aliveCount + t.eliminatedCount}`}
+              primary={primary}
+            />
             <MiniStat label="Средний стэк" v={formatNumberRu(t.averageStack)} primary={primary} />
             <MiniStat
               label="Блайнды"
@@ -103,7 +112,7 @@ export function ActiveTournamentCard({
             />
             <MiniStat
               label="Текущий уровень"
-              v={formatSeconds(t.levelTimeRemainingSec)}
+              v={formatSeconds(levelTimeRemainingSec)}
               gold
               primary={primary}
             />

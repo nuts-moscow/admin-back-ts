@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
@@ -16,6 +16,7 @@ import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { fetchPlayerApi } from '@/lib/api';
 import { formatNumberRu, formatSeconds } from '@/lib/format';
+import { useLevelCountdown } from '@/lib/use-level-countdown';
 
 type Tab = 'overview' | 'players';
 
@@ -28,16 +29,7 @@ interface Props {
 
 export function TournamentScreen({ detail, players, tables, myState }: Props) {
   const [view, setView] = useState<Tab>('overview');
-  const [s, setS] = useState<number>(detail.levelTimeRemainingSec ?? 0);
-
-  useEffect(() => {
-    setS(detail.levelTimeRemainingSec ?? 0);
-  }, [detail.levelTimeRemainingSec]);
-
-  useEffect(() => {
-    const id = setInterval(() => setS((v) => (v > 0 ? v - 1 : 0)), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const s = useLevelCountdown(detail.levelTimeRemainingSec);
 
   const levelTotal = (detail.currentBlinds?.durationMin ?? 20) * 60;
   const pct = Math.max(0, Math.min(100, (s / levelTotal) * 100));
@@ -184,7 +176,9 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         >
           <DarkStat
             label="Игроки"
-            v={`${detail.aliveCount} / ${detail.registeredCount}`}
+            // "в игре / вошедшие" — знаменатель считает реально вошедших
+            // (alive + eliminated), без записавшихся, но не пришедших.
+            v={`${detail.aliveCount} / ${detail.aliveCount + detail.eliminatedCount}`}
           />
           <DarkStat label="Средний стэк" v={formatNumberRu(detail.averageStack)} />
           <DarkStat label="Стартовый стэк" v={formatNumberRu(detail.startingStack)} />

@@ -10,7 +10,12 @@ import { Card } from '@/components/card';
 import { LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { logoutPlayer } from '@/lib/auth';
-import { formatJoinedAt, formatNumberRu, formatTournamentDate } from '@/lib/format';
+import {
+  currentSeasonLabel,
+  formatJoinedAt,
+  formatNumberRu,
+  formatTournamentDate,
+} from '@/lib/format';
 
 type Tab = 'stats' | 'achievements' | 'history';
 
@@ -108,7 +113,7 @@ export function ProfileScreen({ me, history }: Props) {
         </div>
 
         <div
-          className="mt-4 grid grid-cols-4 gap-2"
+          className="mt-4 grid grid-cols-3 gap-2"
           style={{
             padding: 14,
             borderRadius: 14,
@@ -117,9 +122,12 @@ export function ProfileScreen({ me, history }: Props) {
           }}
         >
           <DarkStat label="Рейтинг" v={me.rank != null ? `#${me.rank}` : '—'} sub={`${formatNumberRu(me.points)} pts`} />
-          <DarkStat label="ELO" v={String(me.eloLite.value)} sub={`пик ${me.eloLite.peak}`} />
-          <DarkStat label="ITM" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
-          <DarkStat label="Бонти" v={formatNumberRu(me.bountyCount)} sub="за сезон" />
+          <DarkStat label="Рейтинговая зона" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
+          <DarkStat
+            label="Нокауты"
+            v={formatNumberRu(Math.round(me.bountyCount))}
+            sub={me.season?.label ?? currentSeasonLabel()}
+          />
         </div>
 
         <div className="flex gap-2 mt-3 relative">
@@ -172,7 +180,7 @@ export function ProfileScreen({ me, history }: Props) {
         <div className="flex gap-1 bg-[rgba(27,22,18,0.06)] rounded-xl p-1">
           {([
             { id: 'stats', l: 'Статистика' },
-            { id: 'achievements', l: 'Ачивки' },
+            { id: 'achievements', l: 'Достижения' },
             { id: 'history', l: 'История' },
           ] as const).map((x) => (
             <button
@@ -211,33 +219,6 @@ export function ProfileScreen({ me, history }: Props) {
               <Stat label="Побед" value={String(me.wins)} />
               <Stat label="Финалов" value={String(me.finalTables)} sub="столов" />
               <Stat label="Очки" value={formatNumberRu(me.points)} />
-            </div>
-          </Card>
-
-          <Card padding={14}>
-            <div
-              className="uppercase font-bold mb-2.5"
-              style={{
-                fontSize: 10,
-                letterSpacing: 0.6,
-                color: 'var(--ink-3)',
-              }}
-            >
-              ELO-lite
-            </div>
-            <div className="flex items-baseline gap-3">
-              <div className="serif text-[36px] font-bold leading-none">{me.eloLite.value}</div>
-              <div className="text-xs text-ink-3">пик {me.eloLite.peak}</div>
-            </div>
-            <div
-              className="mono mt-1.5"
-              style={{
-                fontSize: 11,
-                color: me.eloLite.change30d >= 0 ? 'var(--green)' : 'var(--crimson)',
-              }}
-            >
-              {me.eloLite.change30d >= 0 ? '+' : ''}
-              {me.eloLite.change30d} за 30 дней
             </div>
           </Card>
         </div>

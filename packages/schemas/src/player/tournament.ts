@@ -30,6 +30,7 @@ export const PlayerTournamentSummary = z.object({
   registeredCount: z.number().int(),
   aliveCount: z.number().int(),
   eliminatedCount: z.number().int(),
+  isRegistered: z.boolean(),
   averageStack: z.number().nullable(),
   currentLevelNo: z.number().int().nullable(),
   currentBlinds: Blind.nullable(),

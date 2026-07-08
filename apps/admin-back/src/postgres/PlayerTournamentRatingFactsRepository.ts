@@ -29,6 +29,23 @@ export interface SeasonalRatingEntry {
   tournamentCount: number;
 }
 
+/** Standard final-table size: finishing here or better counts as a final table. */
+export const FINAL_TABLE_SIZE = 9;
+
+/** Per-player aggregates over one season's rating facts. */
+export interface SeasonalPlayerAggregates {
+  /** Sum of bounty_count (fractional shares) — the player's season knockouts. */
+  knockouts: number;
+  /** Tournaments where the player earned placement rating points (base_points > 0). */
+  ratingZoneCount: number;
+  /** Wins = finished 1st (placement equals field size). */
+  wins: number;
+  /** Final tables = finished in the top FINAL_TABLE_SIZE of the field. */
+  finalTables: number;
+  /** Total season tournaments the player has facts for. */
+  tournamentCount: number;
+}
+
 export interface PlayerTournamentRatingFactsRepository {
   replaceForTournament(
     tournamentId: number,
@@ -52,6 +69,11 @@ export interface PlayerTournamentRatingFactsRepository {
     month: number | null
   ): Promise<boolean>;
   getSeasonalRating(year: number, month: number): Promise<SeasonalRatingEntry[]>;
+  getSeasonalPlayerAggregates(
+    year: number,
+    month: number,
+    playerId: string
+  ): Promise<SeasonalPlayerAggregates>;
 }
 
 function breakdownToRowParams(b: TournamentRatingBreakdown): {
@@ -247,6 +269,44 @@ class PlayerTournamentRatingFactsRepositoryImpl
     } catch (err) {
       logger.info({ err, year, month }, `${LOG_PREFIX} getSeasonalRating failed`);
       return [];
+    }
+  }
+
+  async getSeasonalPlayerAggregates(
+    year: number,
+    month: number,
+    playerId: string
+  ): Promise<SeasonalPlayerAggregates> {
+    try {
+      const res = await PostgresClient.instance.query(
+        `SELECT
+           COALESCE(SUM(bounty_count), 0)          AS knockouts,
+           COUNT(*) FILTER (WHERE base_points > 0) AS rating_zone_count,
+           COUNT(*) FILTER (
+             WHERE placement IS NOT NULL AND placement = rating_field_size
+           )                                       AS wins,
+           COUNT(*) FILTER (
+             WHERE placement IS NOT NULL AND placement > rating_field_size - $4
+           )                                       AS final_tables,
+           COUNT(*)                                AS tournament_count
+         FROM player_tournament_rating_facts
+         WHERE rating_season_year = $1 AND rating_season_month = $2 AND player_id = $3`,
+        [year, month, playerId, FINAL_TABLE_SIZE]
+      );
+      const r = (res.rows[0] ?? {}) as Record<string, unknown>;
+      return {
+        knockouts: Number(r.knockouts ?? 0),
+        ratingZoneCount: Number(r.rating_zone_count ?? 0),
+        wins: Number(r.wins ?? 0),
+        finalTables: Number(r.final_tables ?? 0),
+        tournamentCount: Number(r.tournament_count ?? 0),
+      };
+    } catch (err) {
+      logger.info(
+        { err, year, month, playerId },
+        `${LOG_PREFIX} getSeasonalPlayerAggregates failed`
+      );
+      return { knockouts: 0, ratingZoneCount: 0, wins: 0, finalTables: 0, tournamentCount: 0 };
     }
   }
 }

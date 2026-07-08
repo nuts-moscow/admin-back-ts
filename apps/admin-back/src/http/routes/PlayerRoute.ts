@@ -12,7 +12,10 @@ import {
 } from "../../postgres/PlayerTournamentRatingFactsRepository";
 import { tournamentRepository, type TournamentRow } from "../../postgres/TournamentRepository";
 import { tournamentResultRepository } from "../../postgres/TournamentResultRepository";
-import { InGameUserStateService } from "../services/InGameUserStateService";
+import {
+  computeChipPoolSummaryFromStates,
+  InGameUserStateService,
+} from "../services/InGameUserStateService";
 import { tournamentClockService } from "../services/TournamentClockService";
 import type { PlayerAuthContext } from "../middleware/playerAuth";
 
@@ -117,6 +120,8 @@ interface TournamentSummaryPayload {
   registeredCount: number;
   aliveCount: number;
   eliminatedCount: number;
+  /** Whether the requesting player currently has a state in this tournament. */
+  isRegistered: boolean;
   averageStack: number | null;
   currentLevelNo: number | null;
   currentBlinds: ReturnType<typeof blindToWire> | null;
@@ -126,7 +131,8 @@ interface TournamentSummaryPayload {
 
 async function buildTournamentSummary(
   tournament: TournamentRow,
-  states: InGameUserState[]
+  states: InGameUserState[],
+  myPlayerId: number
 ): Promise<TournamentSummaryPayload> {
   const aliveStates = states.filter(isAlive);
   const eliminatedStates = states.filter(isOut);
@@ -135,12 +141,16 @@ async function buildTournamentSummary(
   const aliveCount = aliveStates.length;
   const registeredCount = states.length;
   const eliminatedCount = eliminatedStates.length;
+  // The player is "registered" iff they hold a state in this tournament.
+  const isRegistered = states.some((s) => Number(s.playerId) === myPlayerId);
 
-  // Stacks aren't persisted on InGameUserState — admin tracks chip-pool elsewhere.
-  // Fallback: when alive players exist and we know the structure, report the starting stack
-  // (so the FE always has a non-null number for the AVG tile). Real AVG arrives once
-  // chip-pool tracking lands on the player API.
-  const averageStack = structure != null && aliveCount > 0 ? structure.stackSize : null;
+  // Real average stack (totalChips ÷ playersActive), computed from the same
+  // chip-pool logic the broadcast/public chip-pool-summary endpoint uses, over
+  // the already-loaded states so we don't re-read the live store.
+  const averageStack =
+    structure != null
+      ? computeChipPoolSummaryFromStates(states, structure.stackSize).averageStack
+      : null;
 
   let currentLevelNo: number | null = null;
   let currentBlinds: ReturnType<typeof blindToWire> | null = null;
@@ -173,6 +183,7 @@ async function buildTournamentSummary(
     registeredCount,
     aliveCount,
     eliminatedCount,
+    isRegistered,
     averageStack,
     currentLevelNo,
     currentBlinds,
@@ -270,6 +281,16 @@ export function playerRoutes() {
         const seasonRows = await playerTournamentRatingFactsRepository.getSeasonalRating(year, month);
         const ranked = rankSeasonalEntries(seasonRows);
         const me = ranked.find((r) => Number(r.playerId) === ctx.playerId);
+        // Real season aggregates for this player (knockouts + rating-zone hit rate).
+        const agg = await playerTournamentRatingFactsRepository.getSeasonalPlayerAggregates(
+          year,
+          month,
+          String(ctx.playerId)
+        );
+        const ratingZonePct =
+          agg.tournamentCount > 0
+            ? Math.round((agg.ratingZoneCount / agg.tournamentCount) * 100)
+            : 0;
 
         let medal: "gold" | "silver" | "bronze" | "none" = "none";
         if (me) {
@@ -284,15 +305,19 @@ export function playerRoutes() {
           name: player.name,
           email: "", // populated from /me handler in PlayerAuthRoute; here we don't need to leak email again
           joinedAt: player.createdAt.toISOString(),
+          season: { year, month, label: seasonLabel(year, month) },
           rank: me?.rank ?? null,
           points: me?.totalPoints ?? 0,
           playedTournaments: me?.tournamentCount ?? 0,
-          wins: 0,
-          finalTables: 0,
-          itm: 0,
+          // Win = finished 1st; final table = top FINAL_TABLE_SIZE of the field.
+          wins: agg.wins,
+          finalTables: agg.finalTables,
+          // "Рейтинговая зона": share of season tournaments with placement points.
+          itm: ratingZonePct,
           freeEntryCount: player.freeEntryCount,
           freeReentryCount: player.freeReentryCount,
-          bountyCount: 0,
+          // Season knockouts = sum of bounty_count (fractional shares) this season.
+          bountyCount: agg.knockouts,
           medal,
           eloLite: {
             value: Math.round(1500 + (me?.totalPoints ?? 0) / 50),
@@ -522,7 +547,7 @@ export function playerRoutes() {
         const summaries = await Promise.all(
           filtered.map(async (t) => {
             const { states } = await loadStatesAndNicknames(t.id);
-            return buildTournamentSummary(t, states);
+            return buildTournamentSummary(t, states, ctx.playerId);
           })
         );
         return Response.json({ tournaments: summaries });
@@ -543,7 +568,7 @@ export function playerRoutes() {
         const summaries = await Promise.all(
           upcoming.map(async (t) => {
             const { states } = await loadStatesAndNicknames(t.id);
-            return buildTournamentSummary(t, states);
+            return buildTournamentSummary(t, states, ctx.playerId);
           })
         );
         return Response.json({ tournaments: summaries });
@@ -561,7 +586,7 @@ export function playerRoutes() {
         const tournament = await tournamentRepository.findById(id);
         if (!tournament) return notFound("Tournament not found");
         const { states } = await loadStatesAndNicknames(id);
-        const summary = await buildTournamentSummary(tournament, states);
+        const summary = await buildTournamentSummary(tournament, states, ctx.playerId);
         const structure = await tournamentStructureCache.get(String(id));
         return Response.json({
           ...(summary as object),

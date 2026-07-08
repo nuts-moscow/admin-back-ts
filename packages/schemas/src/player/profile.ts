@@ -9,6 +9,18 @@ export const PlayerMeProfile = z.object({
   name: z.string().nullable(),
   email: z.string().email(),
   joinedAt: z.string(),
+  /**
+   * Current season by date (the season shown in the profile). Optional so an
+   * older backend that doesn't send it doesn't break the client — the UI falls
+   * back to a date-derived season label.
+   */
+  season: z
+    .object({
+      year: z.number().int(),
+      month: z.number().int(),
+      label: z.string(),
+    })
+    .optional(),
   rank: z.number().int().nullable(),
   points: z.number(),
   playedTournaments: z.number().int(),
