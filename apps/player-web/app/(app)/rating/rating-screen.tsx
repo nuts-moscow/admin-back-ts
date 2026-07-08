@@ -37,14 +37,23 @@ export function RatingScreen({
   const [seasonKey, setSeasonKey] = useState(`${initialYear}-${initialMonth}`);
   const [entries, setEntries] = useState(initialEntries);
   const [elo, setElo] = useState(initialElo);
+  const [loading, setLoading] = useState(false);
 
   const currentSeasonLabel =
     seasons.find((s) => `${s.year}-${s.month}` === seasonKey)?.label ?? '';
 
   useEffect(() => {
-    if (seasonKey === `${initialYear}-${initialMonth}`) return;
     const [y, m] = seasonKey.split('-').map(Number);
+    // Current season: reuse the server-rendered initial data — no refetch, and
+    // crucially reset to it so switching back doesn't leave another season's rows.
+    if (seasonKey === `${initialYear}-${initialMonth}`) {
+      setEntries(initialEntries);
+      setElo(initialElo);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    setLoading(true);
     void Promise.all([
       fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
         `/api/player/rating/season?year=${y}&month=${m}&limit=50`,
@@ -56,11 +65,12 @@ export function RatingScreen({
       if (cancelled) return;
       setEntries(s.entries);
       setElo(e.entries);
+      setLoading(false);
     });
     return () => {
       cancelled = true;
     };
-  }, [seasonKey, initialYear, initialMonth]);
+  }, [seasonKey, initialYear, initialMonth, initialEntries, initialElo]);
 
   return (
     <ScrollScreen>
@@ -136,7 +146,7 @@ export function RatingScreen({
 
       {tab === 'season' && (
         <>
-          {entries.length >= 3 && (
+          {!loading && entries.length >= 3 && (
             <div className="px-5 pb-3.5">
               <Podium top3={entries.slice(0, 3)} seasonLabel={currentSeasonLabel} />
             </div>
@@ -159,7 +169,10 @@ export function RatingScreen({
                 <div className="text-right">ITM</div>
                 <div />
               </div>
-              {entries.map((p, i, arr) => (
+              {loading && (
+                <div className="text-center text-[11px] text-ink-3 py-6">Загрузка…</div>
+              )}
+              {!loading && entries.map((p, i, arr) => (
                 <div
                   key={`${p.rank}-${p.playerId}`}
                   className="grid items-center gap-2.5 px-3.5"
@@ -199,7 +212,7 @@ export function RatingScreen({
                   </div>
                 </div>
               ))}
-              {entries.length === 0 && (
+              {!loading && entries.length === 0 && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Нет данных</div>
               )}
             </Card>
