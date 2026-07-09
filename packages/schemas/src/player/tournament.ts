@@ -58,7 +58,7 @@ export const PlayerTournamentDetail = PlayerTournamentSummary.extend({
       fieldSize: z.number().int(),
       points: z.number(),
       knockouts: z.array(z.object({ playerId: z.number().int(), nickname: z.string() })),
-      eliminatedBy: z.object({ playerId: z.number().int(), nickname: z.string() }).nullable(),
+      eliminatedBy: z.array(z.object({ playerId: z.number().int(), nickname: z.string() })),
     })
     .nullable(),
 });

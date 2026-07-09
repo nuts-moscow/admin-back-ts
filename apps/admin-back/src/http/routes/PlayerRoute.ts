@@ -272,58 +272,18 @@ export function playerRoutes() {
       GET: async (req: BunRequest) => {
         const ctx = getCtx(req);
         if (!ctx) return unauthorized();
+        const base = await buildPublicProfile(ctx.playerId);
+        if (!base) return notFound("Player not found");
+        // Own profile adds private fields the public view never sees.
         const player = await playerRepository.findById(String(ctx.playerId));
-        if (!player) return notFound("Player not found");
-
-        const now = new Date();
-        const year = now.getUTCFullYear();
-        const month = now.getUTCMonth() + 1;
-        const seasonRows = await playerTournamentRatingFactsRepository.getSeasonalRating(year, month);
-        const ranked = rankSeasonalEntries(seasonRows);
-        const me = ranked.find((r) => Number(r.playerId) === ctx.playerId);
-        // Real season aggregates for this player (knockouts + rating-zone hit rate).
-        const agg = await playerTournamentRatingFactsRepository.getSeasonalPlayerAggregates(
-          year,
-          month,
-          String(ctx.playerId)
-        );
-        const ratingZonePct =
-          agg.tournamentCount > 0
-            ? Math.round((agg.ratingZoneCount / agg.tournamentCount) * 100)
-            : 0;
-
-        let medal: "gold" | "silver" | "bronze" | "none" = "none";
-        if (me) {
-          if (me.rank === 1) medal = "gold";
-          else if (me.rank === 2) medal = "silver";
-          else if (me.rank === 3) medal = "bronze";
-        }
+        const eloLiteValue = Math.round(1500 + base.points / 50);
 
         return Response.json({
-          id: player.id,
-          nickname: player.nickname,
-          name: player.name,
-          email: "", // populated from /me handler in PlayerAuthRoute; here we don't need to leak email again
-          joinedAt: player.createdAt.toISOString(),
-          season: { year, month, label: seasonLabel(year, month) },
-          rank: me?.rank ?? null,
-          points: me?.totalPoints ?? 0,
-          playedTournaments: me?.tournamentCount ?? 0,
-          // Win = finished 1st; final table = top FINAL_TABLE_SIZE of the field.
-          wins: agg.wins,
-          finalTables: agg.finalTables,
-          // "Рейтинговая зона": share of season tournaments with placement points.
-          itm: ratingZonePct,
-          freeEntryCount: player.freeEntryCount,
-          freeReentryCount: player.freeReentryCount,
-          // Season knockouts = sum of bounty_count (fractional shares) this season.
-          bountyCount: agg.knockouts,
-          medal,
-          eloLite: {
-            value: Math.round(1500 + (me?.totalPoints ?? 0) / 50),
-            peak: Math.round(1500 + (me?.totalPoints ?? 0) / 50),
-            change30d: 0,
-          },
+          ...base,
+          email: "", // populated by the /me handler in PlayerAuthRoute; not leaked again here
+          freeEntryCount: player?.freeEntryCount ?? 0,
+          freeReentryCount: player?.freeReentryCount ?? 0,
+          eloLite: { value: eloLiteValue, peak: eloLiteValue, change30d: 0 },
         });
       },
       PATCH: async (req: BunRequest) => {
@@ -352,84 +312,39 @@ export function playerRoutes() {
       GET: async (req: BunRequest) => {
         const ctx = getCtx(req);
         if (!ctx) return unauthorized();
+        const entries = await buildPlayerHistory(ctx.playerId);
+        return Response.json({ entries });
+      },
+    },
 
-        // Pull all rating facts for this player, then load matching tournament rows.
-        const factsRes = await queryPlayerRatingFacts(ctx.playerId);
-        if (factsRes.length === 0) {
-          return Response.json({ entries: [] });
+    "/api/player/players/:playerId/profile": {
+      GET: async (
+        req: BunRequest<"/api/player/players/:playerId/profile"> & {
+          params: { playerId: string };
         }
-        const tournamentIds = Array.from(new Set(factsRes.map((f) => f.tournamentId)));
-        const tournamentRows = await Promise.all(
-          tournamentIds.map((id) => tournamentRepository.findById(id))
-        );
-        const tournamentById = new Map<number, TournamentRow>();
-        for (const t of tournamentRows) if (t) tournamentById.set(t.id, t);
+      ) => {
+        const ctx = getCtx(req);
+        if (!ctx) return unauthorized();
+        const playerId = parseInt(req.params.playerId, 10);
+        if (Number.isNaN(playerId) || playerId < 1) return badRequest("Invalid playerId");
+        const profile = await buildPublicProfile(playerId);
+        if (!profile) return notFound("Player not found");
+        return Response.json(profile);
+      },
+    },
 
-        const resultsByTournament = await Promise.all(
-          tournamentIds.map(async (id) => ({
-            id,
-            rows: await tournamentResultRepository.findByTournamentId(id),
-          }))
-        );
-        const fieldByTournament = new Map<number, number>();
-        for (const { id, rows } of resultsByTournament) {
-          // Field size = number of players who actually played. Some
-          // historic tournaments have fewer result rows than the highest
-          // recorded placement (e.g. partial backfill / lost rows), which
-          // would make "fieldSize - place + 1" go negative on the FE.
-          // Floor with the max placement found in either the result rows
-          // or the rating facts to keep the inversion well-defined.
-          const rowCount = rows.filter(
-            (r) => r.status !== "Registered" && r.status !== "registered"
-          ).length || rows.length;
-          const maxPlacementInResults = rows.reduce(
-            (m, r) => Math.max(m, r.placement ?? 0),
-            0
-          );
-          const maxPlacementInFacts = factsRes
-            .filter((f) => f.tournamentId === id)
-            .reduce((m, f) => Math.max(m, f.placement ?? 0), 0);
-          fieldByTournament.set(
-            id,
-            Math.max(rowCount, maxPlacementInResults, maxPlacementInFacts)
-          );
+    "/api/player/players/:playerId/tournaments/history": {
+      GET: async (
+        req: BunRequest<"/api/player/players/:playerId/tournaments/history"> & {
+          params: { playerId: string };
         }
-
-        const entries: PlayerHistoryRow[] = factsRes
-          // Skip rows where the player wasn't actually eliminated at
-          // tournament-completion time. Admin force-completion gives those
-          // players placement=N (treated as winner), which would render as
-          // "1/N" on the FE even though they didn't actually finish first.
-          .filter((f) => f.playerStatus === "Out")
-          .map((f) => {
-            const t = tournamentById.get(f.tournamentId);
-            if (!t) return null;
-            return {
-              tournamentId: f.tournamentId,
-              date: epochMs(t.date),
-              name: t.name,
-              buyin: t.entryPrice,
-              place: f.placement,
-              fieldSize: fieldByTournament.get(f.tournamentId) ?? 0,
-              pointsDelta: f.totalPoints,
-            };
-          })
-          .filter((x): x is PlayerHistoryRow => x !== null)
-          .sort((a, b) => b.date - a.date);
-
-        return Response.json({
-          entries: entries.map((e) => ({
-            tournamentId: e.tournamentId,
-            date: new Date(e.date).toISOString(),
-            name: e.name,
-            buyin: e.buyin,
-            place: e.place,
-            fieldSize: e.fieldSize,
-            prize: null,
-            eloDelta: 0,
-            pointsDelta: e.pointsDelta,
-          })),
-        });
+      ) => {
+        const ctx = getCtx(req);
+        if (!ctx) return unauthorized();
+        const playerId = parseInt(req.params.playerId, 10);
+        if (Number.isNaN(playerId) || playerId < 1) return badRequest("Invalid playerId");
+        const entries = await buildPlayerHistory(playerId);
+        return Response.json({ entries });
       },
     },
 
@@ -444,7 +359,28 @@ export function playerRoutes() {
         const tournamentId = parseInt(req.params.tournamentId, 10);
         if (Number.isNaN(tournamentId) || tournamentId < 1) return badRequest("Invalid tournamentId");
         const state = await inGameService.getUser(String(ctx.playerId), String(tournamentId));
-        if (!state) return notFound("Not registered in this tournament");
+        if (!state) {
+          // Completed tournaments clear the live in-game state; fall back to the
+          // durable results so a player who took part is still recognized.
+          const tournament = await tournamentRepository.findById(tournamentId);
+          if (tournament?.status === "completed") {
+            const rows = await tournamentResultRepository.findByTournamentId(tournamentId);
+            const mine = rows.find((r) => r.playerId === String(ctx.playerId));
+            if (mine) {
+              return Response.json({
+                tournamentId,
+                status: "out",
+                stack: null,
+                table: null,
+                seat: null,
+                place: mine.placement,
+                bountyCount: mine.bountyCount,
+                reentriesUsed: mine.totalReentryCount,
+              });
+            }
+          }
+          return notFound("Not registered in this tournament");
+        }
         return Response.json({
           tournamentId,
           status: statusForWire(state),
@@ -870,7 +806,8 @@ interface MyCompletedResult {
   fieldSize: number;
   points: number;
   knockouts: PlayerRef[];
-  eliminatedBy: PlayerRef | null;
+  /** Who knocked me out — a list because a bounty can be split across killers. */
+  eliminatedBy: PlayerRef[];
 }
 
 /** Parse a stored player-id list (JSON array, else comma-separated) into ids. */
@@ -918,13 +855,12 @@ async function buildMyCompletedResult(
     mine.ratingPersisted?.totalPoints ??
     0;
 
+  // Both columns store JSON arrays of player ids (eliminatedBy can hold several
+  // when a bounty was split across killers); an empty tournament records "[]".
   const killIds = parsePlayerIdList(mine.bountyKills);
-  const killerId =
-    mine.eliminatedBy && mine.eliminatedBy.length > 0 ? mine.eliminatedBy : null;
+  const killerIds = parsePlayerIdList(mine.eliminatedBy);
 
-  const neededIds = Array.from(
-    new Set([...killIds, ...(killerId ? [killerId] : [])])
-  );
+  const neededIds = Array.from(new Set([...killIds, ...killerIds]));
   const nickById = new Map<string, string>();
   await Promise.all(
     neededIds.map(async (pid) => {
@@ -942,8 +878,143 @@ async function buildMyCompletedResult(
     fieldSize,
     points,
     knockouts: killIds.map(ref),
-    eliminatedBy: killerId ? ref(killerId) : null,
+    eliminatedBy: killerIds.map(ref),
   };
+}
+
+interface PublicProfilePayload {
+  id: number;
+  nickname: string;
+  name: string | null;
+  joinedAt: string;
+  season: { year: number; month: number; label: string };
+  rank: number | null;
+  points: number;
+  playedTournaments: number;
+  wins: number;
+  finalTables: number;
+  itm: number;
+  bountyCount: number;
+  medal: "gold" | "silver" | "bronze" | "none";
+}
+
+/**
+ * Public, non-sensitive profile for any player: identity + current-season
+ * stats. Shared by `/me` (which adds private fields on top) and the public
+ * player-profile endpoint. Returns null when the player doesn't exist.
+ */
+async function buildPublicProfile(playerId: number): Promise<PublicProfilePayload | null> {
+  const player = await playerRepository.findById(String(playerId));
+  if (!player) return null;
+
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const seasonRows = await playerTournamentRatingFactsRepository.getSeasonalRating(year, month);
+  const ranked = rankSeasonalEntries(seasonRows);
+  const entry = ranked.find((r) => Number(r.playerId) === playerId);
+  const agg = await playerTournamentRatingFactsRepository.getSeasonalPlayerAggregates(
+    year,
+    month,
+    String(playerId)
+  );
+  const ratingZonePct =
+    agg.tournamentCount > 0
+      ? Math.round((agg.ratingZoneCount / agg.tournamentCount) * 100)
+      : 0;
+
+  let medal: "gold" | "silver" | "bronze" | "none" = "none";
+  if (entry) {
+    if (entry.rank === 1) medal = "gold";
+    else if (entry.rank === 2) medal = "silver";
+    else if (entry.rank === 3) medal = "bronze";
+  }
+
+  return {
+    id: player.id,
+    nickname: player.nickname,
+    name: player.name,
+    joinedAt: player.createdAt.toISOString(),
+    season: { year, month, label: seasonLabel(year, month) },
+    rank: entry?.rank ?? null,
+    points: entry?.totalPoints ?? 0,
+    playedTournaments: entry?.tournamentCount ?? 0,
+    wins: agg.wins,
+    finalTables: agg.finalTables,
+    itm: ratingZonePct,
+    bountyCount: agg.knockouts,
+    medal,
+  };
+}
+
+interface HistoryWireEntry {
+  tournamentId: number;
+  date: string;
+  name: string;
+  buyin: number;
+  place: number | null;
+  fieldSize: number;
+  prize: number | null;
+  eloDelta: number;
+  pointsDelta: number;
+}
+
+/**
+ * A player's tournament history (completed games they were eliminated from),
+ * newest first, in wire shape. Shared by `/me` history and the public endpoint.
+ */
+async function buildPlayerHistory(playerId: number): Promise<HistoryWireEntry[]> {
+  const factsRes = await queryPlayerRatingFacts(playerId);
+  if (factsRes.length === 0) return [];
+
+  const tournamentIds = Array.from(new Set(factsRes.map((f) => f.tournamentId)));
+  const tournamentRows = await Promise.all(
+    tournamentIds.map((id) => tournamentRepository.findById(id))
+  );
+  const tournamentById = new Map<number, TournamentRow>();
+  for (const t of tournamentRows) if (t) tournamentById.set(t.id, t);
+
+  const resultsByTournament = await Promise.all(
+    tournamentIds.map(async (id) => ({
+      id,
+      rows: await tournamentResultRepository.findByTournamentId(id),
+    }))
+  );
+  const fieldByTournament = new Map<number, number>();
+  for (const { id, rows } of resultsByTournament) {
+    // Field size = players who actually played; floor with the max placement
+    // seen so "fieldSize - place + 1" never goes negative on partial backfills.
+    const rowCount =
+      rows.filter((r) => r.status !== "Registered" && r.status !== "registered").length ||
+      rows.length;
+    const maxPlacementInResults = rows.reduce((m, r) => Math.max(m, r.placement ?? 0), 0);
+    const maxPlacementInFacts = factsRes
+      .filter((f) => f.tournamentId === id)
+      .reduce((m, f) => Math.max(m, f.placement ?? 0), 0);
+    fieldByTournament.set(id, Math.max(rowCount, maxPlacementInResults, maxPlacementInFacts));
+  }
+
+  return factsRes
+    // Only games the player was actually eliminated from (admin force-completion
+    // gives non-finishers placement=N, which would render as a bogus "1/N").
+    .filter((f) => f.playerStatus === "Out")
+    .map((f): HistoryWireEntry | null => {
+      const t = tournamentById.get(f.tournamentId);
+      if (!t) return null;
+      return {
+        tournamentId: f.tournamentId,
+        date: new Date(epochMs(t.date)).toISOString(),
+        name: t.name,
+        buyin: t.entryPrice,
+        place: f.placement,
+        fieldSize: fieldByTournament.get(f.tournamentId) ?? 0,
+        prize: null,
+        eloDelta: 0,
+        pointsDelta: f.totalPoints,
+      };
+    })
+    .filter((x): x is HistoryWireEntry => x !== null)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 async function queryPlayerRatingFacts(playerId: number): Promise<

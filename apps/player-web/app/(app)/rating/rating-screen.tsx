@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type {
   HallOfFameEntry,
@@ -166,8 +167,9 @@ export function RatingScreen({
                 <div className="text-center text-[11px] text-ink-3 py-6">Загрузка…</div>
               )}
               {!loading && entries.map((p, i, arr) => (
-                <div
+                <Link
                   key={`${p.rank}-${p.playerId}`}
+                  href={`/players/${p.playerId}`}
                   className="grid items-center gap-2.5 px-3.5"
                   style={{
                     gridTemplateColumns: '36px 1fr 60px 56px 28px',
@@ -203,7 +205,7 @@ export function RatingScreen({
                   <div className="text-center">
                     <span className="text-ink-3 font-bold" style={{ fontSize: 12 }}>—</span>
                   </div>
-                </div>
+                </Link>
               ))}
               {!loading && entries.length === 0 && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Нет данных</div>

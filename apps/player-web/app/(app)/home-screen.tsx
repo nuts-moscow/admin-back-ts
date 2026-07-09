@@ -95,8 +95,9 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
             </div>
             <div className="flex-1 flex flex-col">
               {leaders.slice(0, 6).map((p, i, arr) => (
-                <div
+                <Link
                   key={`${p.rank}-${p.playerId}`}
+                  href={`/players/${p.playerId}`}
                   className="flex-1 flex items-center gap-2 px-2.5 min-h-[44px]"
                   style={{
                     borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
@@ -119,7 +120,7 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
                       {formatNumberRu(p.points)} pts
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
               {leaders.length === 0 && (
                 <div className="flex-1 flex items-center justify-center text-[11px] text-ink-3">

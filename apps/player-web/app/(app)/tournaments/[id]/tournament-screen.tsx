@@ -339,8 +339,9 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                       ? 1
                       : null;
                 return (
-                  <div
+                  <Link
                     key={`${p.playerId}-${i}`}
+                    href={`/players/${p.playerId}`}
                     className="flex items-center gap-2.5 px-3 py-2.5"
                     style={{
                       borderBottom: i < sorted.length - 1 ? '1px solid var(--line-2)' : 'none',
@@ -422,7 +423,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             {players.length === 0 && (
@@ -570,7 +571,13 @@ function MyResultPanel({ r }: { r: PlayerTournamentDetail['myResult'] }) {
         />
         <ResultRow
           k="Меня выбил"
-          v={isWinner ? '🏆 Победитель' : (r.eliminatedBy?.nickname ?? '—')}
+          v={
+            isWinner
+              ? '🏆 Победитель'
+              : r.eliminatedBy.length > 0
+                ? r.eliminatedBy.map((k) => k.nickname).join(', ')
+                : '—'
+          }
         />
       </div>
     </div>
