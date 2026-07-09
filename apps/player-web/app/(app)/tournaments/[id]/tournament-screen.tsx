@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
@@ -15,7 +15,8 @@ import { ChevLIcon, MedalIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { fetchPlayerApi } from '@/lib/api';
-import { formatNumberRu, formatSeconds } from '@/lib/format';
+import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
+import { useLevelCountdown } from '@/lib/use-level-countdown';
 
 type Tab = 'overview' | 'players';
 
@@ -28,19 +29,24 @@ interface Props {
 
 export function TournamentScreen({ detail, players, tables, myState }: Props) {
   const [view, setView] = useState<Tab>('overview');
-  const [s, setS] = useState<number>(detail.levelTimeRemainingSec ?? 0);
-
-  useEffect(() => {
-    setS(detail.levelTimeRemainingSec ?? 0);
-  }, [detail.levelTimeRemainingSec]);
-
-  useEffect(() => {
-    const id = setInterval(() => setS((v) => (v > 0 ? v - 1 : 0)), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const s = useLevelCountdown(detail.levelTimeRemainingSec);
 
   const levelTotal = (detail.currentBlinds?.durationMin ?? 20) * 60;
   const pct = Math.max(0, Math.min(100, (s / levelTotal) * 100));
+
+  // Completed tournaments drop the live clock/blinds/register header and the
+  // Обзор/Игроки tabs: instead we show the player's own result, then the final
+  // standings list directly.
+  const isCompleted = detail.status === 'completed';
+
+  // Field size for inverting elimination order → finishing place. `registeredCount`
+  // comes from live Redis state, which is cleared once a tournament completes (→ 0),
+  // so fall back to the max `place` in the durable standings. For a live tournament
+  // every `place` ≤ registeredCount, so this is a no-op there.
+  const fieldSize = Math.max(
+    detail.registeredCount,
+    ...players.map((p) => p.place ?? 0),
+  );
 
   return (
     <ScrollScreen dark>
@@ -58,7 +64,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         <div className="grain" style={{ opacity: 0.18, mixBlendMode: 'screen' }} />
         <div className="flex justify-between items-center relative">
           <Link
-            href="/schedule"
+            href="/"
             className="inline-flex items-center gap-1 font-semibold uppercase tracking-wider"
             style={{
               background: 'rgba(251,245,233,0.1)',
@@ -91,6 +97,31 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
           {detail.name}
         </div>
 
+        {(() => {
+          const fd = formatTournamentDate(detail.date);
+          return (
+            <div className="relative mt-2.5">
+              <span
+                className="inline-flex items-center uppercase font-bold rounded-full"
+                style={{
+                  fontSize: 12,
+                  letterSpacing: 0.8,
+                  padding: '5px 12px',
+                  background: 'rgba(181,138,60,0.15)',
+                  border: '1px solid rgba(181,138,60,0.35)',
+                  color: 'var(--gold)',
+                }}
+              >
+                {fd.day} {fd.date} · {fd.time}
+              </span>
+            </div>
+          );
+        })()}
+
+        {isCompleted ? (
+          <MyResultPanel r={detail.myResult} />
+        ) : (
+          <>
         <div className="mt-4 relative">
           <div className="flex justify-between items-end mb-2">
             <div>
@@ -184,53 +215,63 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         >
           <DarkStat
             label="Игроки"
-            v={`${detail.aliveCount} / ${detail.registeredCount}`}
+            // "в игре / вошедшие" — знаменатель считает реально вошедших
+            // (alive + eliminated), без записавшихся, но не пришедших.
+            v={`${detail.aliveCount} / ${detail.aliveCount + detail.eliminatedCount}`}
           />
           <DarkStat label="Средний стэк" v={formatNumberRu(detail.averageStack)} />
           <DarkStat label="Стартовый стэк" v={formatNumberRu(detail.startingStack)} />
           {/*
-            Placeholder for the late-reg countdown. Backend currently only
-            exposes lateRegistrationClosed (boolean), so we can only show the
-            current status. To turn this into a live timer, add a
-            late_registration_closes_at timestamp to the tournaments table
-            and surface it in PlayerTournamentDetail.
+            Before the game starts it's plain registration ("Запись на игру"),
+            not LATE registration — that concept only applies once play is under
+            way. Once in_progress/completed we show the late-reg status. Backend
+            only exposes lateRegistrationClosed (boolean); to make this a live
+            countdown, add late_registration_closes_at to PlayerTournamentDetail.
           */}
-          <DarkStat
-            label="Поздняя регистрация"
-            v={detail.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
-          />
+          {detail.status === 'registration_open' ? (
+            <DarkStat label="Запись на игру" v="Открыта" />
+          ) : (
+            <DarkStat
+              label="Поздняя регистрация"
+              v={detail.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
+            />
+          )}
         </div>
+          </>
+        )}
       </div>
 
-      <div className="px-5 pt-4 pb-3">
-        <div
-          className="flex gap-1 rounded-xl p-1"
-          style={{ background: 'rgba(27,22,18,0.06)' }}
-        >
-          {([
-            { id: 'overview', l: 'Обзор' },
-            { id: 'players', l: 'Игроки' },
-          ] as const).map((x) => (
-            <button
-              key={x.id}
-              onClick={() => setView(x.id)}
-              className="flex-1 border-0 rounded-full cursor-pointer font-bold uppercase tracking-wider"
-              style={{
-                padding: '8px 12px',
-                fontSize: 11.5,
-                background: view === x.id ? 'var(--paper)' : 'transparent',
-                color: view === x.id ? 'var(--ink)' : 'var(--ink-3)',
-                boxShadow: view === x.id ? '0 1px 3px rgba(27,22,18,0.08)' : 'none',
-                fontFamily: 'inherit',
-              }}
-            >
-              {x.l}
-            </button>
-          ))}
+      {!isCompleted && (
+        <div className="px-5 pt-4 pb-3">
+          <div
+            className="flex gap-1 rounded-xl p-1"
+            style={{ background: 'rgba(27,22,18,0.06)' }}
+          >
+            {([
+              { id: 'overview', l: 'Обзор' },
+              { id: 'players', l: 'Игроки' },
+            ] as const).map((x) => (
+              <button
+                key={x.id}
+                onClick={() => setView(x.id)}
+                className="flex-1 border-0 rounded-full cursor-pointer font-bold uppercase tracking-wider"
+                style={{
+                  padding: '8px 12px',
+                  fontSize: 11.5,
+                  background: view === x.id ? 'var(--paper)' : 'transparent',
+                  color: view === x.id ? 'var(--ink)' : 'var(--ink-3)',
+                  boxShadow: view === x.id ? '0 1px 3px rgba(27,22,18,0.08)' : 'none',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {x.l}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {view === 'overview' && (
+      {!isCompleted && view === 'overview' && (
         <div className="px-5 flex flex-col gap-2.5">
           <Card padding={14}>
             <div
@@ -261,8 +302,8 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         </div>
       )}
 
-      {view === 'players' && (
-        <div className="px-5">
+      {(isCompleted || view === 'players') && (
+        <div className={isCompleted ? 'px-5 pt-4' : 'px-5'}>
           <Card padding={0}>
             {/* Column header */}
             <div
@@ -273,7 +314,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                 borderBottom: '1px solid var(--line-2)',
               }}
             >
-              Место
+              {isCompleted ? 'Итоговые места' : 'Место'}
             </div>
             {/* Active players (place === null) at the top. Among the
                 eliminated, sort by display ASC: first-to-bust (#1) just
@@ -293,17 +334,22 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                    winner). Multiple still in game → no number yet. */
                 const displayPlace =
                   p.status === 'out' && p.place != null
-                    ? detail.registeredCount - p.place + 1
+                    ? fieldSize - p.place + 1
                     : p.status !== 'out' && detail.aliveCount === 1
                       ? 1
                       : null;
                 return (
-                  <div
+                  <Link
                     key={`${p.playerId}-${i}`}
+                    href={`/players/${p.playerId}`}
                     className="flex items-center gap-2.5 px-3 py-2.5"
                     style={{
                       borderBottom: i < sorted.length - 1 ? '1px solid var(--line-2)' : 'none',
-                      background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
+                      // "Me" row: strong gold tint + gold left accent so it's
+                      // unmistakable in a long list. Transparent 3px border on
+                      // every row keeps content aligned.
+                      borderLeft: `3px solid ${p.isMe ? 'var(--gold-2)' : 'transparent'}`,
+                      background: p.isMe ? 'rgba(181,138,60,0.22)' : 'transparent',
                       opacity: p.status === 'out' ? 0.4 : 1,
                     }}
                   >
@@ -354,10 +400,30 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                         </div>
                       );
                     })()}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-semibold text-ink">{p.nickname}</div>
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      <div
+                        className="text-[13px] font-semibold truncate"
+                        style={{ color: p.isMe ? 'var(--gold-2)' : 'var(--ink)' }}
+                      >
+                        {p.nickname}
+                      </div>
+                      {p.isMe && (
+                        <span
+                          className="shrink-0 uppercase font-bold"
+                          style={{
+                            fontSize: 9,
+                            letterSpacing: 0.5,
+                            padding: '2px 6px',
+                            borderRadius: 999,
+                            background: 'var(--gold)',
+                            color: 'var(--ink)',
+                          }}
+                        >
+                          Вы
+                        </span>
+                      )}
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             {players.length === 0 && (
@@ -435,6 +501,104 @@ function RegisterButton({
           {error}
         </div>
       )}
+    </div>
+  );
+}
+
+function MyResultPanel({ r }: { r: PlayerTournamentDetail['myResult'] }) {
+  const panelStyle = {
+    padding: 14,
+    borderRadius: 14,
+    background: 'rgba(251,245,233,0.06)',
+    border: '1px solid rgba(251,245,233,0.08)',
+  } as const;
+
+  if (!r) {
+    return (
+      <div className="mt-4 relative" style={panelStyle}>
+        <div className="text-[13px]" style={{ color: 'rgba(251,245,233,0.6)' }}>
+          Вы не участвовали в этом турнире.
+        </div>
+      </div>
+    );
+  }
+
+  const isWinner = r.place === 1;
+  const isTop3 = r.place != null && r.place <= 3;
+
+  return (
+    <div className="mt-4 relative" style={panelStyle}>
+      <div
+        className="uppercase font-bold"
+        style={{ fontSize: 10, letterSpacing: 0.6, color: 'rgba(251,245,233,0.5)' }}
+      >
+        Мой результат
+      </div>
+
+      <div className="flex items-end gap-7 mt-2">
+        <div>
+          <div
+            className="serif font-bold leading-none"
+            style={{ fontSize: 34, color: isTop3 ? 'var(--gold)' : 'var(--paper)' }}
+          >
+            {r.place ?? '—'}
+          </div>
+          <div className="mono mt-1" style={{ fontSize: 10, color: 'rgba(251,245,233,0.5)' }}>
+            место из {r.fieldSize}
+          </div>
+        </div>
+        <div>
+          <div
+            className="serif font-bold leading-none"
+            style={{ fontSize: 34, color: r.points >= 0 ? 'var(--gold)' : 'var(--crimson)' }}
+          >
+            {r.points >= 0 ? '+' : ''}
+            {formatNumberRu(r.points)}
+          </div>
+          <div className="mono mt-1" style={{ fontSize: 10, color: 'rgba(251,245,233,0.5)' }}>
+            баллов
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="mt-3.5 pt-3 flex flex-col gap-2"
+        style={{ borderTop: '1px solid rgba(251,245,233,0.1)' }}
+      >
+        <ResultRow
+          k="Кого выбил"
+          v={r.knockouts.length > 0 ? r.knockouts.map((k) => k.nickname).join(', ') : '—'}
+        />
+        <ResultRow
+          k="Меня выбил"
+          v={
+            isWinner
+              ? '🏆 Победитель'
+              : r.eliminatedBy.length > 0
+                ? r.eliminatedBy.map((k) => k.nickname).join(', ')
+                : '—'
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function ResultRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span
+        className="uppercase font-bold shrink-0"
+        style={{ fontSize: 9.5, letterSpacing: 0.6, color: 'rgba(251,245,233,0.5)' }}
+      >
+        {k}
+      </span>
+      <span
+        className="text-[13px] font-semibold text-right"
+        style={{ color: 'var(--paper)' }}
+      >
+        {v}
+      </span>
     </div>
   );
 }

@@ -7,11 +7,15 @@ import { apiBaseUrl, clearStoredToken, fetchPlayerApi, getStoredToken, setStored
 
 export type PlayerSession = PlayerAuthMeResponse;
 
-export async function loginPlayer(email: string, password: string): Promise<PlayerLoginResponse> {
-  const res = await fetch(`${apiBaseUrl()}/api/player-auth/login`, {
+async function postAuth(
+  path: '/api/player-auth/login' | '/api/player-auth/register',
+  login: string,
+  password: string,
+): Promise<PlayerLoginResponse> {
+  const res = await fetch(`${apiBaseUrl()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    body: JSON.stringify({ login: login.trim(), password }),
     credentials: 'omit',
   });
   const text = await res.text();
@@ -35,6 +39,14 @@ export async function loginPlayer(email: string, password: string): Promise<Play
   if (typeof token !== 'string') throw new Error('Bad response');
   setStoredToken(token);
   return data as PlayerLoginResponse;
+}
+
+export function loginPlayer(login: string, password: string): Promise<PlayerLoginResponse> {
+  return postAuth('/api/player-auth/login', login, password);
+}
+
+export function registerPlayer(login: string, password: string): Promise<PlayerLoginResponse> {
+  return postAuth('/api/player-auth/register', login, password);
 }
 
 export async function logoutPlayer(): Promise<void> {

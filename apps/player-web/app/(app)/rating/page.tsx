@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import type {
   HallOfFameEntry,
-  PlayerEloLiteEntry,
   PlayerSeason,
   PlayerSeasonRatingEntry,
 } from '@admin/schemas';
@@ -13,7 +12,6 @@ import { RatingScreen } from './rating-screen';
 interface RatingData {
   seasons: PlayerSeason[];
   initialEntries: PlayerSeasonRatingEntry[];
-  initialElo: PlayerEloLiteEntry[];
   hallOfFame: HallOfFameEntry[];
   initialYear: number;
   initialMonth: number;
@@ -39,14 +37,11 @@ export default function RatingPage() {
       fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
         `/api/player/rating/season?year=${year}&month=${month}&limit=50`,
       ).catch(() => ({ entries: [] })),
-      fetchPlayerApi<{ entries: PlayerEloLiteEntry[] }>(
-        `/api/player/rating/elo-lite?year=${year}&month=${month}&limit=50`,
-      ).catch(() => ({ entries: [] })),
       fetchPlayerApi<{ entries: HallOfFameEntry[] }>('/api/player/hall-of-fame').catch(() => ({
         entries: [],
       })),
     ])
-      .then(([seasonsRes, seasonRes, eloRes, hofRes]) => {
+      .then(([seasonsRes, seasonRes, hofRes]) => {
         if (cancelled) return;
         setData({
           seasons:
@@ -54,7 +49,6 @@ export default function RatingPage() {
               ? seasonsRes.seasons
               : [{ year, month, label: defaultLabel(year, month), isCurrent: true }],
           initialEntries: seasonRes.entries,
-          initialElo: eloRes.entries,
           hallOfFame: hofRes.entries,
           initialYear: year,
           initialMonth: month,

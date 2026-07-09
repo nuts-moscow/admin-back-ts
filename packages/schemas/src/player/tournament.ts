@@ -30,6 +30,7 @@ export const PlayerTournamentSummary = z.object({
   registeredCount: z.number().int(),
   aliveCount: z.number().int(),
   eliminatedCount: z.number().int(),
+  isRegistered: z.boolean(),
   averageStack: z.number().nullable(),
   currentLevelNo: z.number().int().nullable(),
   currentBlinds: Blind.nullable(),
@@ -50,6 +51,16 @@ export const PlayerTournamentDetail = PlayerTournamentSummary.extend({
   }).nullable(),
   totalChips: z.number().nullable(),
   chipLeader: z.object({ playerId: z.number().int(), nickname: z.string(), stack: z.number() }).nullable(),
+  /** The calling player's own result — set only for completed tournaments they entered. */
+  myResult: z
+    .object({
+      place: z.number().int().nullable(),
+      fieldSize: z.number().int(),
+      points: z.number(),
+      knockouts: z.array(z.object({ playerId: z.number().int(), nickname: z.string() })),
+      eliminatedBy: z.array(z.object({ playerId: z.number().int(), nickname: z.string() })),
+    })
+    .nullable(),
 });
 export type PlayerTournamentDetail = z.infer<typeof PlayerTournamentDetail>;
 

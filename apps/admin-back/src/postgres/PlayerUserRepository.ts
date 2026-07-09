@@ -3,25 +3,37 @@ import { PostgresClient } from "./PostgresClient";
 
 export interface PlayerUser {
   id: number;
-  email: string;
+  /** Unique username used for open-registration login; null for legacy email-only users. */
+  login: string | null;
+  /** Email login identifier; null for users who registered with a login. */
+  email: string | null;
   passwordHash: string;
   playerId: number;
   createdAt: Date;
 }
 
 export interface PlayerUserRepository {
+  findByLogin(login: string): Promise<PlayerUser | null>;
   findByEmail(email: string): Promise<PlayerUser | null>;
   findById(id: number): Promise<PlayerUser | null>;
   findByPlayerId(playerId: number): Promise<PlayerUser | null>;
-  create(input: { email: string; passwordHash: string; playerId: number }): Promise<PlayerUser | null>;
+  create(input: {
+    login?: string | null;
+    email?: string | null;
+    passwordHash: string;
+    playerId: number;
+  }): Promise<PlayerUser | null>;
   updatePassword(id: number, passwordHash: string): Promise<boolean>;
   delete(id: number): Promise<boolean>;
 }
 
+const COLUMNS = "id, login, email, password_hash, player_id, created_at";
+
 function rowToPlayerUser(row: Record<string, unknown>): PlayerUser {
   return {
     id: Number(row.id),
-    email: String(row.email),
+    login: row.login == null ? null : String(row.login),
+    email: row.email == null ? null : String(row.email),
     passwordHash: String(row.password_hash),
     playerId: Number(row.player_id),
     createdAt:
@@ -30,57 +42,47 @@ function rowToPlayerUser(row: Record<string, unknown>): PlayerUser {
 }
 
 class PlayerUserRepositoryImpl implements PlayerUserRepository {
-  async findByEmail(email: string): Promise<PlayerUser | null> {
+  private async findOneBy(column: string, value: unknown): Promise<PlayerUser | null> {
     try {
       const result = await PostgresClient.instance.query(
-        "SELECT id, email, password_hash, player_id, created_at FROM player_users WHERE email = $1",
-        [email]
+        `SELECT ${COLUMNS} FROM player_users WHERE ${column} = $1`,
+        [value]
       );
       if (result.rows.length === 0) return null;
       return rowToPlayerUser(result.rows[0] as Record<string, unknown>);
     } catch (err) {
-      logger.error({ err }, "[PlayerUserRepository] findByEmail failed");
+      logger.error({ err, column }, "[PlayerUserRepository] findOneBy failed");
       return null;
     }
   }
 
-  async findById(id: number): Promise<PlayerUser | null> {
-    try {
-      const result = await PostgresClient.instance.query(
-        "SELECT id, email, password_hash, player_id, created_at FROM player_users WHERE id = $1",
-        [id]
-      );
-      if (result.rows.length === 0) return null;
-      return rowToPlayerUser(result.rows[0] as Record<string, unknown>);
-    } catch (err) {
-      logger.error({ err }, "[PlayerUserRepository] findById failed");
-      return null;
-    }
+  findByLogin(login: string): Promise<PlayerUser | null> {
+    return this.findOneBy("login", login);
   }
 
-  async findByPlayerId(playerId: number): Promise<PlayerUser | null> {
-    try {
-      const result = await PostgresClient.instance.query(
-        "SELECT id, email, password_hash, player_id, created_at FROM player_users WHERE player_id = $1",
-        [playerId]
-      );
-      if (result.rows.length === 0) return null;
-      return rowToPlayerUser(result.rows[0] as Record<string, unknown>);
-    } catch (err) {
-      logger.error({ err }, "[PlayerUserRepository] findByPlayerId failed");
-      return null;
-    }
+  findByEmail(email: string): Promise<PlayerUser | null> {
+    return this.findOneBy("email", email);
+  }
+
+  findById(id: number): Promise<PlayerUser | null> {
+    return this.findOneBy("id", id);
+  }
+
+  findByPlayerId(playerId: number): Promise<PlayerUser | null> {
+    return this.findOneBy("player_id", playerId);
   }
 
   async create(input: {
-    email: string;
+    login?: string | null;
+    email?: string | null;
     passwordHash: string;
     playerId: number;
   }): Promise<PlayerUser | null> {
     try {
       const result = await PostgresClient.instance.query(
-        "INSERT INTO player_users (email, password_hash, player_id) VALUES ($1, $2, $3) RETURNING id, email, password_hash, player_id, created_at",
-        [input.email, input.passwordHash, input.playerId]
+        `INSERT INTO player_users (login, email, password_hash, player_id)
+         VALUES ($1, $2, $3, $4) RETURNING ${COLUMNS}`,
+        [input.login ?? null, input.email ?? null, input.passwordHash, input.playerId]
       );
       if (result.rows.length === 0) return null;
       return rowToPlayerUser(result.rows[0] as Record<string, unknown>);

@@ -7,10 +7,15 @@ import type { PlayerMeProfile, PlayerTournamentHistoryEntry } from '@admin/schem
 import { ACHIEVEMENTS } from '@/data/achievements';
 import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
-import { LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
+import { ChevRIcon, LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { logoutPlayer } from '@/lib/auth';
-import { formatJoinedAt, formatNumberRu, formatTournamentDate } from '@/lib/format';
+import {
+  currentSeasonLabel,
+  formatJoinedAt,
+  formatNumberRu,
+  formatTournamentDate,
+} from '@/lib/format';
 
 type Tab = 'stats' | 'achievements' | 'history';
 
@@ -108,7 +113,7 @@ export function ProfileScreen({ me, history }: Props) {
         </div>
 
         <div
-          className="mt-4 grid grid-cols-4 gap-2"
+          className="mt-4 grid grid-cols-3 gap-2"
           style={{
             padding: 14,
             borderRadius: 14,
@@ -117,9 +122,12 @@ export function ProfileScreen({ me, history }: Props) {
           }}
         >
           <DarkStat label="Рейтинг" v={me.rank != null ? `#${me.rank}` : '—'} sub={`${formatNumberRu(me.points)} pts`} />
-          <DarkStat label="ELO" v={String(me.eloLite.value)} sub={`пик ${me.eloLite.peak}`} />
-          <DarkStat label="ITM" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
-          <DarkStat label="Бонти" v={formatNumberRu(me.bountyCount)} sub="за сезон" />
+          <DarkStat label="Рейтинговая зона" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
+          <DarkStat
+            label="Нокауты"
+            v={formatNumberRu(Math.round(me.bountyCount))}
+            sub={me.season?.label ?? currentSeasonLabel()}
+          />
         </div>
 
         <div className="flex gap-2 mt-3 relative">
@@ -172,7 +180,7 @@ export function ProfileScreen({ me, history }: Props) {
         <div className="flex gap-1 bg-[rgba(27,22,18,0.06)] rounded-xl p-1">
           {([
             { id: 'stats', l: 'Статистика' },
-            { id: 'achievements', l: 'Ачивки' },
+            { id: 'achievements', l: 'Достижения' },
             { id: 'history', l: 'История' },
           ] as const).map((x) => (
             <button
@@ -204,7 +212,7 @@ export function ProfileScreen({ me, history }: Props) {
                 color: 'var(--ink-3)',
               }}
             >
-              Сезон
+              Сезон · {me.season?.label ?? currentSeasonLabel()}
             </div>
             <div className="grid grid-cols-2 gap-3.5">
               <Stat label="Турниров" value={String(me.playedTournaments)} />
@@ -214,32 +222,92 @@ export function ProfileScreen({ me, history }: Props) {
             </div>
           </Card>
 
-          <Card padding={14}>
-            <div
-              className="uppercase font-bold mb-2.5"
-              style={{
-                fontSize: 10,
-                letterSpacing: 0.6,
-                color: 'var(--ink-3)',
-              }}
-            >
-              ELO-lite
-            </div>
-            <div className="flex items-baseline gap-3">
-              <div className="serif text-[36px] font-bold leading-none">{me.eloLite.value}</div>
-              <div className="text-xs text-ink-3">пик {me.eloLite.peak}</div>
-            </div>
-            <div
-              className="mono mt-1.5"
-              style={{
-                fontSize: 11,
-                color: me.eloLite.change30d >= 0 ? 'var(--green)' : 'var(--crimson)',
-              }}
-            >
-              {me.eloLite.change30d >= 0 ? '+' : ''}
-              {me.eloLite.change30d} за 30 дней
-            </div>
-          </Card>
+          {history.length > 0 && (
+            <Card padding={0}>
+              <button
+                type="button"
+                onClick={() => setTab('history')}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 border-0 bg-transparent cursor-pointer"
+                style={{ borderBottom: '1px solid var(--line-2)', fontFamily: 'inherit' }}
+              >
+                <span
+                  className="uppercase font-bold"
+                  style={{ fontSize: 10, letterSpacing: 0.6, color: 'var(--ink-3)' }}
+                >
+                  Последние игры
+                </span>
+                <span
+                  className="uppercase font-bold inline-flex items-center gap-1"
+                  style={{ fontSize: 10, letterSpacing: 0.6, color: 'var(--ink-2)' }}
+                >
+                  Вся история <ChevRIcon size={11} />
+                </span>
+              </button>
+              {history.slice(0, 5).map((h, i, arr) => {
+                // Backend `place` is elimination order from start (1 = first
+                // bust, N = winner); invert to a finishing position for display.
+                const displayPlace =
+                  h.place != null && h.fieldSize > 0 ? h.fieldSize - h.place + 1 : null;
+                return (
+                  <Link
+                    key={h.tournamentId}
+                    href={`/tournaments/${h.tournamentId}`}
+                    className="block"
+                  >
+                    <div
+                      className="flex items-center justify-between gap-3 px-3.5 py-2.5"
+                      style={{
+                        borderBottom:
+                          i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
+                      }}
+                    >
+                      <div className="min-w-0">
+                        <div
+                          className="mono"
+                          style={{
+                            fontSize: 10,
+                            color: 'var(--ink-3)',
+                            fontWeight: 600,
+                            letterSpacing: 0.4,
+                          }}
+                        >
+                          {formatTournamentDate(new Date(h.date).getTime()).date}
+                        </div>
+                        <div className="text-[13px] font-semibold text-ink truncate leading-tight mt-0.5">
+                          {h.name}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div
+                          className="serif font-bold"
+                          style={{
+                            fontSize: 15,
+                            color:
+                              displayPlace != null && displayPlace <= 3
+                                ? 'var(--gold-2)'
+                                : 'var(--ink)',
+                          }}
+                        >
+                          {displayPlace ?? '—'}
+                          <span className="text-[10px] text-ink-3"> / {h.fieldSize}</span>
+                        </div>
+                        <div
+                          className="mono"
+                          style={{
+                            fontSize: 10,
+                            color: h.pointsDelta >= 0 ? 'var(--green)' : 'var(--crimson)',
+                          }}
+                        >
+                          {h.pointsDelta >= 0 ? '+' : ''}
+                          {formatNumberRu(h.pointsDelta)}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </Card>
+          )}
         </div>
       )}
 

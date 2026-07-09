@@ -1,4 +1,5 @@
 import { logger } from "../../logger";
+import { playerRepository } from "../../postgres/PlayerRepository";
 import { playerUserRepository, type PlayerUser } from "../../postgres/PlayerUserRepository";
 import { playerAuthStore, PLAYER_JWT_ACCESS_TTL_SEC } from "../../redis/PlayerAuthStore";
 import { signPlayerToken, verifyPlayerTokenSignature } from "./PlayerJwtService";
@@ -13,7 +14,7 @@ export type PlayerLoginResult =
   | { ok: false; reason: "invalid_credentials" | "rate_limited" };
 
 export async function playerLogin(
-  email: string,
+  identifier: string,
   password: string,
   ip: string
 ): Promise<PlayerLoginResult> {
@@ -23,7 +24,11 @@ export async function playerLogin(
     return { ok: false, reason: "rate_limited" };
   }
 
-  const user = await playerUserRepository.findByEmail(email);
+  // The identifier can be a login (new open-registration users) or an email
+  // (legacy seeded users); citext makes both lookups case-insensitive.
+  const user =
+    (await playerUserRepository.findByLogin(identifier)) ??
+    (await playerUserRepository.findByEmail(identifier));
 
   if (!user) {
     if (DUMMY_HASH) {
@@ -31,7 +36,7 @@ export async function playerLogin(
     }
     const newAttempts = await playerAuthStore.incrementLoginAttempts(ip);
     logger.warn(
-      { email, ip, attempts: newAttempts },
+      { identifier, ip, attempts: newAttempts },
       "[PlayerAuth] Login failed: user not found"
     );
     return { ok: false, reason: "invalid_credentials" };
@@ -41,7 +46,7 @@ export async function playerLogin(
   if (!valid) {
     const newAttempts = await playerAuthStore.incrementLoginAttempts(ip);
     logger.warn(
-      { email, ip, attempts: newAttempts },
+      { identifier, ip, attempts: newAttempts },
       "[PlayerAuth] Login failed: invalid password"
     );
     return { ok: false, reason: "invalid_credentials" };
@@ -50,7 +55,57 @@ export async function playerLogin(
   await playerAuthStore.clearLoginAttempts(ip);
   const ver = await playerAuthStore.getUserTokenVersion(user.id);
   const { token, jti } = await signPlayerToken(user.id, ver, PLAYER_JWT_ACCESS_TTL_SEC);
-  logger.info({ email, jti: jti.slice(0, 8), ip }, "[PlayerAuth] Login successful");
+  logger.info({ identifier, jti: jti.slice(0, 8), ip }, "[PlayerAuth] Login successful");
+  return { ok: true, user, token, jti };
+}
+
+export type PlayerRegisterResult =
+  | { ok: true; user: PlayerUser; token: string; jti: string }
+  | { ok: false; reason: "login_taken" | "rate_limited" | "error" };
+
+/**
+ * Open self-registration: creates a player profile (login as the initial @handle)
+ * plus a login credential, then issues a session token. Login uniqueness is
+ * enforced by the DB unique constraint; the pre-check is a fast path.
+ */
+export async function playerRegister(
+  login: string,
+  password: string,
+  ip: string
+): Promise<PlayerRegisterResult> {
+  const attempts = await playerAuthStore.getLoginAttempts(ip);
+  if (attempts >= playerAuthStore.maxAttempts) {
+    logger.warn({ ip, attempts }, "[PlayerAuth] Register blocked: rate limit exceeded");
+    return { ok: false, reason: "rate_limited" };
+  }
+
+  if (await playerUserRepository.findByLogin(login)) {
+    await playerAuthStore.incrementLoginAttempts(ip);
+    return { ok: false, reason: "login_taken" };
+  }
+
+  const player = await playerRepository.create({ nickname: login });
+  if (!player) return { ok: false, reason: "error" };
+
+  const passwordHash = await Bun.password.hash(password);
+  const user = await playerUserRepository.create({
+    login,
+    passwordHash,
+    playerId: player.id,
+  });
+  if (!user) {
+    // A concurrent registration won the unique login; drop the orphan profile.
+    await playerRepository.deleteById(String(player.id));
+    return { ok: false, reason: "login_taken" };
+  }
+
+  await playerAuthStore.clearLoginAttempts(ip);
+  const ver = await playerAuthStore.getUserTokenVersion(user.id);
+  const { token, jti } = await signPlayerToken(user.id, ver, PLAYER_JWT_ACCESS_TTL_SEC);
+  logger.info(
+    { login, playerId: player.id, jti: jti.slice(0, 8), ip },
+    "[PlayerAuth] Register successful"
+  );
   return { ok: true, user, token, jti };
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   PlayerMeProfile,
   PlayerSeasonRatingEntry,
@@ -16,43 +16,77 @@ interface HomeData {
   leaders: PlayerSeasonRatingEntry[];
 }
 
+/**
+ * How often the home screen silently reconciles its data with the server.
+ * The blind timer ticks locally between polls (see useLevelCountdown); this
+ * keeps player counts, blinds, the current level, and the timer in sync
+ * without a visible reload.
+ */
+const POLL_INTERVAL_MS = 20_000;
+
+async function fetchHomeData(): Promise<HomeData> {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const [me, active, upcoming, season] = await Promise.all([
+    fetchPlayerApi<PlayerMeProfile>('/api/player/me'),
+    fetchPlayerApi<{ tournaments: PlayerTournamentSummary[] }>(
+      '/api/player/tournaments?status=in_progress',
+    ).catch(() => ({ tournaments: [] })),
+    fetchPlayerApi<{ tournaments: PlayerTournamentSummary[] }>(
+      '/api/player/tournaments/upcoming?limit=5',
+    ).catch(() => ({ tournaments: [] })),
+    fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
+      `/api/player/rating/season?year=${year}&month=${month}&limit=6`,
+    ).catch(() => ({ entries: [] })),
+  ]);
+  return {
+    me,
+    active: active.tournaments,
+    upcoming: upcoming.tournaments,
+    leaders: season.entries,
+  };
+}
+
 export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
+  const cancelledRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    void Promise.all([
-      fetchPlayerApi<PlayerMeProfile>('/api/player/me'),
-      fetchPlayerApi<{ tournaments: PlayerTournamentSummary[] }>(
-        '/api/player/tournaments?status=in_progress',
-      ).catch(() => ({ tournaments: [] })),
-      fetchPlayerApi<{ tournaments: PlayerTournamentSummary[] }>(
-        '/api/player/tournaments/upcoming?limit=5',
-      ).catch(() => ({ tournaments: [] })),
-      fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
-        `/api/player/rating/season?year=${year}&month=${month}&limit=6`,
-      ).catch(() => ({ entries: [] })),
-    ])
-      .then(([me, active, upcoming, season]) => {
-        if (cancelled) return;
-        setData({
-          me,
-          active: active.tournaments,
-          upcoming: upcoming.tournaments,
-          leaders: season.entries,
-        });
+  // Swap fresh data in place (no null-reset → no flicker; last-good on error).
+  // Stable identity so it can be handed down as an "refresh now" callback after
+  // a register action from the hero card.
+  const refresh = useCallback(() => {
+    fetchHomeData()
+      .then((d) => {
+        if (!cancelledRef.current) setData(d);
       })
       .catch(() => {
-        /* errors handled by 401-redirect in fetchPlayerApi or shown silently for v1 */
+        /* 401 handled by fetchPlayerApi; keep last-good data otherwise */
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
+  useEffect(() => {
+    cancelledRef.current = false;
+    refresh(); // initial load
+
+    const id = setInterval(() => {
+      // Don't poll a backgrounded tab; the visibility listener refreshes on return.
+      if (typeof document !== 'undefined' && document.hidden) return;
+      refresh();
+    }, POLL_INTERVAL_MS);
+
+    const onVisible = () => {
+      if (!document.hidden) refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelledRef.current = true;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refresh]);
+
   if (!data) return null;
-  return <HomeScreen {...data} />;
+  return <HomeScreen {...data} onChanged={refresh} />;
 }

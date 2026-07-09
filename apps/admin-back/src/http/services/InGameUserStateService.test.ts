@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { BountyEliminationEventRecord } from "../../cache/BountyEliminationEventsCache";
-import { eliminationEventsForPlayer } from "./InGameUserStateService";
+import {
+  InGamePlayerStatus,
+  type InGameUserState,
+  initInGameUserState,
+} from "../../domain/cache/InGameUserState";
+import {
+  computeChipPoolSummaryFromStates,
+  eliminationEventsForPlayer,
+} from "./InGameUserStateService";
 
 function ev(
   eventId: string,
@@ -70,5 +78,79 @@ describe("eliminationEventsForPlayer", () => {
     const out = eliminationEventsForPlayer("5", events);
     expect(out[0]!.killerPlayerIds).toEqual(["9"]);
     expect(out[0]!.killerPlayerIds).not.toBe(killers);
+  });
+});
+
+describe("computeChipPoolSummaryFromStates (averageStack accounting)", () => {
+  const STACK = 30_000;
+
+  function state(overrides: Partial<InGameUserState>): InGameUserState {
+    return { ...initInGameUserState("p", 1, 0, 0), ...overrides };
+  }
+
+  test("counts base entries + rebuys + bonuses and subtracts burned stacks", () => {
+    const states: InGameUserState[] = [
+      // active, one custom bonus chip grant
+      state({
+        playerId: "1",
+        status: InGamePlayerStatus.InGamePaid,
+        customBonusChips: [10_000],
+      }),
+      // active, rebought twice
+      state({
+        playerId: "2",
+        status: InGamePlayerStatus.InGamePaid,
+        totalReentryCount: 2,
+      }),
+      // busted (Out), had rebought once, burned 5k off the pool
+      state({
+        playerId: "3",
+        status: InGamePlayerStatus.Out,
+        totalReentryCount: 1,
+        burnedStackEvents: [{ chips: 5_000, source: "Out" }],
+      }),
+    ];
+
+    const s = computeChipPoolSummaryFromStates(states, STACK);
+
+    expect(s.entryUnits).toBe(3); // 3 players arrived
+    expect(s.rebuyCount).toBe(3); // 2 + 1 rebuys counted
+    expect(s.baseChips).toBe(6 * STACK); // (3 entries + 3 rebuys) * stack
+    expect(s.bonusChipsTotal).toBe(10_000);
+    expect(s.burnedStackChipsTotal).toBe(5_000);
+    expect(s.totalChips).toBe(6 * STACK + 10_000 - 5_000); // 185_000
+    expect(s.playersActive).toBe(2); // Out excluded from the denominator
+    // Rebuys are in the pool: 185_000 / 2 active = 92_500 (not 47_500 if rebuys were dropped)
+    expect(s.averageStack).toBe(92_500);
+  });
+
+  test("a pure add-on rebuy raises the average (rebuy chips reach the pool)", () => {
+    const s = computeChipPoolSummaryFromStates(
+      [
+        state({
+          playerId: "1",
+          status: InGamePlayerStatus.InGamePaid,
+          totalReentryCount: 3,
+        }),
+        state({ playerId: "2", status: InGamePlayerStatus.InGamePaid }),
+      ],
+      STACK
+    );
+    // (2 entries + 3 rebuys) * stack / 2 active = 150_000 / 2
+    expect(s.averageStack).toBe(75_000);
+  });
+
+  test("no active players → null average", () => {
+    const s = computeChipPoolSummaryFromStates(
+      [
+        state({
+          playerId: "1",
+          status: InGamePlayerStatus.Out,
+          totalReentryCount: 1,
+        }),
+      ],
+      STACK
+    );
+    expect(s.averageStack).toBeNull();
   });
 });

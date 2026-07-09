@@ -18,6 +18,13 @@ interface TournamentData {
   myState: PlayerMyTournamentState | null;
 }
 
+/**
+ * How often the tournament page silently re-fetches, so the live player count,
+ * roster, and clock stay current as others register or get eliminated. Data is
+ * swapped in place (no flicker; the blind timer re-syncs via useLevelCountdown).
+ */
+const POLL_INTERVAL_MS = 15_000;
+
 export default function TournamentPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = parseInt(params.id, 10);
@@ -30,7 +37,10 @@ export default function TournamentPage() {
       return;
     }
     let cancelled = false;
-    (async () => {
+
+    // `initial` lets the first load surface a 404 (notFound); polls keep the
+    // last-good data on any error rather than blanking the page.
+    const load = async (initial: boolean) => {
       try {
         const detail = await fetchPlayerApi<PlayerTournamentDetail>(
           `/api/player/tournaments/${tournamentId}`,
@@ -54,13 +64,30 @@ export default function TournamentPage() {
           myState,
         });
       } catch (err) {
-        if (err instanceof PlayerApiError && err.status === 404) {
+        if (initial && err instanceof PlayerApiError && err.status === 404) {
           if (!cancelled) setMissing(true);
         }
+        // polls: keep the last-good data on transient errors
       }
-    })();
+    };
+
+    load(true); // initial load
+
+    const id = setInterval(() => {
+      // Don't poll a backgrounded tab; the visibility listener refreshes on return.
+      if (typeof document !== 'undefined' && document.hidden) return;
+      load(false);
+    }, POLL_INTERVAL_MS);
+
+    const onVisible = () => {
+      if (!document.hidden) load(false);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
       cancelled = true;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [tournamentId]);
 

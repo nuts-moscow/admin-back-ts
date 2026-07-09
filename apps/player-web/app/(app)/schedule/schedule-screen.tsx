@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import type { PlayerTournamentHistoryEntry, PlayerTournamentSummary } from '@admin/schemas';
 import { ActiveTournamentCard } from '@/components/active-tournament-card';
 import { Card } from '@/components/card';
@@ -18,10 +17,12 @@ export function ScheduleScreen({
   active,
   upcoming,
   history,
+  onChanged,
 }: {
   active: PlayerTournamentSummary[];
   upcoming: PlayerTournamentSummary[];
   history: PlayerTournamentHistoryEntry[];
+  onChanged?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>('upcoming');
 
@@ -66,7 +67,7 @@ export function ScheduleScreen({
               <SectionTitle>Сейчас в игре</SectionTitle>
               <div className="px-5 flex flex-col gap-2.5">
                 {active.map((t, i) => (
-                  <ActiveTournamentCard key={t.id} t={t} primary={i === 0} />
+                  <ActiveTournamentCard key={t.id} t={t} primary={i === 0} onChanged={onChanged} />
                 ))}
               </div>
             </>
@@ -75,7 +76,7 @@ export function ScheduleScreen({
           <SectionTitle>Ближайшие</SectionTitle>
           <div className="px-5 flex flex-col gap-2.5">
             {upcoming.map((u) => (
-              <UpcomingCard key={u.id} u={u} />
+              <UpcomingCard key={u.id} u={u} onChanged={onChanged} />
             ))}
             {upcoming.length === 0 && (
               <Card padding={14}>
@@ -167,31 +168,49 @@ export function ScheduleScreen({
   );
 }
 
-function UpcomingCard({ u }: { u: PlayerTournamentSummary }) {
-  const router = useRouter();
+function UpcomingCard({
+  u,
+  onChanged,
+}: {
+  u: PlayerTournamentSummary;
+  onChanged?: () => void;
+}) {
   const fd = formatTournamentDate(u.date);
-  const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [registered, setRegistered] = useState(false);
+  // Server truth is `u.isRegistered`; `optimistic` flips the button instantly on
+  // click and is cleared once a refresh brings the server value into agreement.
+  const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const registered = optimistic ?? u.isRegistered;
+
+  useEffect(() => {
+    setOptimistic(null);
+  }, [u.isRegistered]);
 
   async function toggle() {
+    const next = !registered;
     setError(null);
+    setBusy(true);
+    setOptimistic(next);
     try {
-      if (registered) {
-        await fetchPlayerApi(`/api/player/tournaments/${u.id}/register`, {
-          method: 'DELETE',
-        });
-        setRegistered(false);
-      } else {
+      if (next) {
         await fetchPlayerApi(`/api/player/tournaments/${u.id}/register`, {
           method: 'POST',
           body: {},
         });
-        setRegistered(true);
+      } else {
+        await fetchPlayerApi(`/api/player/tournaments/${u.id}/register`, {
+          method: 'DELETE',
+        });
       }
-      startTransition(() => router.refresh());
+      // Re-fetch so u.isRegistered and the player count reflect the change;
+      // polling covers registrations by others.
+      onChanged?.();
     } catch (err) {
+      setOptimistic(null); // revert to server truth on failure
       setError(err instanceof Error ? err.message : 'Ошибка');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -218,7 +237,7 @@ function UpcomingCard({ u }: { u: PlayerTournamentSummary }) {
           <div className="flex justify-end items-center mt-2.5 pt-2.5 border-t border-line-2">
             <button
               type="button"
-              disabled={pending}
+              disabled={busy}
               onClick={toggle}
               className="border-0 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
               style={{
@@ -228,7 +247,7 @@ function UpcomingCard({ u }: { u: PlayerTournamentSummary }) {
                 fontFamily: 'inherit',
               }}
             >
-              {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+              {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
             </button>
           </div>
           {error && (
