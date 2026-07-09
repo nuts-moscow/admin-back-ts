@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarIcon, ForkIcon, HomeIcon, TrophyIcon, UserIcon } from './icons';
+import { ForkIcon, HomeIcon, TrophyIcon, UserIcon } from './icons';
 
 const TABS: Array<{ href: string; label: string; icon: React.ElementType; match: (p: string) => boolean }> = [
-  { href: '/', label: 'Главная', icon: HomeIcon, match: (p) => p === '/' },
-  { href: '/schedule', label: 'Расписание', icon: CalendarIcon, match: (p) => p.startsWith('/schedule') || p.startsWith('/tournaments') },
-  { href: '/kitchen', label: 'Кухня', icon: ForkIcon, match: (p) => p.startsWith('/kitchen') },
+  // Schedule now lives on the home screen, so tournament pages fold under Главная.
+  { href: '/', label: 'Главная', icon: HomeIcon, match: (p) => p === '/' || p.startsWith('/tournaments') },
   { href: '/rating', label: 'Рейтинг', icon: TrophyIcon, match: (p) => p.startsWith('/rating') },
+  { href: '/kitchen', label: 'Кухня', icon: ForkIcon, match: (p) => p.startsWith('/kitchen') },
   { href: '/profile', label: 'Профиль', icon: UserIcon, match: (p) => p.startsWith('/profile') },
 ];
 

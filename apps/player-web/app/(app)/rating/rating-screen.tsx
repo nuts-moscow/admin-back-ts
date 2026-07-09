@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import type {
   HallOfFameEntry,
-  PlayerEloLiteEntry,
   PlayerSeason,
   PlayerSeasonRatingEntry,
 } from '@admin/schemas';
@@ -14,12 +13,11 @@ import { ScrollScreen } from '@/components/scroll-screen';
 import { fetchPlayerApi } from '@/lib/api';
 import { formatNumberRu } from '@/lib/format';
 
-type Tab = 'season' | 'elo' | 'hof';
+type Tab = 'season' | 'hof';
 
 interface Props {
   seasons: PlayerSeason[];
   initialEntries: PlayerSeasonRatingEntry[];
-  initialElo: PlayerEloLiteEntry[];
   hallOfFame: HallOfFameEntry[];
   initialYear: number;
   initialMonth: number;
@@ -28,7 +26,6 @@ interface Props {
 export function RatingScreen({
   seasons,
   initialEntries,
-  initialElo,
   hallOfFame,
   initialYear,
   initialMonth,
@@ -36,7 +33,6 @@ export function RatingScreen({
   const [tab, setTab] = useState<Tab>('season');
   const [seasonKey, setSeasonKey] = useState(`${initialYear}-${initialMonth}`);
   const [entries, setEntries] = useState(initialEntries);
-  const [elo, setElo] = useState(initialElo);
   const [loading, setLoading] = useState(false);
 
   const currentSeasonLabel =
@@ -48,29 +44,24 @@ export function RatingScreen({
     // crucially reset to it so switching back doesn't leave another season's rows.
     if (seasonKey === `${initialYear}-${initialMonth}`) {
       setEntries(initialEntries);
-      setElo(initialElo);
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    void Promise.all([
-      fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
-        `/api/player/rating/season?year=${y}&month=${m}&limit=50`,
-      ).catch(() => ({ entries: [] })),
-      fetchPlayerApi<{ entries: PlayerEloLiteEntry[] }>(
-        `/api/player/rating/elo-lite?year=${y}&month=${m}&limit=50`,
-      ).catch(() => ({ entries: [] })),
-    ]).then(([s, e]) => {
-      if (cancelled) return;
-      setEntries(s.entries);
-      setElo(e.entries);
-      setLoading(false);
-    });
+    void fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
+      `/api/player/rating/season?year=${y}&month=${m}&limit=50`,
+    )
+      .catch(() => ({ entries: [] }))
+      .then((s) => {
+        if (cancelled) return;
+        setEntries(s.entries);
+        setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [seasonKey, initialYear, initialMonth, initialEntries, initialElo]);
+  }, [seasonKey, initialYear, initialMonth, initialEntries]);
 
   return (
     <ScrollScreen>
@@ -85,7 +76,6 @@ export function RatingScreen({
         <div className="flex gap-1 bg-[rgba(27,22,18,0.06)] rounded-xl p-1">
           {([
             { id: 'season', l: 'Сезон' },
-            { id: 'elo', l: 'ELO' },
             { id: 'hof', l: 'Зал славы' },
           ] as const).map((x) => (
             <button
@@ -109,7 +99,10 @@ export function RatingScreen({
       {tab !== 'hof' && (
         <div className="px-5 pb-3.5">
           <div className="scroll flex gap-2 overflow-x-auto pb-1">
-            {seasons.map((s) => {
+            {/* Ascending by date: earlier seasons left, later (current) on the right. */}
+            {[...seasons]
+              .sort((a, b) => a.year - b.year || a.month - b.month)
+              .map((s) => {
               const key = `${s.year}-${s.month}`;
               const active = key === seasonKey;
               return (
@@ -213,76 +206,6 @@ export function RatingScreen({
                 </div>
               ))}
               {!loading && entries.length === 0 && (
-                <div className="text-center text-[11px] text-ink-3 py-6">Нет данных</div>
-              )}
-            </Card>
-          </div>
-        </>
-      )}
-
-      {tab === 'elo' && (
-        <>
-          <div className="px-5 pb-3">
-            <Card padding={14}>
-              <div
-                className="uppercase font-bold"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: 0.6,
-                  color: 'var(--ink-3)',
-                }}
-              >
-                Как считается
-              </div>
-              <div className="text-xs text-ink-2 mt-1 leading-relaxed">
-                ELO-lite — производная от сезонных очков и числа турниров. Полноценный ELO появится позже.
-              </div>
-            </Card>
-          </div>
-          <div className="px-5">
-            <Card padding={0}>
-              {elo.map((p, i, arr) => (
-                <div
-                  key={`${p.rank}-${p.playerId}`}
-                  className="flex items-center gap-2.5 px-3.5 py-3"
-                  style={{
-                    borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
-                    background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
-                  }}
-                >
-                  <div
-                    className="mono font-bold"
-                    style={{
-                      fontSize: 13,
-                      width: 22,
-                      color: p.rank <= 3 ? 'var(--gold-2)' : 'var(--ink)',
-                    }}
-                  >
-                    {p.rank}
-                  </div>
-                  <Avatar name={p.name ?? p.nickname} size={32} ring={p.isMe} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-bold text-ink truncate">
-                      {p.name ?? p.nickname}
-                    </div>
-                    <div className="mono text-[10px] text-ink-3">пик {p.peak}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="serif text-[22px] font-bold text-ink leading-none">{p.elo}</div>
-                    <div
-                      className="mono mt-0.5 font-semibold"
-                      style={{
-                        fontSize: 10,
-                        color: p.change >= 0 ? 'var(--green)' : 'var(--crimson)',
-                      }}
-                    >
-                      {p.change >= 0 ? '+' : ''}
-                      {p.change}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {elo.length === 0 && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Нет данных</div>
               )}
             </Card>

@@ -588,6 +588,7 @@ export function playerRoutes() {
         const { states } = await loadStatesAndNicknames(id);
         const summary = await buildTournamentSummary(tournament, states, ctx.playerId);
         const structure = await tournamentStructureCache.get(String(id));
+        const myResult = await buildMyCompletedResult(tournament, id, ctx.playerId);
         return Response.json({
           ...(summary as object),
           structure: structure
@@ -603,6 +604,7 @@ export function playerRoutes() {
             : null,
           totalChips: structure ? structure.stackSize * states.length : null,
           chipLeader: null,
+          myResult,
         });
       },
     },
@@ -857,6 +859,93 @@ export function playerRoutes() {
 // ─────────────────────────────────────────────────────────────
 // helpers
 // ─────────────────────────────────────────────────────────────
+
+interface PlayerRef {
+  playerId: number;
+  nickname: string;
+}
+
+interface MyCompletedResult {
+  place: number | null;
+  fieldSize: number;
+  points: number;
+  knockouts: PlayerRef[];
+  eliminatedBy: PlayerRef | null;
+}
+
+/** Parse a stored player-id list (JSON array, else comma-separated) into ids. */
+function parsePlayerIdList(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((x) => String(x)).filter((s) => s.length > 0);
+    }
+  } catch {
+    // legacy / non-JSON format — fall through to comma split
+  }
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * For a completed tournament, assemble the calling player's own result:
+ * finishing place, points, whom they knocked out, and who knocked them out.
+ * Returns null for non-completed tournaments or when the player has no result.
+ */
+async function buildMyCompletedResult(
+  tournament: TournamentRow,
+  tournamentId: number,
+  myPlayerId: number
+): Promise<MyCompletedResult | null> {
+  if (tournament.status !== "completed") return null;
+  const rows = await tournamentResultRepository.findByTournamentId(tournamentId);
+  if (rows.length === 0) return null;
+  const mine = rows.find((r) => r.playerId === String(myPlayerId));
+  if (!mine) return null;
+
+  const fieldSize = rows.length;
+  // `placement` is elimination order (1 = first bust); invert to a finish place.
+  const place = mine.placement != null ? fieldSize - mine.placement + 1 : null;
+
+  // Points from the same rating-facts source the profile history uses, so the
+  // number matches there; fall back to the persisted snapshot on the result row.
+  const facts = await queryPlayerRatingFacts(myPlayerId);
+  const points =
+    facts.find((f) => f.tournamentId === tournamentId)?.totalPoints ??
+    mine.ratingPersisted?.totalPoints ??
+    0;
+
+  const killIds = parsePlayerIdList(mine.bountyKills);
+  const killerId =
+    mine.eliminatedBy && mine.eliminatedBy.length > 0 ? mine.eliminatedBy : null;
+
+  const neededIds = Array.from(
+    new Set([...killIds, ...(killerId ? [killerId] : [])])
+  );
+  const nickById = new Map<string, string>();
+  await Promise.all(
+    neededIds.map(async (pid) => {
+      const nick = await playerRepository.getNicknameById(pid);
+      if (nick) nickById.set(pid, nick);
+    })
+  );
+  const ref = (pid: string): PlayerRef => ({
+    playerId: Number(pid),
+    nickname: nickById.get(pid) ?? `#${pid}`,
+  });
+
+  return {
+    place,
+    fieldSize,
+    points,
+    knockouts: killIds.map(ref),
+    eliminatedBy: killerId ? ref(killerId) : null,
+  };
+}
+
 async function queryPlayerRatingFacts(playerId: number): Promise<
   Array<{
     tournamentId: number;

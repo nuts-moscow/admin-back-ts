@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   PlayerMeProfile,
   PlayerSeasonRatingEntry,
@@ -50,23 +50,23 @@ async function fetchHomeData(): Promise<HomeData> {
 
 export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
+  const cancelledRef = useRef(false);
+
+  // Swap fresh data in place (no null-reset → no flicker; last-good on error).
+  // Stable identity so it can be handed down as an "refresh now" callback after
+  // a register action from the hero card.
+  const refresh = useCallback(() => {
+    fetchHomeData()
+      .then((d) => {
+        if (!cancelledRef.current) setData(d);
+      })
+      .catch(() => {
+        /* 401 handled by fetchPlayerApi; keep last-good data otherwise */
+      });
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    // Swap fresh data in place. We never reset to null on refresh, so the
-    // screen keeps showing the current data (no flicker) until the next
-    // response arrives; a transient error keeps the last-good data.
-    const refresh = () => {
-      fetchHomeData()
-        .then((d) => {
-          if (!cancelled) setData(d);
-        })
-        .catch(() => {
-          /* 401 handled by fetchPlayerApi; keep last-good data otherwise */
-        });
-    };
-
+    cancelledRef.current = false;
     refresh(); // initial load
 
     const id = setInterval(() => {
@@ -81,12 +81,12 @@ export default function HomePage() {
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [refresh]);
 
   if (!data) return null;
-  return <HomeScreen {...data} />;
+  return <HomeScreen {...data} onChanged={refresh} />;
 }

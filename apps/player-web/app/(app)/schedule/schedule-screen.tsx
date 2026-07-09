@@ -67,7 +67,7 @@ export function ScheduleScreen({
               <SectionTitle>Сейчас в игре</SectionTitle>
               <div className="px-5 flex flex-col gap-2.5">
                 {active.map((t, i) => (
-                  <ActiveTournamentCard key={t.id} t={t} primary={i === 0} />
+                  <ActiveTournamentCard key={t.id} t={t} primary={i === 0} onChanged={onChanged} />
                 ))}
               </div>
             </>

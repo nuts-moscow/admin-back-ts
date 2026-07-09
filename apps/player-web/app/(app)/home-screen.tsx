@@ -1,8 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import type {
   PlayerMeProfile,
   PlayerSeasonRatingEntry,
@@ -15,16 +13,26 @@ import { ScrollScreen } from '@/components/scroll-screen';
 import { SectionTitle } from '@/components/section-title';
 import { CLUB_INFO } from '@/data/club-info';
 import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
+import { useTournamentRegistration } from '@/lib/use-tournament-registration';
 
 interface HomeScreenProps {
   me: PlayerMeProfile;
   active: PlayerTournamentSummary[];
   upcoming: PlayerTournamentSummary[];
   leaders: PlayerSeasonRatingEntry[];
+  onChanged?: () => void;
 }
 
-export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
+export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScreenProps) {
   const firstName = (me.name ?? me.nickname).split(' ')[0] ?? me.nickname;
+
+  // When nothing is live, promote the nearest upcoming (open-registration)
+  // tournament into the hero slot, and drop it from the schedule list below.
+  const promotedUpcoming = active.length === 0 ? (upcoming[0] ?? null) : null;
+  const heroCards = active.length > 0 ? active.slice(0, 2) : promotedUpcoming ? [promotedUpcoming] : [];
+  const upcomingList = promotedUpcoming ? upcoming.slice(1) : upcoming;
+  const heroTitle = promotedUpcoming ? 'Ближайший турнир' : 'Сейчас идёт';
+
   return (
     <ScrollScreen>
       <div className="px-5 pt-1 pb-1">
@@ -36,76 +44,42 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
       </div>
 
       <div className="mt-5">
-        <SectionTitleWithLink href="/schedule" action="Все">
-          Сейчас идёт
-        </SectionTitleWithLink>
+        <SectionTitle>{heroTitle}</SectionTitle>
         <div className="px-5 flex flex-col gap-3">
-          {active.length === 0 && (
+          {heroCards.length === 0 && (
             <Card padding={14}>
               <div className="text-sm text-ink-3 text-center py-3">
                 Сейчас нет активных турниров
               </div>
             </Card>
           )}
-          {active.slice(0, 2).map((t, i) => (
-            <ActiveTournamentCard key={t.id} t={t} primary={i === 0} />
+          {heroCards.map((t, i) => (
+            <ActiveTournamentCard key={t.id} t={t} primary={i === 0} onChanged={onChanged} />
           ))}
         </div>
       </div>
 
       <div className="mt-7">
-        <SectionTitleWithLink href="/schedule" action="Открыть">
-          Ближайшие турниры
-        </SectionTitleWithLink>
-        {/*
-          Equal-width columns. Both cards stretch to the same total height
-          via items-stretch + h-full; inside each card the row container is
-          flex-1 and rows split that height equally — left 5 rows naturally
-          taller than right 6 rows. Card heights match, no filler space.
-        */}
-        <div className="grid grid-cols-2 gap-2.5 px-5 items-stretch">
-          <Card padding={0} className="overflow-hidden flex flex-col h-full">
+        <SectionTitle>Ближайшие турниры</SectionTitle>
+        {/* Stacked full-width: schedule on top, season leaders below. Each card
+            sizes to its own content (no equal-height matching between them). */}
+        <div className="flex flex-col gap-2.5 px-5">
+          <Card padding={0} className="overflow-hidden flex flex-col">
             <div className="px-3 pt-3 pb-2 border-b border-line-2">
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
                 Расписание
               </div>
             </div>
             <div className="flex-1 flex flex-col">
-              {upcoming.slice(0, 5).map((u, i, arr) => {
-                const fd = formatTournamentDate(u.date);
-                return (
-                  <Link
-                    key={u.id}
-                    href={`/tournaments/${u.id}`}
-                    className="flex-1 flex items-start gap-2.5 px-3 py-2 min-h-[56px]"
-                    style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none' }}
-                  >
-                    {/* Stacked date column — day-of-week and number are
-                        grouped at the top, no spacing in between. */}
-                    <div className="shrink-0 text-center min-w-[28px]">
-                      <div
-                        className="font-semibold uppercase text-ink-3 leading-none"
-                        style={{ fontSize: 10, letterSpacing: 0.5 }}
-                      >
-                        {fd.day}
-                      </div>
-                      <div className="serif text-base font-bold leading-none text-ink mt-0.5">
-                        {fd.date.split('.')[0]}
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-semibold text-ink leading-tight">
-                        {u.name}
-                      </div>
-                      <div className="mono text-[10px] text-ink-3 flex gap-2 mt-0.5 leading-none">
-                        <span>{fd.time}</span>
-                        <span>{formatNumberRu(u.buyin)}</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-              {upcoming.length === 0 && (
+              {upcomingList.slice(0, 5).map((u, i, arr) => (
+                <ScheduleRow
+                  key={u.id}
+                  u={u}
+                  withBorder={i < arr.length - 1}
+                  onChanged={onChanged}
+                />
+              ))}
+              {upcomingList.length === 0 && (
                 <div className="flex-1 flex items-center justify-center text-[11px] text-ink-3">
                   Нет турниров
                 </div>
@@ -113,7 +87,7 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
             </div>
           </Card>
 
-          <Card padding={0} className="overflow-hidden flex flex-col h-full">
+          <Card padding={0} className="overflow-hidden flex flex-col">
             <div className="px-3 pt-3 pb-2 border-b border-line-2">
               <div className="text-[10px] uppercase font-bold text-ink-3 tracking-wider">
                 Лидеры сезона
@@ -171,20 +145,83 @@ export function HomeScreen({ me, active, upcoming, leaders }: HomeScreenProps) {
   );
 }
 
-function SectionTitleWithLink({
-  children,
-  href,
-  action,
+/**
+ * One row in the "Ближайшие турниры" schedule list: date / name / entry, plus a
+ * register-toggle button on the right. The whole row links to the tournament;
+ * the button suppresses that navigation and flips registration in place.
+ */
+function ScheduleRow({
+  u,
+  withBorder,
+  onChanged,
 }: {
-  children: React.ReactNode;
-  href: string;
-  action: string;
+  u: PlayerTournamentSummary;
+  withBorder: boolean;
+  onChanged?: () => void;
 }) {
-  const router = useRouter();
+  const fd = formatTournamentDate(u.date);
+  const { registered, busy, toggle } = useTournamentRegistration(u.id, u.isRegistered, onChanged);
+
+  function onRegisterClick(e: React.MouseEvent | React.KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    toggle();
+  }
+
   return (
-    <SectionTitle action={action} onAction={() => router.push(href)}>
-      {children}
-    </SectionTitle>
+    <Link
+      href={`/tournaments/${u.id}`}
+      className="flex-1 flex items-center gap-2.5 px-3 py-2 min-h-[56px]"
+      style={{
+        borderBottom: withBorder ? '1px solid var(--line-2)' : 'none',
+        // Registered rows: gold left accent + soft tint (same signal the
+        // leaders list uses for "это я"). Transparent 3px border always, so
+        // toggling registration doesn't shift the row.
+        borderLeft: `3px solid ${registered ? 'var(--gold-2)' : 'transparent'}`,
+        background: registered ? 'rgba(181,138,60,0.10)' : 'transparent',
+      }}
+    >
+      {/* Stacked date column — day-of-week and number grouped, no gap. */}
+      <div className="shrink-0 text-center min-w-[28px]">
+        <div
+          className="font-semibold uppercase text-ink-3 leading-none"
+          style={{ fontSize: 10, letterSpacing: 0.5 }}
+        >
+          {fd.day}
+        </div>
+        <div className="serif text-base font-bold leading-none text-ink mt-0.5">
+          {fd.date.split('.')[0]}
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-semibold text-ink leading-tight">{u.name}</div>
+        <div className="mono text-[10px] text-ink-3 flex gap-2 mt-0.5 leading-none">
+          <span>{fd.time}</span>
+          <span>{formatNumberRu(u.buyin)}</span>
+        </div>
+      </div>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={onRegisterClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') onRegisterClick(e);
+        }}
+        aria-disabled={busy}
+        className="shrink-0 flex items-center justify-center rounded-md font-bold uppercase cursor-pointer select-none"
+        style={{
+          padding: '6px 10px',
+          fontSize: 10,
+          letterSpacing: 0.5,
+          background: registered ? 'transparent' : 'var(--gold)',
+          color: 'var(--ink)',
+          border: registered ? '1px solid var(--line)' : '1px solid transparent',
+          opacity: busy ? 0.7 : 1,
+        }}
+      >
+        {busy ? '…' : registered ? 'Отписаться' : 'Записаться'}
+      </span>
+    </Link>
   );
 }
 

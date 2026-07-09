@@ -6,22 +6,36 @@ import { Card } from '@/components/card';
 import { ChevRIcon } from '@/components/icons';
 import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
 import { useLevelCountdown } from '@/lib/use-level-countdown';
+import { useTournamentRegistration } from '@/lib/use-tournament-registration';
 
 /**
- * Active / in-game tournament card used on both Home ("Сейчас идёт") and
- * Schedule ("Сейчас в игре"). Pass `primary` to render the dark hero variant
- * (used for the first card on Home); secondary variant is paper-cream.
+ * Tournament card used on Home ("Сейчас идёт" / "Ближайший турнир") and Schedule
+ * ("Сейчас в игре"). For in-progress tournaments it shows live stats + the clock;
+ * for a not-yet-started (registration_open) tournament it shows entry / starting
+ * stack / registered count plus a register button — same footprint either way.
+ * Pass `primary` for the dark hero variant; `onChanged` refreshes after register.
  */
 export function ActiveTournamentCard({
   t,
   primary = false,
+  onChanged,
 }: {
   t: PlayerTournamentSummary;
   primary?: boolean;
+  onChanged?: () => void;
 }) {
   const fd = formatTournamentDate(t.date);
   const dim = primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)';
   const levelTimeRemainingSec = useLevelCountdown(t.levelTimeRemainingSec);
+  const isUpcoming = t.status === 'registration_open';
+  const { registered, busy, toggle } = useTournamentRegistration(t.id, t.isRegistered, onChanged);
+
+  function onRegisterClick(e: React.MouseEvent | React.KeyboardEvent) {
+    // The whole card is a link to the tournament; keep the button from navigating.
+    e.preventDefault();
+    e.stopPropagation();
+    toggle();
+  }
   return (
     <Link href={`/tournaments/${t.id}`} className="block">
       <Card
@@ -51,7 +65,9 @@ export function ActiveTournamentCard({
                   <span>
                     {t.status === 'in_progress'
                       ? `Идёт уровень ${t.currentLevelNo ?? '—'}`
-                      : 'Поздняя регистрация'}
+                      : t.status === 'registration_open'
+                        ? 'Регистрация открыта'
+                        : 'Поздняя регистрация'}
                   </span>
                 </span>
               </div>
@@ -78,45 +94,97 @@ export function ActiveTournamentCard({
           {/* Stat rows: flex pack-left with uniform gap. Adjacent cells get
               the same horizontal spacing regardless of content width. */}
           <div
-            className="flex flex-nowrap gap-x-4 py-3 overflow-hidden"
+            className={
+              // Upcoming: 3 equal columns aligned left / center / right so the
+              // values sit flush to their edges. In-progress packs 4 stats left.
+              isUpcoming
+                ? 'grid grid-cols-3 gap-x-2 py-3 overflow-hidden'
+                : 'flex flex-nowrap gap-x-4 py-3 overflow-hidden'
+            }
             style={{
               borderTop: primary ? '1px solid rgba(251,245,233,0.12)' : '1px solid var(--line-2)',
               borderBottom: primary ? '1px solid rgba(251,245,233,0.12)' : '1px solid var(--line-2)',
             }}
           >
             <MiniStat label="Орг. взнос" v={formatNumberRu(t.buyin)} primary={primary} />
-            <MiniStat
-              label="Игроки"
-              // "в игре / вошедшие": alive + eliminated (без не пришедших по записи)
-              v={`${t.aliveCount}/${t.aliveCount + t.eliminatedCount}`}
-              primary={primary}
-            />
-            <MiniStat label="Средний стэк" v={formatNumberRu(t.averageStack)} primary={primary} />
-            <MiniStat
-              label="Блайнды"
-              v={t.currentBlinds ? `${t.currentBlinds.smallBlind}/${t.currentBlinds.bigBlind}` : '—'}
-              primary={primary}
-            />
+            {isUpcoming ? (
+              <>
+                <MiniStat
+                  label="Старт. стек"
+                  v={formatNumberRu(t.startingStack)}
+                  primary={primary}
+                  align="center"
+                />
+                <MiniStat
+                  label="Игроки"
+                  v={String(t.registeredCount)}
+                  primary={primary}
+                  align="right"
+                />
+              </>
+            ) : (
+              <>
+                <MiniStat
+                  label="Игроки"
+                  // "в игре / вошедшие": alive + eliminated (без не пришедших по записи)
+                  v={`${t.aliveCount}/${t.aliveCount + t.eliminatedCount}`}
+                  primary={primary}
+                />
+                <MiniStat label="Средний стэк" v={formatNumberRu(t.averageStack)} primary={primary} />
+                <MiniStat
+                  label="Блайнды"
+                  v={
+                    t.currentBlinds
+                      ? `${t.currentBlinds.smallBlind}/${t.currentBlinds.bigBlind}`
+                      : '—'
+                  }
+                  primary={primary}
+                />
+              </>
+            )}
           </div>
 
-          <div className="flex flex-nowrap gap-x-4 mt-3 overflow-hidden">
-            <MiniStat
-              label="Старт. стек"
-              v={formatNumberRu(t.startingStack)}
-              primary={primary}
-            />
-            <MiniStat
-              label="Поздняя регистрация"
-              v={t.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
-              primary={primary}
-            />
-            <MiniStat
-              label="Текущий уровень"
-              v={formatSeconds(levelTimeRemainingSec)}
-              gold
-              primary={primary}
-            />
-          </div>
+          {isUpcoming ? (
+            <div className="mt-3">
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={onRegisterClick}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') onRegisterClick(e);
+                }}
+                aria-disabled={busy}
+                className="flex items-center justify-center rounded-lg font-bold uppercase tracking-wider cursor-pointer select-none"
+                style={{
+                  padding: '9px 12px',
+                  fontSize: 12,
+                  background: registered ? 'transparent' : 'var(--gold)',
+                  color: registered ? (primary ? 'var(--paper)' : 'var(--ink)') : 'var(--ink)',
+                  border: registered
+                    ? `1px solid ${primary ? 'rgba(251,245,233,0.3)' : 'var(--line)'}`
+                    : 'none',
+                  opacity: busy ? 0.7 : 1,
+                }}
+              >
+                {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-nowrap gap-x-4 mt-3 overflow-hidden">
+              <MiniStat label="Старт. стек" v={formatNumberRu(t.startingStack)} primary={primary} />
+              <MiniStat
+                label="Поздняя регистрация"
+                v={t.lateRegistrationClosed ? 'Закрыта' : 'Открыта'}
+                primary={primary}
+              />
+              <MiniStat
+                label="Текущий уровень"
+                v={formatSeconds(levelTimeRemainingSec)}
+                gold
+                primary={primary}
+              />
+            </div>
+          )}
         </div>
       </Card>
     </Link>
@@ -128,14 +196,16 @@ function MiniStat({
   v,
   primary,
   gold,
+  align = 'left',
 }: {
   label: string;
   v: React.ReactNode;
   primary?: boolean;
   gold?: boolean;
+  align?: 'left' | 'center' | 'right';
 }) {
   return (
-    <div>
+    <div style={{ textAlign: align }}>
       <div
         className="font-bold uppercase"
         style={{
