@@ -12,6 +12,8 @@ export interface PlayerAuthContext {
 
 const PLAYER_AUTH_PUBLIC: Array<{ method: string; path: string }> = [
   { method: "POST", path: "/api/player-auth/login" },
+  // Open self-registration — must be reachable without an existing token.
+  { method: "POST", path: "/api/player-auth/register" },
 ];
 
 export function isPlayerAuthPublicPath(method: string, pathname: string): boolean {
