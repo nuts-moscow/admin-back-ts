@@ -36,3 +36,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 
 logs.txt
+
+# Archi (architecture tooling) — kept local only, not tracked in git
+.agents/
+.archi/
+.claude/skills/
