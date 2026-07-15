@@ -86,8 +86,17 @@ export function RatingScreen({
       )
         .catch(() => ({ entries: [] }))
         .then((s) => {
-          setEntries((prev) => [...prev, ...s.entries]);
-          setHasMore(s.entries.length >= PAGE);
+          // Guard against a backend that ignores `offset` (or any overlap):
+          // only genuinely new players extend the list; an all-duplicate page
+          // means no progress — stop asking.
+          const seen = new Set(entries.map((e) => e.playerId));
+          const fresh = s.entries.filter((e) => !seen.has(e.playerId));
+          if (fresh.length === 0) {
+            setHasMore(false);
+          } else {
+            setEntries((prev) => [...prev, ...fresh]);
+            setHasMore(s.entries.length >= PAGE);
+          }
           setLoadingMore(false);
         });
     });
