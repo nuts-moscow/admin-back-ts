@@ -191,7 +191,20 @@ export function RatingScreen({
                     borderLeft: `3px solid ${
                       medal ?? (qualifies ? 'rgba(181,138,60,0.35)' : 'transparent')
                     }`,
-                    background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
+                    // The whole row is tinted, not just the accent stripe:
+                    // medal rows in their metal, finalists in soft gold; the
+                    // «me» row keeps the strongest tint either way.
+                    background: p.isMe
+                      ? 'rgba(181,138,60,0.18)'
+                      : p.rank === 1
+                        ? 'rgba(212,166,69,0.14)'
+                        : p.rank === 2
+                          ? 'rgba(184,176,160,0.18)'
+                          : p.rank === 3
+                            ? 'rgba(168,119,80,0.14)'
+                            : qualifies
+                              ? 'rgba(181,138,60,0.07)'
+                              : 'transparent',
                   }}
                 >
                   <div
