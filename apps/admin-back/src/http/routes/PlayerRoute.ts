@@ -259,10 +259,11 @@ interface PlayerHistoryRow {
 
 function seasonLabel(year: number, month: number): string {
   const monthsRu = [
-    "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
   ];
   const m = monthsRu[month - 1] ?? "?";
-  return `${m} '${String(year).slice(-2)}`;
+  return `${m} ${year}`;
 }
 
 function compareSeasonsDesc(

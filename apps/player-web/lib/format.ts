@@ -62,13 +62,18 @@ export function formatJoinedAt(iso: string): string {
   return `${m} ${d.getFullYear()}`;
 }
 
+const RU_MONTHS_FULL = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+];
+
 /**
  * Current season label derived from today's date (UTC), matching the backend
- * `seasonLabel` format (e.g. "Июл '26"). Used as a fallback when the profile
+ * `seasonLabel` format (e.g. "Июль 2026"). Used as a fallback when the profile
  * payload doesn't carry `season`.
  */
 export function currentSeasonLabel(): string {
   const d = new Date();
-  const m = RU_MONTHS_SHORT[d.getUTCMonth()] ?? '?';
-  return `${m} '${String(d.getUTCFullYear()).slice(-2)}`;
+  const m = RU_MONTHS_FULL[d.getUTCMonth()] ?? '?';
+  return `${m} ${d.getUTCFullYear()}`;
 }
