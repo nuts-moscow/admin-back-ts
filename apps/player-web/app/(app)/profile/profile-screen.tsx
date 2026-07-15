@@ -139,8 +139,9 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
+              {/* Small @line = the immutable sign-in login; big line = nickname. */}
               <div className="mono font-semibold" style={{ fontSize: 11, color: 'var(--gold)', letterSpacing: 0.4 }}>
-                @{me.nickname}
+                @{me.login ?? me.nickname}
               </div>
               <button
                 type="button"
@@ -160,7 +161,7 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
               </button>
             </div>
             <div className="serif text-[26px] font-semibold leading-tight mt-0.5">
-              {me.name ?? me.nickname}
+              {me.nickname}
             </div>
             <div className="text-[11px] mt-1" style={{ color: 'rgba(251,245,233,0.6)' }}>
               В клубе с {formatJoinedAt(me.joinedAt)}

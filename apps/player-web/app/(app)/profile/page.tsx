@@ -28,7 +28,7 @@ export default function ProfilePage() {
     ])
       .then(([me, history]) => {
         if (cancelled) return;
-        setData({ me: { ...me, email: session.email ?? '' }, history: history.entries });
+        setData({ me: { ...me, email: session.email ?? '', login: session.login }, history: history.entries });
       })
       .catch(() => undefined);
     reloadRef.current = () => void load();
