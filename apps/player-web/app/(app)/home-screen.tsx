@@ -209,7 +209,7 @@ function ScheduleRow({
           if (e.key === 'Enter' || e.key === ' ') onRegisterClick(e);
         }}
         aria-disabled={busy}
-        className="shrink-0 flex items-center justify-center rounded-md font-bold uppercase cursor-pointer select-none"
+        className="relative shrink-0 flex items-center justify-center rounded-md font-bold uppercase cursor-pointer select-none"
         style={{
           padding: '6px 10px',
           fontSize: 10,
@@ -218,9 +218,15 @@ function ScheduleRow({
           color: 'var(--ink)',
           border: registered ? '1px solid var(--line)' : '1px solid transparent',
           opacity: busy ? 0.7 : 1,
+          transition: 'background 0.25s ease, border-color 0.25s ease, opacity 0.15s ease',
         }}
       >
-        {busy ? '…' : registered ? 'Отменить' : 'Записаться'}
+        {/* The longest label sizes the button invisibly in every state, so
+            toggling never changes its footprint. */}
+        <span style={{ visibility: 'hidden' }}>Записаться</span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          {busy ? '…' : registered ? 'Отменить' : 'Записаться'}
+        </span>
       </span>
     </Link>
   );

@@ -243,15 +243,20 @@ function UpcomingCard({
               type="button"
               disabled={busy}
               onClick={toggle}
-              className="border-0 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
+              className="relative rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
               style={{
                 background: registered ? 'transparent' : 'var(--ink)',
                 color: registered ? 'var(--ink)' : 'var(--paper)',
-                border: registered ? '1px solid var(--line)' : 'none',
+                border: `1px solid ${registered ? 'var(--line)' : 'transparent'}`,
                 fontFamily: 'inherit',
+                transition: 'background 0.25s ease, color 0.25s ease, border-color 0.25s ease',
               }}
             >
-              {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+              {/* Longest label sizes the button invisibly — no footprint jump. */}
+              <span style={{ visibility: 'hidden' }}>Отменить запись</span>
+              <span className="absolute inset-0 flex items-center justify-center">
+                {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+              </span>
             </button>
           </div>
           {error && (
