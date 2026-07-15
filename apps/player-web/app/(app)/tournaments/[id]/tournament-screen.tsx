@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
@@ -25,9 +24,11 @@ interface Props {
   players: PlayerTournamentPlayer[];
   tables: PlayerTournamentTable[];
   myState: PlayerMyTournamentState | null;
+  /** Refetches the page data at once — called after register/cancel succeeds. */
+  onChanged?: () => void;
 }
 
-export function TournamentScreen({ detail, players, tables, myState }: Props) {
+export function TournamentScreen({ detail, players, tables, myState, onChanged }: Props) {
   const [view, setView] = useState<Tab>('overview');
   const s = useLevelCountdown(detail.levelTimeRemainingSec);
 
@@ -188,6 +189,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               tournamentId={detail.id}
               initiallyRegistered={myState != null}
               lateRegClosed={detail.lateRegistrationClosed}
+              onChanged={onChanged}
             />
           </div>
           <div
@@ -467,15 +469,22 @@ function RegisterButton({
   tournamentId,
   initiallyRegistered,
   lateRegClosed,
+  onChanged,
 }: {
   tournamentId: number;
   initiallyRegistered: boolean;
   lateRegClosed: boolean;
+  onChanged?: () => void;
 }) {
-  const router = useRouter();
   const [registered, setRegistered] = useState(initiallyRegistered);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+
+  // Server truth arrives with every poll/refetch — let it reconcile the
+  // local flip (e.g. a registration cancelled from another device).
+  useEffect(() => {
+    setRegistered(initiallyRegistered);
+  }, [initiallyRegistered]);
 
   // Hide entirely when late registration has closed AND player isn't already
   // signed up — they can still see (and cancel) an existing registration.
@@ -483,6 +492,7 @@ function RegisterButton({
 
   async function toggle() {
     setError(null);
+    setPending(true);
     try {
       if (registered) {
         await fetchPlayerApi(`/api/player/tournaments/${tournamentId}/register`, {
@@ -496,9 +506,13 @@ function RegisterButton({
         });
         setRegistered(true);
       }
-      startTransition(() => router.refresh());
+      // Refetch the page data at once — the roster and counters must not
+      // wait out the 15s poll tick.
+      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');
+    } finally {
+      setPending(false);
     }
   }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound, useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
@@ -30,6 +30,9 @@ export default function TournamentPage() {
   const tournamentId = parseInt(params.id, 10);
   const [data, setData] = useState<TournamentData | null>(null);
   const [missing, setMissing] = useState(false);
+  // The effect's load(), published so actions (register/cancel) can refetch
+  // immediately instead of waiting out the poll interval.
+  const reloadRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (Number.isNaN(tournamentId)) {
@@ -71,6 +74,7 @@ export default function TournamentPage() {
       }
     };
 
+    reloadRef.current = () => load(false);
     load(true); // initial load
 
     const id = setInterval(() => {
@@ -86,6 +90,7 @@ export default function TournamentPage() {
 
     return () => {
       cancelled = true;
+      reloadRef.current = null;
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
     };
@@ -99,6 +104,7 @@ export default function TournamentPage() {
       players={data.players}
       tables={data.tables}
       myState={data.myState}
+      onChanged={() => reloadRef.current?.()}
     />
   );
 }
