@@ -147,14 +147,14 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
 
       {supportOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
           style={{ background: 'rgba(27,22,18,0.45)' }}
           onClick={() => setSupportOpen(false)}
         >
-          {/* Bottom sheet: tap a channel or the backdrop/Отмена to dismiss. */}
+          {/* Centered dialog: tap a channel or the backdrop/Отмена to dismiss. */}
           <div
-            className="w-full max-w-md rounded-t-2xl px-4 pt-4"
-            style={{ background: 'var(--paper)', paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}
+            className="w-full max-w-sm rounded-2xl px-4 pt-4 pb-3"
+            style={{ background: 'var(--paper)', boxShadow: '0 18px 44px -12px rgba(27,22,18,0.45)' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="serif text-[18px] font-semibold mb-1">Саппорт</div>
