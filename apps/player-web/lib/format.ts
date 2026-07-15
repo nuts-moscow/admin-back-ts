@@ -3,6 +3,24 @@ export function formatNumberRu(n: number | null | undefined): string {
   return n.toLocaleString('ru-RU');
 }
 
+/** Rating points with the correctly declined «балл» (175,75 балла · 112 баллов · 1 балл). */
+export function formatPoints(n: number | null | undefined): string {
+  if (n == null) return '—';
+  const abs = Math.abs(n);
+  let word: string;
+  if (!Number.isInteger(abs)) {
+    word = 'балла';
+  } else {
+    const d10 = abs % 10;
+    const d100 = abs % 100;
+    if (d100 >= 11 && d100 <= 14) word = 'баллов';
+    else if (d10 === 1) word = 'балл';
+    else if (d10 >= 2 && d10 <= 4) word = 'балла';
+    else word = 'баллов';
+  }
+  return `${n.toLocaleString('ru-RU')} ${word}`;
+}
+
 export function formatSeconds(s: number | null | undefined): string {
   if (s == null) return '—';
   const m = Math.floor(s / 60);

@@ -14,6 +14,7 @@ import {
   currentSeasonLabel,
   formatJoinedAt,
   formatNumberRu,
+  formatPoints,
   formatTournamentDate,
 } from '@/lib/format';
 
@@ -121,7 +122,7 @@ export function ProfileScreen({ me, history }: Props) {
             border: '1px solid rgba(251,245,233,0.08)',
           }}
         >
-          <DarkStat label="Рейтинг" v={me.rank != null ? `#${me.rank}` : '—'} sub={`${formatNumberRu(me.points)} pts`} />
+          <DarkStat label="Рейтинг" v={me.rank != null ? `#${me.rank}` : '—'} sub={formatPoints(me.points)} />
           <DarkStat label="Рейтинговая зона" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
           <DarkStat
             label="Нокауты"

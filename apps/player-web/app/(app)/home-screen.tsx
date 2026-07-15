@@ -12,7 +12,7 @@ import { BuildingIcon, DocIcon, QuestionIcon, SupportIcon } from '@/components/i
 import { ScrollScreen } from '@/components/scroll-screen';
 import { SectionTitle } from '@/components/section-title';
 import { CLUB_INFO } from '@/data/club-info';
-import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
+import { formatNumberRu, formatPoints, formatSeconds, formatTournamentDate } from '@/lib/format';
 import { useTournamentRegistration } from '@/lib/use-tournament-registration';
 
 interface HomeScreenProps {
@@ -117,7 +117,7 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
                   <div className="flex-1 min-w-0">
                     <div className="text-[11px] font-bold text-ink truncate">{p.nickname}</div>
                     <div className="mono text-[9.5px] text-ink-3">
-                      {formatNumberRu(p.points)} pts
+                      {formatPoints(p.points)}
                     </div>
                   </div>
                 </Link>

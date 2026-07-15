@@ -7,7 +7,7 @@ import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
 import { ChevLIcon, MedalIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
-import { currentSeasonLabel, formatNumberRu, formatTournamentDate } from '@/lib/format';
+import { currentSeasonLabel, formatNumberRu, formatPoints, formatTournamentDate } from '@/lib/format';
 
 interface Props {
   profile: PlayerPublicProfile;
@@ -96,7 +96,7 @@ export function PublicProfileScreen({ profile, history }: Props) {
             </div>
             <div className="text-[11px] mt-1" style={{ color: 'rgba(251,245,233,0.6)' }}>
               Рейтинг: {profile.rank != null ? `#${profile.rank}` : '—'} ·{' '}
-              {formatNumberRu(profile.points)} pts
+              {formatPoints(profile.points)}
             </div>
           </div>
         </div>
