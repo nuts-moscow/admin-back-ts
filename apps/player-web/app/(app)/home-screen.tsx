@@ -220,7 +220,7 @@ function ScheduleRow({
           opacity: busy ? 0.7 : 1,
         }}
       >
-        {busy ? '…' : registered ? 'Отписаться' : 'Записаться'}
+        {busy ? '…' : registered ? 'Отменить' : 'Записаться'}
       </span>
     </Link>
   );
