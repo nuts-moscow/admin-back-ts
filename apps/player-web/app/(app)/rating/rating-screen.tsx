@@ -12,7 +12,7 @@ import { Card } from '@/components/card';
 import { ArrowDownIcon, ArrowUpIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { fetchPlayerApi } from '@/lib/api';
-import { formatNumberRu } from '@/lib/format';
+import { formatNumberRu, formatPoints } from '@/lib/format';
 
 type Tab = 'season' | 'hof';
 
@@ -345,7 +345,7 @@ function Pillar({
         {p.name ?? p.nickname}
       </div>
       <div className="mono" style={{ fontSize: 10, color: 'var(--gold)', marginTop: 1 }}>
-        {formatNumberRu(p.points)}
+        {formatPoints(p.points)}
       </div>
       <div
         className="w-full mt-2 flex items-start justify-center pt-2"
