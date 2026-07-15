@@ -178,7 +178,7 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
               type="button"
               onClick={() => setSupportOpen(false)}
               className="w-full border-0 rounded-lg py-3 mt-1 text-[13px] font-bold uppercase tracking-wider cursor-pointer"
-              style={{ background: 'transparent', color: 'var(--ink-3)', fontFamily: 'inherit' }}
+              style={{ background: 'var(--ink)', color: 'var(--paper)', fontFamily: 'inherit' }}
             >
               Отмена
             </button>
