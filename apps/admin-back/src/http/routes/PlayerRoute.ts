@@ -725,7 +725,7 @@ export function playerRoutes() {
               name: info?.name ?? null,
               points: r.totalPoints,
               played: r.tournamentCount,
-              itm: 0,
+              itm: r.ratingZoneCount,
               isMe: pid === ctx.playerId,
             };
           }),

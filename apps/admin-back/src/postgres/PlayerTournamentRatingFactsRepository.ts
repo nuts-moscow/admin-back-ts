@@ -27,6 +27,8 @@ export interface SeasonalRatingEntry {
   playerId: string;
   totalPoints: number;
   tournamentCount: number;
+  /** Tournaments finished in the rating zone (earned base points). */
+  ratingZoneCount: number;
 }
 
 /** Standard final-table size: finishing here or better counts as a final table. */
@@ -251,7 +253,8 @@ class PlayerTournamentRatingFactsRepositoryImpl
   async getSeasonalRating(year: number, month: number): Promise<SeasonalRatingEntry[]> {
     try {
       const res = await PostgresClient.instance.query(
-        `SELECT player_id, SUM(total_points) AS total_points, COUNT(*) AS tournament_count
+        `SELECT player_id, SUM(total_points) AS total_points, COUNT(*) AS tournament_count,
+                COUNT(*) FILTER (WHERE base_points > 0) AS rating_zone_count
          FROM player_tournament_rating_facts
          WHERE rating_season_year = $1 AND rating_season_month = $2
          GROUP BY player_id
@@ -264,6 +267,7 @@ class PlayerTournamentRatingFactsRepositoryImpl
           playerId: String(r.player_id),
           totalPoints: Number(r.total_points),
           tournamentCount: Number(r.tournament_count),
+          ratingZoneCount: Number(r.rating_zone_count ?? 0),
         };
       });
     } catch (err) {

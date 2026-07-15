@@ -160,7 +160,7 @@ export function RatingScreen({
                 <div>#</div>
                 <div>Игрок</div>
                 <div className="text-right">Баллы</div>
-                <div className="text-right">ITM</div>
+                <div className="text-right">Рейтинговая зона</div>
                 <div />
               </div>
               {loading && (
