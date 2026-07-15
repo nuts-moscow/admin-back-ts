@@ -522,14 +522,10 @@ function RegisterButton({
         type="button"
         onClick={toggle}
         disabled={pending}
-        className="rounded-full font-bold uppercase tracking-wider cursor-pointer disabled:cursor-default text-center"
+        className="relative rounded-full font-bold uppercase tracking-wider cursor-pointer disabled:cursor-default text-center"
         style={{
           padding: '10px 16px',
           fontSize: 12,
-          // Fixed footprint: wide enough for the longest label («Отменить
-          // запись») and an always-present border, so toggling swaps only
-          // colors — animated below — and never reflows the timer row.
-          minWidth: 158,
           // Cancel: subtle dark transparent; Register: cream paper button.
           background: registered ? 'rgba(251,245,233,0.1)' : 'var(--paper)',
           color: registered ? 'var(--paper)' : 'var(--ink)',
@@ -540,7 +536,13 @@ function RegisterButton({
             'background 0.25s ease, color 0.25s ease, border-color 0.25s ease, opacity 0.15s ease',
         }}
       >
-        {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+        {/* The longest label sizes the button invisibly in both states, so
+            toggling swaps only colors and never the footprint; the actual
+            label is centered on top. */}
+        <span style={{ visibility: 'hidden' }}>Отменить запись</span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+        </span>
       </button>
       {error && (
         <div className="text-[10px] text-crimson max-w-[140px] text-right">
