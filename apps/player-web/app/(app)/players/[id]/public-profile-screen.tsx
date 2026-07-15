@@ -95,7 +95,7 @@ export function PublicProfileScreen({ profile, history }: Props) {
               {profile.name ?? profile.nickname}
             </div>
             <div className="text-[11px] mt-1" style={{ color: 'rgba(251,245,233,0.6)' }}>
-              Рейтинг: {profile.rank != null ? `#${profile.rank}` : '—'} ·{' '}
+              Рейтинг: {profile.rank != null ? profile.rank : '—'} ·{' '}
               {formatPoints(profile.points)}
             </div>
           </div>
@@ -114,7 +114,7 @@ export function PublicProfileScreen({ profile, history }: Props) {
             <Stat label="Турниров" value={String(profile.playedTournaments)} />
             <Stat label="Побед" value={String(profile.wins)} />
             <Stat label="Финалов" value={String(profile.finalTables)} sub="столов" />
-            <Stat label="Очки" value={formatNumberRu(profile.points)} />
+            <Stat label="Баллы" value={formatNumberRu(profile.points)} />
             <Stat label="Нокауты" value={formatNumberRu(Math.round(profile.bountyCount))} />
             <Stat label="Рейтинговая зона" value={`${profile.itm}%`} />
           </div>

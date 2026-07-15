@@ -122,7 +122,7 @@ export function ProfileScreen({ me, history }: Props) {
             border: '1px solid rgba(251,245,233,0.08)',
           }}
         >
-          <DarkStat label="Рейтинг" v={me.rank != null ? `#${me.rank}` : '—'} sub={formatPoints(me.points)} />
+          <DarkStat label="Рейтинг" v={me.rank != null ? String(me.rank) : '—'} sub={formatPoints(me.points)} />
           <DarkStat label="Рейтинговая зона" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
           <DarkStat
             label="Нокауты"
@@ -219,7 +219,7 @@ export function ProfileScreen({ me, history }: Props) {
               <Stat label="Турниров" value={String(me.playedTournaments)} />
               <Stat label="Побед" value={String(me.wins)} />
               <Stat label="Финалов" value={String(me.finalTables)} sub="столов" />
-              <Stat label="Очки" value={formatNumberRu(me.points)} />
+              <Stat label="Баллы" value={formatNumberRu(me.points)} />
             </div>
           </Card>
 

@@ -159,7 +159,7 @@ export function RatingScreen({
               >
                 <div>#</div>
                 <div>Игрок</div>
-                <div className="text-right">Очки</div>
+                <div className="text-right">Баллы</div>
                 <div className="text-right">ITM</div>
                 <div />
               </div>
