@@ -64,7 +64,9 @@ export function ActiveTournamentCard({
                   {t.status === 'in_progress' && <span className="live-dot" />}
                   <span>
                     {t.status === 'in_progress'
-                      ? `Идёт уровень ${t.currentLevelNo ?? '—'}`
+                      ? t.breakActive
+                        ? 'Перерыв'
+                        : `Идёт уровень ${t.currentLevelNo ?? '—'}`
                       : t.status === 'registration_open'
                         ? 'Регистрация открыта'
                         : 'Поздняя регистрация'}

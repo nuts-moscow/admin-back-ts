@@ -24,6 +24,22 @@ function lateRegEndBreakIndex(blinds: BlindType[]): number {
   );
 }
 
+/**
+ * Late registration ends when the flagged break is OVER: the clock stands past
+ * it, or the schedule finished while standing on it. Standing on the break
+ * itself keeps registration open — the break is the last entry window.
+ */
+export function isPastLateRegBreak(
+  blinds: BlindType[],
+  currentStepIndex: number,
+  finished: boolean
+): boolean {
+  const lateRegBreakIdx = lateRegEndBreakIndex(blinds);
+  if (lateRegBreakIdx < 0) return false;
+  if (currentStepIndex > lateRegBreakIdx) return true;
+  return finished && currentStepIndex >= lateRegBreakIdx;
+}
+
 function stepTypeAt(
   blinds: BlindType[],
   index: number
@@ -221,10 +237,10 @@ export class TournamentClockService {
     const stepType = stepTypeAt(blinds, idx);
     const secondsUntilNextBreak = getSecondsUntilNextBreak(state, blinds, now);
 
-    // Auto-close late registration when the clock reaches (or passes) a Break
-    // flagged endsLateRegistration. Idempotent: guarded by the current flag.
-    const lateRegBreakIdx = lateRegEndBreakIndex(blinds);
-    const reachedLateRegEnd = lateRegBreakIdx >= 0 && idx >= lateRegBreakIdx;
+    // Auto-close late registration once the flagged Break has ENDED — the
+    // break itself is the last entry window, so standing on it stays open.
+    // Idempotent: guarded by the current flag.
+    const reachedLateRegEnd = isPastLateRegBreak(blinds, idx, state.finished);
     let lateRegistrationClosed = row.lateRegistrationClosed;
     if (reachedLateRegEnd && !lateRegistrationClosed) {
       const updated = await tournamentRepository.updateLateRegistrationClosed(
@@ -240,7 +256,7 @@ export class TournamentClockService {
         );
         logger.info(
           { tournamentId, stepIndex: idx },
-          "[TournamentClockService] auto-closed late registration at flagged break"
+          "[TournamentClockService] auto-closed late registration after flagged break ended"
         );
       }
     }

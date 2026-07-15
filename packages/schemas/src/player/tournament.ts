@@ -31,11 +31,18 @@ export const PlayerTournamentSummary = z.object({
   aliveCount: z.number().int(),
   eliminatedCount: z.number().int(),
   isRegistered: z.boolean(),
-  averageStack: z.number().nullable(),
+  /** Whole chips: rounded at the source (chip-pool summary). */
+  averageStack: z.number().int().nullable(),
   currentLevelNo: z.number().int().nullable(),
+  /** Null while the clock stands on a break — a break has no blinds. */
   currentBlinds: Blind.nullable(),
+  /** The first Blind step ahead (breaks skipped): during a break, the level play resumes into. */
   nextBlinds: Blind.nullable(),
   levelTimeRemainingSec: z.number().int().nullable(),
+  /** True when the clock stands on a Break step. */
+  breakActive: z.boolean(),
+  /** Duration in minutes of the current clock step (blind or break). */
+  currentStepDurationMin: z.number().int().nullable(),
 });
 export type PlayerTournamentSummary = z.infer<typeof PlayerTournamentSummary>;
 
@@ -79,7 +86,7 @@ export type PlayerTournamentPlayer = z.infer<typeof PlayerTournamentPlayer>;
 export const PlayerTournamentTable = z.object({
   table: z.number().int(),
   playersCount: z.number().int(),
-  averageStack: z.number().nullable(),
+  averageStack: z.number().int().nullable(),
   mine: z.boolean(),
   seats: z.array(z.object({
     seat: z.number().int(),

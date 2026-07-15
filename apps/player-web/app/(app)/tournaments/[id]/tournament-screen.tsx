@@ -31,7 +31,10 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
   const [view, setView] = useState<Tab>('overview');
   const s = useLevelCountdown(detail.levelTimeRemainingSec);
 
-  const levelTotal = (detail.currentBlinds?.durationMin ?? 20) * 60;
+  // Progress bar denominator: the current step's duration — a break has no
+  // currentBlinds, so the dedicated field covers both step kinds.
+  const levelTotal =
+    (detail.currentStepDurationMin ?? detail.currentBlinds?.durationMin ?? 20) * 60;
   const pct = Math.max(0, Math.min(100, (s / levelTotal) * 100));
 
   // Completed tournaments drop the live clock/blinds/register header and the
@@ -133,13 +136,15 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                   color: 'rgba(251,245,233,0.5)',
                 }}
               >
-                Уровень {detail.currentLevelNo ?? '—'}
+                {detail.breakActive ? 'Перерыв' : `Уровень ${detail.currentLevelNo ?? '—'}`}
               </div>
               <div className="mono mt-0.5" style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 600 }}>
-                {detail.currentBlinds
-                  ? `${detail.currentBlinds.smallBlind} / ${detail.currentBlinds.bigBlind}`
-                  : '— / —'}
-                {detail.currentBlinds && detail.currentBlinds.ante > 0 && (
+                {detail.breakActive
+                  ? 'До конца перерыва'
+                  : detail.currentBlinds
+                    ? `${detail.currentBlinds.smallBlind} / ${detail.currentBlinds.bigBlind}`
+                    : '— / —'}
+                {!detail.breakActive && detail.currentBlinds && detail.currentBlinds.ante > 0 && (
                   <span style={{ color: 'rgba(251,245,233,0.5)' }}>
                     {'  '}ante {detail.currentBlinds.ante}
                   </span>

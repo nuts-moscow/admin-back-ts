@@ -66,17 +66,9 @@ function statusForWire(state: InGameUserState): "registered" | "in_game" | "out"
   return "registered";
 }
 
-function pickActiveBlind(blinds: BlindType[], idx: number | null): {
-  current: ReturnType<typeof blindToWire> | null;
-  next: ReturnType<typeof blindToWire> | null;
-} {
-  if (idx === null || idx < 0) return { current: null, next: null };
-  const current = blinds[idx];
-  const next = blinds[idx + 1];
-  return {
-    current: current ? blindToWire(current) : null,
-    next: next ? blindToWire(next) : null,
-  };
+/** The first Blind step after `idx` — the level play resumes into (skips breaks). */
+function nextBlindAfter(blinds: BlindType[], idx: number): BlindType | undefined {
+  return blinds.slice(idx + 1).find((b) => b.type === "Blind");
 }
 
 function blindToWire(b: BlindType): {
@@ -127,6 +119,10 @@ interface TournamentSummaryPayload {
   currentBlinds: ReturnType<typeof blindToWire> | null;
   nextBlinds: ReturnType<typeof blindToWire> | null;
   levelTimeRemainingSec: number | null;
+  /** True when the clock stands on a Break step. */
+  breakActive: boolean;
+  /** Duration in minutes of the current clock step (blind or break). */
+  currentStepDurationMin: number | null;
 }
 
 async function buildTournamentSummary(
@@ -156,17 +152,31 @@ async function buildTournamentSummary(
   let currentBlinds: ReturnType<typeof blindToWire> | null = null;
   let nextBlinds: ReturnType<typeof blindToWire> | null = null;
   let levelTimeRemainingSec: number | null = null;
+  let breakActive = false;
+  let currentStepDurationMin: number | null = null;
 
   if (tournament.status === "in_progress") {
     const tick = await tournamentClockService.getTick(tournament.id);
     if (tick) {
       levelTimeRemainingSec = tick.secondsRemaining;
       const blinds = structure?.blindsStructure ?? [];
-      const picked = pickActiveBlind(blinds, tick.currentStepIndex);
-      currentBlinds = picked.current;
-      nextBlinds = picked.next;
-      currentLevelNo =
-        picked.current && !picked.current.isBreak ? picked.current.level : null;
+      const idx = tick.currentStepIndex;
+      const current = idx != null && idx >= 0 ? blinds[idx] : undefined;
+      if (idx != null && current) {
+        currentStepDurationMin = current.duration;
+        // «След. блайнды» is literally the next *blinds*: the first Blind
+        // step ahead, breaks skipped — during a break that is the level
+        // play resumes into.
+        const upcoming = nextBlindAfter(blinds, idx);
+        nextBlinds = upcoming ? blindToWire(upcoming) : null;
+        if (current.type === "Break") {
+          // No zeroed level-0 sentinel on the wire: a break has no blinds.
+          breakActive = true;
+        } else {
+          currentBlinds = blindToWire(current);
+          currentLevelNo = current.level;
+        }
+      }
     }
   }
 
@@ -189,6 +199,8 @@ async function buildTournamentSummary(
     currentBlinds,
     nextBlinds,
     levelTimeRemainingSec,
+    breakActive,
+    currentStepDurationMin,
   };
 }
 
