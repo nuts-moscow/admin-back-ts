@@ -220,9 +220,10 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         >
           <DarkStat
             label="Игроки"
-            // "в игре / вошедшие" — знаменатель считает реально вошедших
-            // (alive + eliminated), без записавшихся, но не пришедших.
-            v={`${detail.aliveCount} / ${detail.aliveCount + detail.eliminatedCount}`}
+            // «ещё в игре или в записи / всего записалось» — записавшиеся,
+            // но не вошедшие, считаются в обеих частях; выбывшие уходят
+            // только из числителя.
+            v={`${detail.registeredCount - detail.eliminatedCount} / ${detail.registeredCount}`}
           />
           <DarkStat label="Средний стэк" v={formatNumberRu(detail.averageStack)} />
           <DarkStat label="Стартовый стэк" v={formatNumberRu(detail.startingStack)} />
@@ -425,6 +426,22 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                           }}
                         >
                           Вы
+                        </span>
+                      )}
+                      {p.status === 'registered' && (
+                        <span
+                          className="shrink-0 uppercase font-bold"
+                          style={{
+                            fontSize: 9,
+                            letterSpacing: 0.5,
+                            padding: '2px 6px',
+                            borderRadius: 999,
+                            background: 'rgba(27,22,18,0.07)',
+                            border: '1px solid var(--line-2)',
+                            color: 'var(--ink-3)',
+                          }}
+                        >
+                          Запись
                         </span>
                       )}
                     </div>
