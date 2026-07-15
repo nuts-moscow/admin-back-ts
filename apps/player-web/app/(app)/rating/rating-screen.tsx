@@ -160,7 +160,7 @@ export function RatingScreen({
                 <div>#</div>
                 <div>Игрок</div>
                 <div className="text-right">Баллы</div>
-                <div className="text-right" style={{ whiteSpace: 'nowrap' }}>Рейтинговая зона</div>
+                <div className="text-center" style={{ whiteSpace: 'nowrap' }}>Рейтинговая зона</div>
               </div>
               {loading && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Загрузка…</div>
@@ -198,7 +198,7 @@ export function RatingScreen({
                   <div className="mono text-right" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
                     {formatNumberRu(p.points)}
                   </div>
-                  <div className="mono text-right text-[11px] text-ink-2">
+                  <div className="mono text-center text-[11px] text-ink-2">
                     {p.itm}/{p.played}
                   </div>
                 </Link>
