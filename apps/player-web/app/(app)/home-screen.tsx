@@ -134,7 +134,7 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
 
       <div className="mt-7 px-5">
         <div className="grid grid-cols-2 gap-2.5">
-          <QuickTile icon={<BuildingIcon size={20} className="text-paper" />} title={CLUB_INFO.about.title} sub={CLUB_INFO.about.sub} dark />
+          <QuickTile icon={<BuildingIcon size={20} className="text-paper" />} title={CLUB_INFO.about.title} sub={CLUB_INFO.about.sub} dark href="/about" />
           <QuickTile icon={<SupportIcon size={20} className="text-ink" />} title={CLUB_INFO.support.title} sub={CLUB_INFO.support.sub} />
           <QuickTile icon={<QuestionIcon size={20} className="text-ink" />} title={CLUB_INFO.qa.title} sub={CLUB_INFO.qa.sub} />
           <QuickTile icon={<DocIcon size={20} className="text-ink" />} title={CLUB_INFO.oferta.title} sub={CLUB_INFO.oferta.sub} />
@@ -231,13 +231,16 @@ function QuickTile({
   title,
   sub,
   dark,
+  href,
 }: {
   icon: React.ReactNode;
   title: string;
   sub: string;
   dark?: boolean;
+  /** When set, the tile navigates there. */
+  href?: string;
 }) {
-  return (
+  const tile = (
     <div
       className="rounded-md p-3.5 pb-4 relative overflow-hidden cursor-pointer flex flex-col justify-between"
       style={{
@@ -272,4 +275,12 @@ function QuickTile({
       </div>
     </div>
   );
+  if (href) {
+    return (
+      <Link href={href} className="block">
+        {tile}
+      </Link>
+    );
+  }
+  return tile;
 }
