@@ -6,7 +6,10 @@ export const CLUB_INFO = {
   support: {
     title: 'Саппорт',
     sub: 'Чат · 24/7',
-    href: 'https://t.me/nuts_mate',
+    links: [
+      { label: 'Телеграм', href: 'https://t.me/nuts_mate' },
+      { label: 'ВКонтакте', href: 'https://vk.ru/nuts_msk' },
+    ],
   },
   qa: {
     title: 'Q & A',
