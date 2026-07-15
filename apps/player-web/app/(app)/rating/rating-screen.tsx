@@ -150,7 +150,7 @@ export function RatingScreen({
               <div
                 className="grid gap-2.5 px-3.5 py-2.5 uppercase font-bold"
                 style={{
-                  gridTemplateColumns: '36px 1fr 60px 64px',
+                  gridTemplateColumns: '36px 1fr 60px 96px',
                   fontSize: 9,
                   color: 'var(--ink-3)',
                   letterSpacing: 0.6,
@@ -160,7 +160,7 @@ export function RatingScreen({
                 <div>#</div>
                 <div>Игрок</div>
                 <div className="text-right">Баллы</div>
-                <div className="text-right">Рейтинговая зона</div>
+                <div className="text-right" style={{ whiteSpace: 'nowrap' }}>Рейтинговая зона</div>
               </div>
               {loading && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Загрузка…</div>
@@ -171,7 +171,7 @@ export function RatingScreen({
                   href={`/players/${p.playerId}`}
                   className="grid items-center gap-2.5 px-3.5"
                   style={{
-                    gridTemplateColumns: '36px 1fr 60px 64px',
+                    gridTemplateColumns: '36px 1fr 60px 96px',
                     padding: '11px 14px',
                     borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
                     background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
