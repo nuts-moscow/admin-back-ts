@@ -1014,23 +1014,38 @@ async function buildPlayerHistory(playerId: number): Promise<HistoryWireEntry[]>
     }))
   );
   const fieldByTournament = new Map<number, number>();
+  // The genuine winner: exactly one in-game (non-Out, non-Registered) result
+  // row — the last player standing. Admin force-completion leaves several
+  // such rows, so none of them qualifies.
+  const winnerByTournament = new Map<number, string>();
   for (const { id, rows } of resultsByTournament) {
     // Field size = players who actually played; floor with the max placement
     // seen so "fieldSize - place + 1" never goes negative on partial backfills.
-    const rowCount =
-      rows.filter((r) => r.status !== "Registered" && r.status !== "registered").length ||
-      rows.length;
+    const played = rows.filter(
+      (r) => r.status !== "Registered" && r.status !== "registered"
+    );
+    const rowCount = played.length || rows.length;
     const maxPlacementInResults = rows.reduce((m, r) => Math.max(m, r.placement ?? 0), 0);
     const maxPlacementInFacts = factsRes
       .filter((f) => f.tournamentId === id)
       .reduce((m, f) => Math.max(m, f.placement ?? 0), 0);
     fieldByTournament.set(id, Math.max(rowCount, maxPlacementInResults, maxPlacementInFacts));
+
+    const standing = played.filter((r) => r.status !== "Out" && r.status !== "out");
+    if (standing.length === 1 && standing[0]) {
+      winnerByTournament.set(id, String(standing[0].playerId));
+    }
   }
 
   return factsRes
-    // Only games the player was actually eliminated from (admin force-completion
-    // gives non-finishers placement=N, which would render as a bogus "1/N").
-    .filter((f) => f.playerStatus === "Out")
+    // Games the player was eliminated from, plus tournaments they genuinely
+    // won (the winner is never "Out"). Force-completed non-finishers with
+    // placement=N stay excluded — they would render as a bogus "1/N".
+    .filter(
+      (f) =>
+        f.playerStatus === "Out" ||
+        winnerByTournament.get(f.tournamentId) === String(playerId)
+    )
     .map((f): HistoryWireEntry | null => {
       const t = tournamentById.get(f.tournamentId);
       if (!t) return null;
