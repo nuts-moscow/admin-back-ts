@@ -136,7 +136,7 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
         <div className="grid grid-cols-2 gap-2.5">
           <QuickTile icon={<BuildingIcon size={20} className="text-paper" />} title={CLUB_INFO.about.title} sub={CLUB_INFO.about.sub} dark href="/about" />
           <QuickTile icon={<SupportIcon size={20} className="text-ink" />} title={CLUB_INFO.support.title} sub={CLUB_INFO.support.sub} />
-          <QuickTile icon={<QuestionIcon size={20} className="text-ink" />} title={CLUB_INFO.qa.title} sub={CLUB_INFO.qa.sub} />
+          <QuickTile icon={<QuestionIcon size={20} className="text-ink" />} title={CLUB_INFO.qa.title} sub={CLUB_INFO.qa.sub} href="/qa" />
           <QuickTile icon={<DocIcon size={20} className="text-ink" />} title={CLUB_INFO.oferta.title} sub={CLUB_INFO.oferta.sub} />
         </div>
       </div>
