@@ -43,6 +43,8 @@ export const PlayerTournamentSummary = z.object({
   breakActive: z.boolean(),
   /** Duration in minutes of the current clock step (blind or break). */
   currentStepDurationMin: z.number().int().nullable(),
+  /** True when the step right after the current one is a Break. */
+  nextStepIsBreak: z.boolean(),
 });
 export type PlayerTournamentSummary = z.infer<typeof PlayerTournamentSummary>;
 

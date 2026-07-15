@@ -163,9 +163,11 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                 След. блайнды
               </div>
               <div className="mono mt-0.5" style={{ fontSize: 13, color: 'rgba(251,245,233,0.85)', fontWeight: 600 }}>
-                {detail.nextBlinds
-                  ? `${detail.nextBlinds.smallBlind} / ${detail.nextBlinds.bigBlind}`
-                  : '—'}
+                {detail.nextStepIsBreak
+                  ? 'Перерыв'
+                  : detail.nextBlinds
+                    ? `${detail.nextBlinds.smallBlind} / ${detail.nextBlinds.bigBlind}`
+                    : '—'}
               </div>
             </div>
           </div>

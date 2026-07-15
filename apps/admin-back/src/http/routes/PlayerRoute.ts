@@ -123,6 +123,8 @@ interface TournamentSummaryPayload {
   breakActive: boolean;
   /** Duration in minutes of the current clock step (blind or break). */
   currentStepDurationMin: number | null;
+  /** True when the step right after the current one is a Break. */
+  nextStepIsBreak: boolean;
 }
 
 async function buildTournamentSummary(
@@ -154,6 +156,7 @@ async function buildTournamentSummary(
   let levelTimeRemainingSec: number | null = null;
   let breakActive = false;
   let currentStepDurationMin: number | null = null;
+  let nextStepIsBreak = false;
 
   if (tournament.status === "in_progress") {
     const tick = await tournamentClockService.getTick(tournament.id);
@@ -164,6 +167,7 @@ async function buildTournamentSummary(
       const current = idx != null && idx >= 0 ? blinds[idx] : undefined;
       if (idx != null && current) {
         currentStepDurationMin = current.duration;
+        nextStepIsBreak = blinds[idx + 1]?.type === "Break";
         // «След. блайнды» is literally the next *blinds*: the first Blind
         // step ahead, breaks skipped — during a break that is the level
         // play resumes into.
@@ -201,6 +205,7 @@ async function buildTournamentSummary(
     levelTimeRemainingSec,
     breakActive,
     currentStepDurationMin,
+    nextStepIsBreak,
   };
 }
 
