@@ -50,4 +50,7 @@ export const ABOUT_CLUB = {
     },
   ],
   address: '📍 Большой Спасоглинищевский пер., 3с5, Москва',
+  addressMapsUrl: `https://yandex.ru/maps/?text=${encodeURIComponent(
+    'Москва, Большой Спасоглинищевский переулок, 3с5',
+  )}`,
 };

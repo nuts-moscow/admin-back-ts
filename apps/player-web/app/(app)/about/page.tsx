@@ -55,7 +55,15 @@ export default function AboutPage() {
           </Card>
         ))}
 
-        <div className="text-[12px] text-ink-3 text-center py-2">{ABOUT_CLUB.address}</div>
+        <a
+          href={ABOUT_CLUB.addressMapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[12px] text-center py-2 underline underline-offset-2"
+          style={{ color: 'var(--gold-2)', textDecorationColor: 'rgba(181,138,60,0.5)' }}
+        >
+          {ABOUT_CLUB.address}
+        </a>
       </div>
     </ScrollScreen>
   );
