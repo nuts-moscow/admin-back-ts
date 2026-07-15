@@ -98,6 +98,7 @@ export const QA_CLUB: Array<{ q: string; a: string; href?: string }> = [
   },
   {
     q: 'Как с вами связаться?',
-    a: 'Вы можете написать нам в Телеграм.',
+    a: 'Вы можете написать нам в Телеграм — @nuts_mate.',
+    href: 'https://t.me/nuts_mate',
   },
 ];
