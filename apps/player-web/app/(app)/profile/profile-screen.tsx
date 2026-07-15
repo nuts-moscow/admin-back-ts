@@ -167,7 +167,7 @@ export function ProfileScreen({ me, history }: Props) {
             </div>
             <div>
               <div className="uppercase font-bold" style={{ fontSize: 10, color: 'rgba(251,245,233,0.6)', letterSpacing: 0.6 }}>
-                Ре-ентри
+                Повторный вход
               </div>
               <div className="text-[11px]" style={{ color: 'rgba(251,245,233,0.5)' }}>
                 доступно
