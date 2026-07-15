@@ -6,6 +6,7 @@ import type { PlayerTournamentHistoryEntry, PlayerTournamentSummary } from '@adm
 import { ActiveTournamentCard } from '@/components/active-tournament-card';
 import { Card } from '@/components/card';
 import { KV } from '@/components/kv';
+import { Pill } from '@/components/pill';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { SectionTitle } from '@/components/section-title';
 import { fetchPlayerApi } from '@/lib/api';
@@ -227,7 +228,10 @@ function UpcomingCard({
           <div className="mono text-[11px] text-ink-2 mt-1 font-semibold">{fd.time}</div>
         </div>
         <div className="flex-1 p-3">
-          <div className="serif text-[17px] font-semibold leading-tight">{u.name}</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="serif text-[17px] font-semibold leading-tight">{u.name}</div>
+            {registered && <Pill tone="gold">Вы записаны</Pill>}
+          </div>
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mt-2.5">
             <KV k="Орг. взнос" v={formatRub(u.buyin)} />
             <KV k="Стек" v={formatNumberRu(u.startingStack)} />

@@ -84,6 +84,25 @@ export function ActiveTournamentCard({
               >
                 {t.name}
               </div>
+              {/* Upcoming only: on a live card isRegistered is also true for
+                  players already in the game — «записан» would mislead. */}
+              {isUpcoming && registered && (
+                <div className="mt-1.5">
+                  <span
+                    className="inline-flex items-center uppercase font-bold"
+                    style={{
+                      fontSize: 9,
+                      letterSpacing: 0.5,
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                      background: primary ? 'rgba(181,138,60,0.25)' : 'rgba(181,138,60,0.16)',
+                      color: primary ? 'var(--gold)' : 'var(--gold-2)',
+                    }}
+                  >
+                    Вы записаны
+                  </span>
+                </div>
+              )}
             </div>
 
             <ChevRIcon

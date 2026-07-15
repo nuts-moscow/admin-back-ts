@@ -322,13 +322,15 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
             >
               {isCompleted ? 'Итоговые места' : 'Место'}
             </div>
-            {/* Active players (place === null) at the top. Among the
-                eliminated, sort by display ASC: first-to-bust (#1) just
-                below the active section, then #2, #3, …, runner-up at the
-                very bottom. */}
+            {/* Active players (place === null) at the top — my own active
+                row pinned first among them. Among the eliminated, sort by
+                display ASC: first-to-bust (#1) just below the active
+                section, then #2, #3, …, runner-up at the very bottom —
+                pinning never reshuffles standings. */}
             {[...players]
               .sort((a, b) => {
-                if (a.place === null && b.place === null) return 0;
+                if (a.place === null && b.place === null)
+                  return (b.isMe ? 1 : 0) - (a.isMe ? 1 : 0);
                 if (a.place === null) return -1;
                 if (b.place === null) return 1;
                 return b.place - a.place;
@@ -504,16 +506,22 @@ function RegisterButton({
         type="button"
         onClick={toggle}
         disabled={pending}
-        className="border-0 rounded-full font-bold uppercase tracking-wider cursor-pointer disabled:cursor-default"
+        className="rounded-full font-bold uppercase tracking-wider cursor-pointer disabled:cursor-default text-center"
         style={{
           padding: '10px 16px',
           fontSize: 12,
+          // Fixed footprint: wide enough for the longest label («Отменить
+          // запись») and an always-present border, so toggling swaps only
+          // colors — animated below — and never reflows the timer row.
+          minWidth: 158,
           // Cancel: subtle dark transparent; Register: cream paper button.
           background: registered ? 'rgba(251,245,233,0.1)' : 'var(--paper)',
           color: registered ? 'var(--paper)' : 'var(--ink)',
-          border: registered ? '1px solid rgba(251,245,233,0.2)' : 'none',
+          border: `1px solid ${registered ? 'rgba(251,245,233,0.2)' : 'transparent'}`,
           fontFamily: 'inherit',
           opacity: pending ? 0.6 : 1,
+          transition:
+            'background 0.25s ease, color 0.25s ease, border-color 0.25s ease, opacity 0.15s ease',
         }}
       >
         {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
