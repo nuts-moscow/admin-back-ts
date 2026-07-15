@@ -155,6 +155,8 @@ export function RatingScreen({
                   color: 'var(--ink-3)',
                   letterSpacing: 0.6,
                   borderBottom: '1px solid var(--line-2)',
+                  // Rows carry a 3px qualification accent — keep columns aligned.
+                  borderLeft: '3px solid transparent',
                 }}
               >
                 <div>#</div>
@@ -165,7 +167,19 @@ export function RatingScreen({
               {loading && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Загрузка…</div>
               )}
-              {!loading && entries.map((p, i, arr) => (
+              {!loading && entries.map((p, i, arr) => {
+                /* Season-final qualification: 1–3 medal colors, 4–27 a soft
+                   gold accent — all 27 advance to the month's final. */
+                const medal =
+                  p.rank === 1
+                    ? '#D4A645'
+                    : p.rank === 2
+                      ? '#B8B0A0'
+                      : p.rank === 3
+                        ? '#A87750'
+                        : null;
+                const qualifies = p.rank <= 27;
+                return (
                 <Link
                   key={`${p.rank}-${p.playerId}`}
                   href={`/players/${p.playerId}`}
@@ -174,6 +188,9 @@ export function RatingScreen({
                     gridTemplateColumns: '36px 1fr 60px 96px',
                     padding: '11px 14px',
                     borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
+                    borderLeft: `3px solid ${
+                      medal ?? (qualifies ? 'rgba(181,138,60,0.35)' : 'transparent')
+                    }`,
                     background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
                   }}
                 >
@@ -181,7 +198,7 @@ export function RatingScreen({
                     className="mono font-bold"
                     style={{
                       fontSize: 13,
-                      color: p.rank <= 3 ? 'var(--gold-2)' : 'var(--ink)',
+                      color: medal ?? (qualifies ? 'var(--gold-2)' : 'var(--ink)'),
                     }}
                   >
                     {p.rank}
@@ -202,9 +219,19 @@ export function RatingScreen({
                     {p.itm}/{p.played}
                   </div>
                 </Link>
-              ))}
+                );
+              })}
               {!loading && entries.length === 0 && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Нет данных</div>
+              )}
+              {!loading && entries.length > 0 && (
+                <div
+                  className="px-3.5 py-2.5 text-[10px] text-ink-3"
+                  style={{ borderTop: '1px solid var(--line-2)', borderLeft: '3px solid transparent' }}
+                >
+                  Места 1–27 проходят в финал сезона: золото, серебро и бронза — призовая
+                  тройка, золотая полоса — остальные финалисты.
+                </div>
               )}
             </Card>
           </div>
