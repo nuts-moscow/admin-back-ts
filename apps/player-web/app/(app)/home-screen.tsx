@@ -135,7 +135,7 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
       <div className="mt-7 px-5">
         <div className="grid grid-cols-2 gap-2.5">
           <QuickTile icon={<BuildingIcon size={20} className="text-paper" />} title={CLUB_INFO.about.title} sub={CLUB_INFO.about.sub} dark href="/about" />
-          <QuickTile icon={<SupportIcon size={20} className="text-ink" />} title={CLUB_INFO.support.title} sub={CLUB_INFO.support.sub} />
+          <QuickTile icon={<SupportIcon size={20} className="text-ink" />} title={CLUB_INFO.support.title} sub={CLUB_INFO.support.sub} href={CLUB_INFO.support.href} />
           <QuickTile icon={<QuestionIcon size={20} className="text-ink" />} title={CLUB_INFO.qa.title} sub={CLUB_INFO.qa.sub} href="/qa" />
           <QuickTile icon={<DocIcon size={20} className="text-ink" />} title={CLUB_INFO.oferta.title} sub={CLUB_INFO.oferta.sub} />
         </div>
@@ -282,6 +282,15 @@ function QuickTile({
     </div>
   );
   if (href) {
+    // External targets (Telegram, maps) leave the app in a new tab; internal
+    // routes go through the client router.
+    if (href.startsWith('http')) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="block">
+          {tile}
+        </a>
+      );
+    }
     return (
       <Link href={href} className="block">
         {tile}

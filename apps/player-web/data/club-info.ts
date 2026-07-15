@@ -6,6 +6,7 @@ export const CLUB_INFO = {
   support: {
     title: 'Саппорт',
     sub: 'Чат · 24/7',
+    href: 'https://t.me/nuts_mate',
   },
   qa: {
     title: 'Q & A',
