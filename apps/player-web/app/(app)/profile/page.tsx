@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PlayerMeProfile, PlayerTournamentHistoryEntry } from '@admin/schemas';
 import { fetchPlayerApi } from '@/lib/api';
 import { usePlayerSession } from '@/lib/auth';
@@ -14,11 +14,13 @@ interface ProfileData {
 export default function ProfilePage() {
   const { session } = usePlayerSession();
   const [data, setData] = useState<ProfileData | null>(null);
+  // Published loader so profile edits (e.g. nickname) can refetch at once.
+  const reloadRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
-    void Promise.all([
+    const load = () => Promise.all([
       fetchPlayerApi<PlayerMeProfile>('/api/player/me'),
       fetchPlayerApi<{ entries: PlayerTournamentHistoryEntry[] }>(
         '/api/player/me/tournaments/history',
@@ -29,11 +31,14 @@ export default function ProfilePage() {
         setData({ me: { ...me, email: session.email ?? '' }, history: history.entries });
       })
       .catch(() => undefined);
+    reloadRef.current = () => void load();
+    void load();
     return () => {
       cancelled = true;
+      reloadRef.current = null;
     };
   }, [session]);
 
   if (!data) return null;
-  return <ProfileScreen me={data.me} history={data.history} />;
+  return <ProfileScreen me={data.me} history={data.history} onChanged={() => reloadRef.current?.()} />;
 }

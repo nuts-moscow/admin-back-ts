@@ -315,8 +315,20 @@ export function playerRoutes() {
         }
         if (!body || typeof body !== "object") return badRequest("Invalid body");
         const { nickname } = body as Record<string, unknown>;
-        if (nickname !== undefined && (typeof nickname !== "string" || nickname.trim().length === 0)) {
-          return badRequest("nickname must be a non-empty string when provided");
+        if (nickname !== undefined) {
+          if (typeof nickname !== "string") {
+            return badRequest("nickname must be a string");
+          }
+          const trimmed = nickname.trim();
+          if (trimmed.length < 2 || trimmed.length > 24) {
+            return badRequest("Никнейм должен быть от 2 до 24 символов");
+          }
+          // The login (player_users.login) never changes; the nickname is the
+          // player's display identity — keep it unique among players.
+          const taken = await playerRepository.findByNickname(trimmed);
+          if (taken && Number(taken.id) !== ctx.playerId) {
+            return badRequest("Этот никнейм уже занят");
+          }
         }
         const updated = await playerRepository.update(String(ctx.playerId), {
           nickname: typeof nickname === "string" ? nickname.trim() : undefined,
