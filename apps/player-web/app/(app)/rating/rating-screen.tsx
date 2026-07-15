@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   HallOfFameEntry,
   PlayerSeason,
@@ -31,10 +31,15 @@ export function RatingScreen({
   initialYear,
   initialMonth,
 }: Props) {
+  const PAGE = 50;
   const [tab, setTab] = useState<Tab>('season');
   const [seasonKey, setSeasonKey] = useState(`${initialYear}-${initialMonth}`);
   const [entries, setEntries] = useState(initialEntries);
   const [loading, setLoading] = useState(false);
+  // Infinite scroll: a full page means there may be more rows behind it.
+  const [hasMore, setHasMore] = useState(initialEntries.length >= PAGE);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const currentSeasonLabel =
     seasons.find((s) => `${s.year}-${s.month}` === seasonKey)?.label ?? '';
@@ -45,24 +50,50 @@ export function RatingScreen({
     // crucially reset to it so switching back doesn't leave another season's rows.
     if (seasonKey === `${initialYear}-${initialMonth}`) {
       setEntries(initialEntries);
+      setHasMore(initialEntries.length >= PAGE);
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
     void fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
-      `/api/player/rating/season?year=${y}&month=${m}&limit=50`,
+      `/api/player/rating/season?year=${y}&month=${m}&limit=${PAGE}`,
     )
       .catch(() => ({ entries: [] }))
       .then((s) => {
         if (cancelled) return;
         setEntries(s.entries);
+        setHasMore(s.entries.length >= PAGE);
         setLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [seasonKey, initialYear, initialMonth, initialEntries]);
+
+  // Append the next page when the sentinel below the table scrolls into view.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || tab !== 'season') return;
+    const obs = new IntersectionObserver((hits) => {
+      if (!hits.some((h) => h.isIntersecting)) return;
+      if (loading || loadingMore || !hasMore) return;
+      const [y, m] = seasonKey.split('-').map(Number);
+      const offset = entries.length;
+      setLoadingMore(true);
+      void fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
+        `/api/player/rating/season?year=${y}&month=${m}&limit=${PAGE}&offset=${offset}`,
+      )
+        .catch(() => ({ entries: [] }))
+        .then((s) => {
+          setEntries((prev) => [...prev, ...s.entries]);
+          setHasMore(s.entries.length >= PAGE);
+          setLoadingMore(false);
+        });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [tab, seasonKey, entries.length, hasMore, loading, loadingMore]);
 
   return (
     <ScrollScreen>
@@ -237,16 +268,12 @@ export function RatingScreen({
               {!loading && entries.length === 0 && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Нет данных</div>
               )}
-              {!loading && entries.length > 0 && (
-                <div
-                  className="px-3.5 py-2.5 text-[10px] text-ink-3"
-                  style={{ borderTop: '1px solid var(--line-2)', borderLeft: '3px solid transparent' }}
-                >
-                  Места 1–27 проходят в финал сезона: золото, серебро и бронза — призовая
-                  тройка, золотая полоса — остальные финалисты.
-                </div>
-              )}
             </Card>
+            {!loading && hasMore && (
+              <div ref={sentinelRef} className="text-center text-[11px] text-ink-3 py-3">
+                {loadingMore ? 'Загрузка…' : ''}
+              </div>
+            )}
           </div>
         </>
       )}

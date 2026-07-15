@@ -705,8 +705,11 @@ export function playerRoutes() {
           return badRequest("year and month query params required");
         }
         const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 200);
+        // Pagination for the rating table's infinite scroll; ranks stay
+        // global — they are assigned before slicing.
+        const offset = Math.max(0, parseInt(url.searchParams.get("offset") ?? "0", 10) || 0);
         const rows = await playerTournamentRatingFactsRepository.getSeasonalRating(year, month);
-        const ranked = rankSeasonalEntries(rows).slice(0, limit);
+        const ranked = rankSeasonalEntries(rows).slice(offset, offset + limit);
         const playerIds = Array.from(new Set(ranked.map((r) => Number(r.playerId))));
         const nameByPlayerId = new Map<number, { nickname: string; name: string | null }>();
         await Promise.all(
