@@ -10,7 +10,7 @@ import { Pill } from '@/components/pill';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { SectionTitle } from '@/components/section-title';
 import { fetchPlayerApi } from '@/lib/api';
-import { formatNumberRu, formatRub, formatTournamentDate } from '@/lib/format';
+import { formatNumberRu, formatPoints, formatRub, formatTournamentDate } from '@/lib/format';
 
 type Tab = 'upcoming' | 'history';
 
@@ -155,7 +155,7 @@ export function ScheduleScreen({
                         }}
                       >
                         {h.pointsDelta >= 0 ? '+' : ''}
-                        {formatNumberRu(h.pointsDelta)} баллов
+                        {formatPoints(h.pointsDelta)}
                       </div>
                     </div>
                   </div>

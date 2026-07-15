@@ -300,7 +300,7 @@ export function ProfileScreen({ me, history }: Props) {
                           }}
                         >
                           {h.pointsDelta >= 0 ? '+' : ''}
-                          {formatNumberRu(h.pointsDelta)}
+                          {formatPoints(h.pointsDelta)}
                         </div>
                       </div>
                     </div>
@@ -379,7 +379,7 @@ export function ProfileScreen({ me, history }: Props) {
                       }}
                     >
                       {h.pointsDelta >= 0 ? '+' : ''}
-                      {formatNumberRu(h.pointsDelta)} баллов
+                      {formatPoints(h.pointsDelta)}
                     </div>
                   </div>
                 </div>

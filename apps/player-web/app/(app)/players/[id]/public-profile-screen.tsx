@@ -186,7 +186,7 @@ export function PublicProfileScreen({ profile, history }: Props) {
                         }}
                       >
                         {h.pointsDelta >= 0 ? '+' : ''}
-                        {formatNumberRu(h.pointsDelta)}
+                        {formatPoints(h.pointsDelta)}
                       </div>
                     </div>
                   </div>
