@@ -94,8 +94,10 @@ export function computeTournamentPlayerRating(
       ? bonusPts
       : 0;
 
+  // The coefficient scales only the matrix base; the guarantee bonus rides on
+  // top unscaled: base × coef + guarantee (user decision, 2026-07-16).
   const coef = tournament.ratingPointsCoefficient;
-  const fromTableAfterCoefficient = (base + guaranteeBonus) * coef;
+  const fromTableAfterCoefficient = base * coef + guaranteeBonus;
 
   const bountyCoef = tournament.ratingBountyCoefficient;
   const bountyPoints = bountyCount * TOURNAMENT_BOUNTY_RATING_BASE * bountyCoef;

@@ -59,8 +59,16 @@ export const ABOUT_CLUB = {
   )}`,
 };
 
-/** Content of the «Q & A» page (/qa). `href` turns the answer into a link. */
-export const QA_CLUB: Array<{ q: string; a: string; href?: string }> = [
+/**
+ * Content of the «Q & A» page (/qa). `href` turns the whole answer into a
+ * link; `links` appends separate link rows under the answer text.
+ */
+export const QA_CLUB: Array<{
+  q: string;
+  a: string;
+  href?: string;
+  links?: Array<{ label: string; href: string }>;
+}> = [
   {
     q: 'Что такое NUTS FAMILY?',
     a: 'NUTS FAMILY — спортивный покер-клуб в Москве. Мы проводим регулярные турниры без денежных ставок, только мастерство и честная игра исключительно на рейтинг.',
@@ -102,7 +110,10 @@ export const QA_CLUB: Array<{ q: string; a: string; href?: string }> = [
   },
   {
     q: 'Как с вами связаться?',
-    a: 'Вы можете написать нам в Телеграм — @nuts_mate.',
-    href: 'https://t.me/nuts_mate',
+    a: 'Вы можете написать нам, где удобнее:',
+    links: [
+      { label: 'Телеграм — @nuts_mate', href: 'https://t.me/nuts_mate' },
+      { label: 'ВКонтакте — vk.ru/nuts_msk', href: 'https://vk.ru/nuts_msk' },
+    ],
   },
 ];

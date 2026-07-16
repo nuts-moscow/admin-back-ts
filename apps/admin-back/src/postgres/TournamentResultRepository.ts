@@ -73,6 +73,13 @@ export interface TournamentResultRepository {
     playerId: string,
     manualAdjustment: number
   ): Promise<boolean>;
+  /** Rewrites the persisted rating breakdown (reprice after settings change). */
+  updateRatingPersistedWithClient(
+    client: PoolClient,
+    tournamentId: number,
+    playerId: string,
+    breakdown: TournamentRatingBreakdown
+  ): Promise<boolean>;
 }
 
 function rowToResult(row: Record<string, unknown>): TournamentResultPlayerRow {
@@ -279,6 +286,29 @@ class TournamentResultRepositoryImpl implements TournamentResultRepository {
       logger.info(
         { err, tournamentId, playerId },
         "[Postgres] TournamentResultRepository.updateRatingManualAdjustmentWithClient failed"
+      );
+      return false;
+    }
+  }
+
+  async updateRatingPersistedWithClient(
+    client: PoolClient,
+    tournamentId: number,
+    playerId: string,
+    breakdown: TournamentRatingBreakdown
+  ): Promise<boolean> {
+    try {
+      const result = await client.query(
+        `UPDATE tournament_result_players
+         SET rating_persisted = $3::jsonb
+         WHERE tournament_id = $1 AND player_id = $2`,
+        [tournamentId, playerId, JSON.stringify(breakdown)]
+      );
+      return result.rowCount != null && result.rowCount > 0;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, playerId },
+        "[Postgres] TournamentResultRepository.updateRatingPersistedWithClient failed"
       );
       return false;
     }
