@@ -140,9 +140,9 @@ export function RatingScreen({
       {tab !== 'hof' && (
         <div className="px-5 pb-3.5">
           <div className="scroll flex gap-2 overflow-x-auto pb-1">
-            {/* Ascending by date: earlier seasons left, later (current) on the right. */}
+            {/* Descending by date: the current season first (leftmost). */}
             {[...seasons]
-              .sort((a, b) => a.year - b.year || a.month - b.month)
+              .sort((a, b) => b.year - a.year || b.month - a.month)
               .map((s) => {
               const key = `${s.year}-${s.month}`;
               const active = key === seasonKey;
@@ -199,7 +199,7 @@ export function RatingScreen({
                   borderLeft: '3px solid transparent',
                 }}
               >
-                <div>#</div>
+                <div />
                 <div>Игрок</div>
                 <div className="text-right">Баллы</div>
                 <div className="text-center" style={{ whiteSpace: 'nowrap' }}>Рейтинговая зона</div>

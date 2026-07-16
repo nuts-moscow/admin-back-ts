@@ -51,6 +51,22 @@ export default function QaPage() {
                 {item.a}
               </div>
             )}
+            {item.links && (
+              <div className="flex flex-col gap-1 mt-1.5">
+                {item.links.map((l) => (
+                  <a
+                    key={l.href}
+                    href={l.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[13px] leading-relaxed underline underline-offset-2"
+                    style={{ color: 'var(--gold-2)', textDecorationColor: 'rgba(181,138,60,0.5)' }}
+                  >
+                    {l.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </Card>
         ))}
       </div>
