@@ -9,6 +9,7 @@ import {
   effectiveAllowedReentryCount,
 } from "../../domain/tournamentReentryPolicy";
 import { InGameUserStateService } from "../services/InGameUserStateService";
+import { repriceTournamentRating } from "../services/TournamentRatingRepriceService";
 import { TournamentService } from "../services/TournamentService";
 import { tournamentClockService } from "../services/TournamentClockService";
 import { writeTournamentAuditLog } from "../services/tournamentAuditLog";
@@ -700,6 +701,32 @@ export function tournamentRoutes() {
           ratingBountyCoefficient: result.tournament.ratingBountyCoefficient,
           ratingTableId: result.tournament.ratingTableId,
         });
+        // Rating settings describe how THIS tournament pays: when they change,
+        // already-frozen numbers (snapshots of eliminated players on a live
+        // game; persisted facts/results on a completed one) are repriced so
+        // stored ratings always match the settings the admin sees.
+        const ratingSettingsTouched = [
+          ratingParsed.ratingGuaranteeEnabled,
+          ratingParsed.ratingGuaranteeBonusPoints,
+          ratingParsed.ratingPointsCoefficient,
+          ratingParsed.ratingBountyCoefficient,
+          ratingParsed.ratingTableId,
+          ratingParsed.ratingEnabled,
+        ].some((v) => v !== undefined);
+        if (ratingSettingsTouched) {
+          const reprice = await repriceTournamentRating(id);
+          if (!reprice.ok) {
+            logger.info(
+              { tournamentId: id, error: reprice.error },
+              "[TournamentRoute] rating reprice after settings change failed"
+            );
+          } else if (reprice.repriced > 0) {
+            logger.info(
+              { tournamentId: id, repriced: reprice.repriced },
+              "[TournamentRoute] rating repriced after settings change"
+            );
+          }
+        }
         return Response.json(result.tournament);
       },
     },
