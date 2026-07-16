@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
@@ -25,13 +24,18 @@ interface Props {
   players: PlayerTournamentPlayer[];
   tables: PlayerTournamentTable[];
   myState: PlayerMyTournamentState | null;
+  /** Refetches the page data at once — called after register/cancel succeeds. */
+  onChanged?: () => void;
 }
 
-export function TournamentScreen({ detail, players, tables, myState }: Props) {
+export function TournamentScreen({ detail, players, tables, myState, onChanged }: Props) {
   const [view, setView] = useState<Tab>('overview');
   const s = useLevelCountdown(detail.levelTimeRemainingSec);
 
-  const levelTotal = (detail.currentBlinds?.durationMin ?? 20) * 60;
+  // Progress bar denominator: the current step's duration — a break has no
+  // currentBlinds, so the dedicated field covers both step kinds.
+  const levelTotal =
+    (detail.currentStepDurationMin ?? detail.currentBlinds?.durationMin ?? 20) * 60;
   const pct = Math.max(0, Math.min(100, (s / levelTotal) * 100));
 
   // Completed tournaments drop the live clock/blinds/register header and the
@@ -133,13 +137,15 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                   color: 'rgba(251,245,233,0.5)',
                 }}
               >
-                Уровень {detail.currentLevelNo ?? '—'}
+                {detail.breakActive ? 'Перерыв' : `Уровень ${detail.currentLevelNo ?? '—'}`}
               </div>
               <div className="mono mt-0.5" style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 600 }}>
-                {detail.currentBlinds
-                  ? `${detail.currentBlinds.smallBlind} / ${detail.currentBlinds.bigBlind}`
-                  : '— / —'}
-                {detail.currentBlinds && detail.currentBlinds.ante > 0 && (
+                {detail.breakActive
+                  ? 'До конца перерыва'
+                  : detail.currentBlinds
+                    ? `${detail.currentBlinds.smallBlind} / ${detail.currentBlinds.bigBlind}`
+                    : '— / —'}
+                {!detail.breakActive && detail.currentBlinds && detail.currentBlinds.ante > 0 && (
                   <span style={{ color: 'rgba(251,245,233,0.5)' }}>
                     {'  '}ante {detail.currentBlinds.ante}
                   </span>
@@ -158,9 +164,11 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                 След. блайнды
               </div>
               <div className="mono mt-0.5" style={{ fontSize: 13, color: 'rgba(251,245,233,0.85)', fontWeight: 600 }}>
-                {detail.nextBlinds
-                  ? `${detail.nextBlinds.smallBlind} / ${detail.nextBlinds.bigBlind}`
-                  : '—'}
+                {detail.nextStepIsBreak
+                  ? 'Перерыв'
+                  : detail.nextBlinds
+                    ? `${detail.nextBlinds.smallBlind} / ${detail.nextBlinds.bigBlind}`
+                    : '—'}
               </div>
             </div>
           </div>
@@ -181,6 +189,7 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
               tournamentId={detail.id}
               initiallyRegistered={myState != null}
               lateRegClosed={detail.lateRegistrationClosed}
+              onChanged={onChanged}
             />
           </div>
           <div
@@ -215,9 +224,10 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
         >
           <DarkStat
             label="Игроки"
-            // "в игре / вошедшие" — знаменатель считает реально вошедших
-            // (alive + eliminated), без записавшихся, но не пришедших.
-            v={`${detail.aliveCount} / ${detail.aliveCount + detail.eliminatedCount}`}
+            // «ещё в игре или в записи / всего записалось» — записавшиеся,
+            // но не вошедшие, считаются в обеих частях; выбывшие уходят
+            // только из числителя.
+            v={`${detail.registeredCount - detail.eliminatedCount} / ${detail.registeredCount}`}
           />
           <DarkStat label="Средний стэк" v={formatNumberRu(detail.averageStack)} />
           <DarkStat label="Стартовый стэк" v={formatNumberRu(detail.startingStack)} />
@@ -316,13 +326,15 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
             >
               {isCompleted ? 'Итоговые места' : 'Место'}
             </div>
-            {/* Active players (place === null) at the top. Among the
-                eliminated, sort by display ASC: first-to-bust (#1) just
-                below the active section, then #2, #3, …, runner-up at the
-                very bottom. */}
+            {/* Active players (place === null) at the top — my own active
+                row pinned first among them. Among the eliminated, sort by
+                display ASC: first-to-bust (#1) just below the active
+                section, then #2, #3, …, runner-up at the very bottom —
+                pinning never reshuffles standings. */}
             {[...players]
               .sort((a, b) => {
-                if (a.place === null && b.place === null) return 0;
+                if (a.place === null && b.place === null)
+                  return (b.isMe ? 1 : 0) - (a.isMe ? 1 : 0);
                 if (a.place === null) return -1;
                 if (b.place === null) return 1;
                 return b.place - a.place;
@@ -422,6 +434,22 @@ export function TournamentScreen({ detail, players, tables, myState }: Props) {
                           Вы
                         </span>
                       )}
+                      {p.status === 'registered' && (
+                        <span
+                          className="shrink-0 uppercase font-bold"
+                          style={{
+                            fontSize: 9,
+                            letterSpacing: 0.5,
+                            padding: '2px 6px',
+                            borderRadius: 999,
+                            background: 'rgba(27,22,18,0.07)',
+                            border: '1px solid var(--line-2)',
+                            color: 'var(--ink-3)',
+                          }}
+                        >
+                          Запись
+                        </span>
+                      )}
                     </div>
                   </Link>
                 );
@@ -441,15 +469,22 @@ function RegisterButton({
   tournamentId,
   initiallyRegistered,
   lateRegClosed,
+  onChanged,
 }: {
   tournamentId: number;
   initiallyRegistered: boolean;
   lateRegClosed: boolean;
+  onChanged?: () => void;
 }) {
-  const router = useRouter();
   const [registered, setRegistered] = useState(initiallyRegistered);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+
+  // Server truth arrives with every poll/refetch — let it reconcile the
+  // local flip (e.g. a registration cancelled from another device).
+  useEffect(() => {
+    setRegistered(initiallyRegistered);
+  }, [initiallyRegistered]);
 
   // Hide entirely when late registration has closed AND player isn't already
   // signed up — they can still see (and cancel) an existing registration.
@@ -457,6 +492,7 @@ function RegisterButton({
 
   async function toggle() {
     setError(null);
+    setPending(true);
     try {
       if (registered) {
         await fetchPlayerApi(`/api/player/tournaments/${tournamentId}/register`, {
@@ -470,9 +506,13 @@ function RegisterButton({
         });
         setRegistered(true);
       }
-      startTransition(() => router.refresh());
+      // Refetch the page data at once — the roster and counters must not
+      // wait out the 15s poll tick.
+      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');
+    } finally {
+      setPending(false);
     }
   }
 
@@ -482,19 +522,27 @@ function RegisterButton({
         type="button"
         onClick={toggle}
         disabled={pending}
-        className="border-0 rounded-full font-bold uppercase tracking-wider cursor-pointer disabled:cursor-default"
+        className="relative rounded-full font-bold uppercase tracking-wider cursor-pointer disabled:cursor-default text-center"
         style={{
           padding: '10px 16px',
           fontSize: 12,
           // Cancel: subtle dark transparent; Register: cream paper button.
           background: registered ? 'rgba(251,245,233,0.1)' : 'var(--paper)',
           color: registered ? 'var(--paper)' : 'var(--ink)',
-          border: registered ? '1px solid rgba(251,245,233,0.2)' : 'none',
+          border: `1px solid ${registered ? 'rgba(251,245,233,0.2)' : 'transparent'}`,
           fontFamily: 'inherit',
           opacity: pending ? 0.6 : 1,
+          transition:
+            'background 0.25s ease, color 0.25s ease, border-color 0.25s ease, opacity 0.15s ease',
         }}
       >
-        {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+        {/* The longest label sizes the button invisibly in both states, so
+            toggling swaps only colors and never the footprint; the actual
+            label is centered on top. */}
+        <span style={{ visibility: 'hidden' }}>Отменить запись</span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+        </span>
       </button>
       {error && (
         <div className="text-[10px] text-crimson max-w-[140px] text-right">

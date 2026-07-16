@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import type {
   PlayerMeProfile,
   PlayerSeasonRatingEntry,
@@ -12,7 +13,7 @@ import { BuildingIcon, DocIcon, QuestionIcon, SupportIcon } from '@/components/i
 import { ScrollScreen } from '@/components/scroll-screen';
 import { SectionTitle } from '@/components/section-title';
 import { CLUB_INFO } from '@/data/club-info';
-import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
+import { formatNumberRu, formatPoints, formatSeconds, formatTournamentDate } from '@/lib/format';
 import { useTournamentRegistration } from '@/lib/use-tournament-registration';
 
 interface HomeScreenProps {
@@ -25,6 +26,7 @@ interface HomeScreenProps {
 
 export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScreenProps) {
   const firstName = (me.name ?? me.nickname).split(' ')[0] ?? me.nickname;
+  const [supportOpen, setSupportOpen] = useState(false);
 
   // When nothing is live, promote the nearest upcoming (open-registration)
   // tournament into the hero slot, and drop it from the schedule list below.
@@ -117,7 +119,7 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
                   <div className="flex-1 min-w-0">
                     <div className="text-[11px] font-bold text-ink truncate">{p.nickname}</div>
                     <div className="mono text-[9.5px] text-ink-3">
-                      {formatNumberRu(p.points)} pts
+                      {formatPoints(p.points)}
                     </div>
                   </div>
                 </Link>
@@ -134,14 +136,55 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
 
       <div className="mt-7 px-5">
         <div className="grid grid-cols-2 gap-2.5">
-          <QuickTile icon={<BuildingIcon size={20} className="text-paper" />} title={CLUB_INFO.about.title} sub={CLUB_INFO.about.sub} dark />
-          <QuickTile icon={<SupportIcon size={20} className="text-ink" />} title={CLUB_INFO.support.title} sub={CLUB_INFO.support.sub} />
-          <QuickTile icon={<QuestionIcon size={20} className="text-ink" />} title={CLUB_INFO.qa.title} sub={CLUB_INFO.qa.sub} />
+          <QuickTile icon={<BuildingIcon size={20} className="text-paper" />} title={CLUB_INFO.about.title} sub={CLUB_INFO.about.sub} dark href="/about" />
+          <QuickTile icon={<SupportIcon size={20} className="text-ink" />} title={CLUB_INFO.support.title} sub={CLUB_INFO.support.sub} onClick={() => setSupportOpen(true)} />
+          <QuickTile icon={<QuestionIcon size={20} className="text-ink" />} title={CLUB_INFO.qa.title} sub={CLUB_INFO.qa.sub} href="/qa" />
           <QuickTile icon={<DocIcon size={20} className="text-ink" />} title={CLUB_INFO.oferta.title} sub={CLUB_INFO.oferta.sub} />
         </div>
       </div>
 
       <div className="h-4" />
+
+      {supportOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: 'rgba(27,22,18,0.45)' }}
+          onClick={() => setSupportOpen(false)}
+        >
+          {/* Centered dialog: tap a channel or the backdrop/Отмена to dismiss. */}
+          <div
+            className="w-full max-w-sm rounded-2xl px-4 pt-4 pb-3"
+            style={{ background: 'var(--paper)', boxShadow: '0 18px 44px -12px rgba(27,22,18,0.45)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="serif text-[18px] font-semibold mb-1">Саппорт</div>
+            <div className="text-[11px] text-ink-3 mb-3">Напишите нам, где удобнее</div>
+            {CLUB_INFO.support.links.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between rounded-lg px-3.5 py-3 mb-2"
+                style={{ background: 'rgba(27,22,18,0.05)' }}
+              >
+                <span className="text-[14px] font-semibold text-ink">{l.label}</span>
+                <span className="text-[11px]" style={{ color: 'var(--gold-2)' }}>
+                  {l.href.replace('https://', '')}
+                </span>
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSupportOpen(false)}
+              className="w-full border-0 rounded-lg py-3 mt-1 text-[13px] font-bold uppercase tracking-wider cursor-pointer"
+              style={{ background: 'var(--ink)', color: 'var(--paper)', fontFamily: 'inherit' }}
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
     </ScrollScreen>
   );
 }
@@ -209,7 +252,7 @@ function ScheduleRow({
           if (e.key === 'Enter' || e.key === ' ') onRegisterClick(e);
         }}
         aria-disabled={busy}
-        className="shrink-0 flex items-center justify-center rounded-md font-bold uppercase cursor-pointer select-none"
+        className="relative shrink-0 flex items-center justify-center rounded-md font-bold uppercase cursor-pointer select-none"
         style={{
           padding: '6px 10px',
           fontSize: 10,
@@ -218,9 +261,15 @@ function ScheduleRow({
           color: 'var(--ink)',
           border: registered ? '1px solid var(--line)' : '1px solid transparent',
           opacity: busy ? 0.7 : 1,
+          transition: 'background 0.25s ease, border-color 0.25s ease, opacity 0.15s ease',
         }}
       >
-        {busy ? '…' : registered ? 'Отписаться' : 'Записаться'}
+        {/* The longest label sizes the button invisibly in every state, so
+            toggling never changes its footprint. */}
+        <span style={{ visibility: 'hidden' }}>Записаться</span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          {busy ? '…' : registered ? 'Отменить' : 'Записаться'}
+        </span>
       </span>
     </Link>
   );
@@ -231,13 +280,19 @@ function QuickTile({
   title,
   sub,
   dark,
+  href,
+  onClick,
 }: {
   icon: React.ReactNode;
   title: string;
   sub: string;
   dark?: boolean;
+  /** When set, the tile navigates there. */
+  href?: string;
+  /** Alternative to href: the tile acts as a button (e.g. opens a sheet). */
+  onClick?: () => void;
 }) {
-  return (
+  const tile = (
     <div
       className="rounded-md p-3.5 pb-4 relative overflow-hidden cursor-pointer flex flex-col justify-between"
       style={{
@@ -272,4 +327,35 @@ function QuickTile({
       </div>
     </div>
   );
+  if (onClick) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') onClick();
+        }}
+      >
+        {tile}
+      </div>
+    );
+  }
+  if (href) {
+    // External targets (Telegram, maps) leave the app in a new tab; internal
+    // routes go through the client router.
+    if (href.startsWith('http')) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="block">
+          {tile}
+        </a>
+      );
+    }
+    return (
+      <Link href={href} className="block">
+        {tile}
+      </Link>
+    );
+  }
+  return tile;
 }

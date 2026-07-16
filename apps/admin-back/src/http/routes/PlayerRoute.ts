@@ -66,17 +66,9 @@ function statusForWire(state: InGameUserState): "registered" | "in_game" | "out"
   return "registered";
 }
 
-function pickActiveBlind(blinds: BlindType[], idx: number | null): {
-  current: ReturnType<typeof blindToWire> | null;
-  next: ReturnType<typeof blindToWire> | null;
-} {
-  if (idx === null || idx < 0) return { current: null, next: null };
-  const current = blinds[idx];
-  const next = blinds[idx + 1];
-  return {
-    current: current ? blindToWire(current) : null,
-    next: next ? blindToWire(next) : null,
-  };
+/** The first Blind step after `idx` — the level play resumes into (skips breaks). */
+function nextBlindAfter(blinds: BlindType[], idx: number): BlindType | undefined {
+  return blinds.slice(idx + 1).find((b) => b.type === "Blind");
 }
 
 function blindToWire(b: BlindType): {
@@ -127,6 +119,12 @@ interface TournamentSummaryPayload {
   currentBlinds: ReturnType<typeof blindToWire> | null;
   nextBlinds: ReturnType<typeof blindToWire> | null;
   levelTimeRemainingSec: number | null;
+  /** True when the clock stands on a Break step. */
+  breakActive: boolean;
+  /** Duration in minutes of the current clock step (blind or break). */
+  currentStepDurationMin: number | null;
+  /** True when the step right after the current one is a Break. */
+  nextStepIsBreak: boolean;
 }
 
 async function buildTournamentSummary(
@@ -156,17 +154,33 @@ async function buildTournamentSummary(
   let currentBlinds: ReturnType<typeof blindToWire> | null = null;
   let nextBlinds: ReturnType<typeof blindToWire> | null = null;
   let levelTimeRemainingSec: number | null = null;
+  let breakActive = false;
+  let currentStepDurationMin: number | null = null;
+  let nextStepIsBreak = false;
 
   if (tournament.status === "in_progress") {
     const tick = await tournamentClockService.getTick(tournament.id);
     if (tick) {
       levelTimeRemainingSec = tick.secondsRemaining;
       const blinds = structure?.blindsStructure ?? [];
-      const picked = pickActiveBlind(blinds, tick.currentStepIndex);
-      currentBlinds = picked.current;
-      nextBlinds = picked.next;
-      currentLevelNo =
-        picked.current && !picked.current.isBreak ? picked.current.level : null;
+      const idx = tick.currentStepIndex;
+      const current = idx != null && idx >= 0 ? blinds[idx] : undefined;
+      if (idx != null && current) {
+        currentStepDurationMin = current.duration;
+        nextStepIsBreak = blinds[idx + 1]?.type === "Break";
+        // «След. блайнды» is literally the next *blinds*: the first Blind
+        // step ahead, breaks skipped — during a break that is the level
+        // play resumes into.
+        const upcoming = nextBlindAfter(blinds, idx);
+        nextBlinds = upcoming ? blindToWire(upcoming) : null;
+        if (current.type === "Break") {
+          // No zeroed level-0 sentinel on the wire: a break has no blinds.
+          breakActive = true;
+        } else {
+          currentBlinds = blindToWire(current);
+          currentLevelNo = current.level;
+        }
+      }
     }
   }
 
@@ -189,6 +203,9 @@ async function buildTournamentSummary(
     currentBlinds,
     nextBlinds,
     levelTimeRemainingSec,
+    breakActive,
+    currentStepDurationMin,
+    nextStepIsBreak,
   };
 }
 
@@ -242,10 +259,11 @@ interface PlayerHistoryRow {
 
 function seasonLabel(year: number, month: number): string {
   const monthsRu = [
-    "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
   ];
   const m = monthsRu[month - 1] ?? "?";
-  return `${m} '${String(year).slice(-2)}`;
+  return `${m} ${year}`;
 }
 
 function compareSeasonsDesc(
@@ -297,8 +315,20 @@ export function playerRoutes() {
         }
         if (!body || typeof body !== "object") return badRequest("Invalid body");
         const { nickname } = body as Record<string, unknown>;
-        if (nickname !== undefined && (typeof nickname !== "string" || nickname.trim().length === 0)) {
-          return badRequest("nickname must be a non-empty string when provided");
+        if (nickname !== undefined) {
+          if (typeof nickname !== "string") {
+            return badRequest("nickname must be a string");
+          }
+          const trimmed = nickname.trim();
+          if (trimmed.length < 2 || trimmed.length > 24) {
+            return badRequest("Никнейм должен быть от 2 до 24 символов");
+          }
+          // The login (player_users.login) never changes; the nickname is the
+          // player's display identity — keep it unique among players.
+          const taken = await playerRepository.findByNickname(trimmed);
+          if (taken && Number(taken.id) !== ctx.playerId) {
+            return badRequest("Этот никнейм уже занят");
+          }
         }
         const updated = await playerRepository.update(String(ctx.playerId), {
           nickname: typeof nickname === "string" ? nickname.trim() : undefined,
@@ -687,8 +717,11 @@ export function playerRoutes() {
           return badRequest("year and month query params required");
         }
         const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 200);
+        // Pagination for the rating table's infinite scroll; ranks stay
+        // global — they are assigned before slicing.
+        const offset = Math.max(0, parseInt(url.searchParams.get("offset") ?? "0", 10) || 0);
         const rows = await playerTournamentRatingFactsRepository.getSeasonalRating(year, month);
-        const ranked = rankSeasonalEntries(rows).slice(0, limit);
+        const ranked = rankSeasonalEntries(rows).slice(offset, offset + limit);
         const playerIds = Array.from(new Set(ranked.map((r) => Number(r.playerId))));
         const nameByPlayerId = new Map<number, { nickname: string; name: string | null }>();
         await Promise.all(
@@ -708,7 +741,7 @@ export function playerRoutes() {
               name: info?.name ?? null,
               points: r.totalPoints,
               played: r.tournamentCount,
-              itm: 0,
+              itm: r.ratingZoneCount,
               isMe: pid === ctx.playerId,
             };
           }),
@@ -981,23 +1014,38 @@ async function buildPlayerHistory(playerId: number): Promise<HistoryWireEntry[]>
     }))
   );
   const fieldByTournament = new Map<number, number>();
+  // The genuine winner: exactly one in-game (non-Out, non-Registered) result
+  // row — the last player standing. Admin force-completion leaves several
+  // such rows, so none of them qualifies.
+  const winnerByTournament = new Map<number, string>();
   for (const { id, rows } of resultsByTournament) {
     // Field size = players who actually played; floor with the max placement
     // seen so "fieldSize - place + 1" never goes negative on partial backfills.
-    const rowCount =
-      rows.filter((r) => r.status !== "Registered" && r.status !== "registered").length ||
-      rows.length;
+    const played = rows.filter(
+      (r) => r.status !== "Registered" && r.status !== "registered"
+    );
+    const rowCount = played.length || rows.length;
     const maxPlacementInResults = rows.reduce((m, r) => Math.max(m, r.placement ?? 0), 0);
     const maxPlacementInFacts = factsRes
       .filter((f) => f.tournamentId === id)
       .reduce((m, f) => Math.max(m, f.placement ?? 0), 0);
     fieldByTournament.set(id, Math.max(rowCount, maxPlacementInResults, maxPlacementInFacts));
+
+    const standing = played.filter((r) => r.status !== "Out" && r.status !== "out");
+    if (standing.length === 1 && standing[0]) {
+      winnerByTournament.set(id, String(standing[0].playerId));
+    }
   }
 
   return factsRes
-    // Only games the player was actually eliminated from (admin force-completion
-    // gives non-finishers placement=N, which would render as a bogus "1/N").
-    .filter((f) => f.playerStatus === "Out")
+    // Games the player was eliminated from, plus tournaments they genuinely
+    // won (the winner is never "Out"). Force-completed non-finishers with
+    // placement=N stay excluded — they would render as a bogus "1/N".
+    .filter(
+      (f) =>
+        f.playerStatus === "Out" ||
+        winnerByTournament.get(f.tournamentId) === String(playerId)
+    )
     .map((f): HistoryWireEntry | null => {
       const t = tournamentById.get(f.tournamentId);
       if (!t) return null;

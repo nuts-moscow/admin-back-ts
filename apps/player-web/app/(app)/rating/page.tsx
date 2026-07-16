@@ -18,8 +18,11 @@ interface RatingData {
 }
 
 function defaultLabel(year: number, month: number): string {
-  const months = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-  return `${months[month - 1]} '${String(year).slice(-2)}`;
+  const months = [
+    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+  ];
+  return `${months[month - 1]} ${year}`;
 }
 
 export default function RatingPage() {

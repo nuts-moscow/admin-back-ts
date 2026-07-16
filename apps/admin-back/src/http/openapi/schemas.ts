@@ -409,10 +409,11 @@ export const TournamentChipPoolSummarySchema = z
       }),
     averageStack: z
       .number()
+      .int()
       .nullable()
       .openapi({
         description:
-          "totalChips ÷ playersActive when playersActive > 0 (players in game: not Registered, not Out). Null if no active players.",
+          "round(totalChips ÷ playersActive) when playersActive > 0 (players in game: not Registered, not Out) — whole chips. Null if no active players.",
         example: 24850,
       }),
     stackSize: z

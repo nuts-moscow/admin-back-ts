@@ -6,6 +6,8 @@ export type PlayerMedalKind = z.infer<typeof PlayerMedalKind>;
 export const PlayerMeProfile = z.object({
   id: z.number().int(),
   nickname: z.string(),
+  /** Immutable sign-in login (from the auth session); null for legacy email-only users. */
+  login: z.string().nullable().optional(),
   name: z.string().nullable(),
   email: z.string().email(),
   joinedAt: z.string(),

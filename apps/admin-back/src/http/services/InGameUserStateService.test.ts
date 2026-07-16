@@ -140,6 +140,36 @@ describe("computeChipPoolSummaryFromStates (averageStack accounting)", () => {
     expect(s.averageStack).toBe(75_000);
   });
 
+  test("a pool not divisible by the active count rounds to a whole chip", () => {
+    const s = computeChipPoolSummaryFromStates(
+      [
+        state({ playerId: "1", status: InGamePlayerStatus.InGamePaid }),
+        state({ playerId: "2", status: InGamePlayerStatus.InGamePaid }),
+        state({ playerId: "3", status: InGamePlayerStatus.InGamePaid }),
+        state({
+          playerId: "4",
+          status: InGamePlayerStatus.InGamePaid,
+          customBonusChips: [10_000],
+        }),
+        state({
+          playerId: "5",
+          status: InGamePlayerStatus.InGamePaid,
+          totalReentryCount: 1,
+        }),
+        state({
+          playerId: "6",
+          status: InGamePlayerStatus.InGamePaid,
+          burnedStackEvents: [{ chips: 5_000, source: "Out" }],
+        }),
+        state({ playerId: "7", status: InGamePlayerStatus.InGamePaid }),
+      ],
+      STACK
+    );
+    // (7 entries + 1 rebuy) * 30k + 10k - 5k = 245_000; / 7 active = 35_000.714…
+    expect(s.averageStack).toBe(35_000);
+    expect(Number.isInteger(s.averageStack)).toBe(true);
+  });
+
   test("no active players → null average", () => {
     const s = computeChipPoolSummaryFromStates(
       [

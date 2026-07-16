@@ -9,11 +9,13 @@ import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
 import { ChevRIcon, LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
+import { fetchPlayerApi } from '@/lib/api';
 import { logoutPlayer } from '@/lib/auth';
 import {
   currentSeasonLabel,
   formatJoinedAt,
   formatNumberRu,
+  formatPoints,
   formatTournamentDate,
 } from '@/lib/format';
 
@@ -22,12 +24,48 @@ type Tab = 'stats' | 'achievements' | 'history';
 interface Props {
   me: PlayerMeProfile;
   history: PlayerTournamentHistoryEntry[];
+  /** Refetches the profile data — called after a successful edit. */
+  onChanged?: () => void;
 }
 
-export function ProfileScreen({ me, history }: Props) {
+export function ProfileScreen({ me, history, onChanged }: Props) {
   const [tab, setTab] = useState<Tab>('stats');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  // Nickname editing: the login never changes, the nickname is the player's
+  // editable display identity.
+  const [editOpen, setEditOpen] = useState(false);
+  const [nickDraft, setNickDraft] = useState(me.nickname);
+  const [nickSaving, setNickSaving] = useState(false);
+  const [nickError, setNickError] = useState<string | null>(null);
+
+  function openEdit() {
+    setNickDraft(me.nickname);
+    setNickError(null);
+    setEditOpen(true);
+  }
+
+  async function saveNickname() {
+    const value = nickDraft.trim();
+    if (value === me.nickname) {
+      setEditOpen(false);
+      return;
+    }
+    setNickError(null);
+    setNickSaving(true);
+    try {
+      await fetchPlayerApi('/api/player/me', {
+        method: 'PATCH',
+        body: { nickname: value },
+      });
+      setEditOpen(false);
+      onChanged?.();
+    } catch (err) {
+      setNickError(err instanceof Error ? err.message : 'Ошибка');
+    } finally {
+      setNickSaving(false);
+    }
+  }
 
   async function logout() {
     await logoutPlayer();
@@ -100,11 +138,30 @@ export function ProfileScreen({ me, history }: Props) {
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="mono font-semibold" style={{ fontSize: 11, color: 'var(--gold)', letterSpacing: 0.4 }}>
-              @{me.nickname}
+            <div className="flex items-center gap-2">
+              {/* Small @line = the immutable sign-in login; big line = nickname. */}
+              <div className="mono font-semibold" style={{ fontSize: 11, color: 'var(--gold)', letterSpacing: 0.4 }}>
+                @{me.login ?? me.nickname}
+              </div>
+              <button
+                type="button"
+                onClick={openEdit}
+                className="border-0 cursor-pointer font-bold uppercase"
+                style={{
+                  background: 'rgba(251,245,233,0.1)',
+                  borderRadius: 999,
+                  padding: '2px 8px',
+                  fontSize: 9,
+                  letterSpacing: 0.5,
+                  color: 'rgba(251,245,233,0.7)',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Изменить
+              </button>
             </div>
             <div className="serif text-[26px] font-semibold leading-tight mt-0.5">
-              {me.name ?? me.nickname}
+              {me.nickname}
             </div>
             <div className="text-[11px] mt-1" style={{ color: 'rgba(251,245,233,0.6)' }}>
               В клубе с {formatJoinedAt(me.joinedAt)}
@@ -121,7 +178,7 @@ export function ProfileScreen({ me, history }: Props) {
             border: '1px solid rgba(251,245,233,0.08)',
           }}
         >
-          <DarkStat label="Рейтинг" v={me.rank != null ? `#${me.rank}` : '—'} sub={`${formatNumberRu(me.points)} pts`} />
+          <DarkStat label="Рейтинг" v={me.rank != null ? String(me.rank) : '—'} sub={formatPoints(me.points)} />
           <DarkStat label="Рейтинговая зона" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
           <DarkStat
             label="Нокауты"
@@ -166,7 +223,7 @@ export function ProfileScreen({ me, history }: Props) {
             </div>
             <div>
               <div className="uppercase font-bold" style={{ fontSize: 10, color: 'rgba(251,245,233,0.6)', letterSpacing: 0.6 }}>
-                Ре-ентри
+                Повторный вход
               </div>
               <div className="text-[11px]" style={{ color: 'rgba(251,245,233,0.5)' }}>
                 доступно
@@ -218,7 +275,7 @@ export function ProfileScreen({ me, history }: Props) {
               <Stat label="Турниров" value={String(me.playedTournaments)} />
               <Stat label="Побед" value={String(me.wins)} />
               <Stat label="Финалов" value={String(me.finalTables)} sub="столов" />
-              <Stat label="Очки" value={formatNumberRu(me.points)} />
+              <Stat label="Баллы" value={formatNumberRu(me.points)} />
             </div>
           </Card>
 
@@ -299,7 +356,7 @@ export function ProfileScreen({ me, history }: Props) {
                           }}
                         >
                           {h.pointsDelta >= 0 ? '+' : ''}
-                          {formatNumberRu(h.pointsDelta)}
+                          {formatPoints(h.pointsDelta)}
                         </div>
                       </div>
                     </div>
@@ -378,13 +435,73 @@ export function ProfileScreen({ me, history }: Props) {
                       }}
                     >
                       {h.pointsDelta >= 0 ? '+' : ''}
-                      {formatNumberRu(h.pointsDelta)} баллов
+                      {formatPoints(h.pointsDelta)}
                     </div>
                   </div>
                 </div>
               </Card>
             </Link>
           ))}
+        </div>
+      )}
+
+      {editOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: 'rgba(27,22,18,0.45)' }}
+          onClick={() => !nickSaving && setEditOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl px-4 pt-4 pb-3"
+            style={{ background: 'var(--paper)', boxShadow: '0 18px 44px -12px rgba(27,22,18,0.45)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="serif text-[18px] font-semibold mb-1 text-ink">Никнейм</div>
+            <div className="text-[11px] text-ink-3 mb-3">
+              Логин для входа не меняется; никнейм видят другие игроки.
+            </div>
+            <input
+              value={nickDraft}
+              onChange={(e) => setNickDraft(e.target.value)}
+              maxLength={24}
+              autoFocus
+              className="w-full rounded-lg border px-3 py-2.5 text-[14px] font-semibold text-ink"
+              style={{
+                background: 'rgba(27,22,18,0.04)',
+                borderColor: 'var(--line)',
+                fontFamily: 'inherit',
+                outline: 'none',
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void saveNickname();
+              }}
+            />
+            {nickError && (
+              <div className="mt-2 text-[11px] text-crimson" role="alert">
+                {nickError}
+              </div>
+            )}
+            <div className="flex gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => setEditOpen(false)}
+                disabled={nickSaving}
+                className="flex-1 border-0 rounded-lg py-2.5 text-[12px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
+                style={{ background: 'rgba(27,22,18,0.06)', color: 'var(--ink-3)', fontFamily: 'inherit' }}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveNickname()}
+                disabled={nickSaving || nickDraft.trim().length < 2}
+                className="flex-1 border-0 rounded-lg py-2.5 text-[12px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
+                style={{ background: 'var(--ink)', color: 'var(--paper)', fontFamily: 'inherit' }}
+              >
+                {nickSaving ? '…' : 'Сохранить'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </ScrollScreen>

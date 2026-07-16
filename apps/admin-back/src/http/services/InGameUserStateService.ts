@@ -207,7 +207,10 @@ export function computeChipPoolSummaryFromStates(
     0,
     baseChips + bonusChipsTotal - burnedStackChipsTotal
   );
-  const averageStack = playersActive === 0 ? null : totalChips / playersActive;
+  // Chips are indivisible: consumers (player screen, admin, broadcast) all
+  // present whole chips, so the average leaves here already rounded.
+  const averageStack =
+    playersActive === 0 ? null : Math.round(totalChips / playersActive);
 
   return {
     playersArrived,

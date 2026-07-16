@@ -64,7 +64,9 @@ export function ActiveTournamentCard({
                   {t.status === 'in_progress' && <span className="live-dot" />}
                   <span>
                     {t.status === 'in_progress'
-                      ? `Идёт уровень ${t.currentLevelNo ?? '—'}`
+                      ? t.breakActive
+                        ? 'Перерыв'
+                        : `Идёт уровень ${t.currentLevelNo ?? '—'}`
                       : t.status === 'registration_open'
                         ? 'Регистрация открыта'
                         : 'Поздняя регистрация'}
@@ -82,6 +84,25 @@ export function ActiveTournamentCard({
               >
                 {t.name}
               </div>
+              {/* Upcoming only: on a live card isRegistered is also true for
+                  players already in the game — «записан» would mislead. */}
+              {isUpcoming && registered && (
+                <div className="mt-1.5">
+                  <span
+                    className="inline-flex items-center uppercase font-bold"
+                    style={{
+                      fontSize: 9,
+                      letterSpacing: 0.5,
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                      background: primary ? 'rgba(181,138,60,0.25)' : 'rgba(181,138,60,0.16)',
+                      color: primary ? 'var(--gold)' : 'var(--gold-2)',
+                    }}
+                  >
+                    Вы записаны
+                  </span>
+                </div>
+              )}
             </div>
 
             <ChevRIcon
@@ -154,19 +175,24 @@ export function ActiveTournamentCard({
                   if (e.key === 'Enter' || e.key === ' ') onRegisterClick(e);
                 }}
                 aria-disabled={busy}
-                className="flex items-center justify-center rounded-lg font-bold uppercase tracking-wider cursor-pointer select-none"
+                className="relative flex items-center justify-center rounded-lg font-bold uppercase tracking-wider cursor-pointer select-none"
                 style={{
                   padding: '9px 12px',
                   fontSize: 12,
                   background: registered ? 'transparent' : 'var(--gold)',
                   color: registered ? (primary ? 'var(--paper)' : 'var(--ink)') : 'var(--ink)',
-                  border: registered
-                    ? `1px solid ${primary ? 'rgba(251,245,233,0.3)' : 'var(--line)'}`
-                    : 'none',
+                  border: `1px solid ${
+                    registered ? (primary ? 'rgba(251,245,233,0.3)' : 'var(--line)') : 'transparent'
+                  }`,
                   opacity: busy ? 0.7 : 1,
+                  transition: 'background 0.25s ease, color 0.25s ease, border-color 0.25s ease, opacity 0.15s ease',
                 }}
               >
-                {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+                {/* Longest label sizes the button invisibly — no footprint jump. */}
+                <span style={{ visibility: 'hidden' }}>Отменить запись</span>
+                <span className="absolute inset-0 flex items-center justify-center">
+                  {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+                </span>
               </span>
             </div>
           ) : (

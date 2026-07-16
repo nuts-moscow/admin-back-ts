@@ -6,10 +6,11 @@ import type { PlayerTournamentHistoryEntry, PlayerTournamentSummary } from '@adm
 import { ActiveTournamentCard } from '@/components/active-tournament-card';
 import { Card } from '@/components/card';
 import { KV } from '@/components/kv';
+import { Pill } from '@/components/pill';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { SectionTitle } from '@/components/section-title';
 import { fetchPlayerApi } from '@/lib/api';
-import { formatNumberRu, formatRub, formatTournamentDate } from '@/lib/format';
+import { formatNumberRu, formatPoints, formatRub, formatTournamentDate } from '@/lib/format';
 
 type Tab = 'upcoming' | 'history';
 
@@ -154,7 +155,7 @@ export function ScheduleScreen({
                         }}
                       >
                         {h.pointsDelta >= 0 ? '+' : ''}
-                        {formatNumberRu(h.pointsDelta)} баллов
+                        {formatPoints(h.pointsDelta)}
                       </div>
                     </div>
                   </div>
@@ -227,7 +228,10 @@ function UpcomingCard({
           <div className="mono text-[11px] text-ink-2 mt-1 font-semibold">{fd.time}</div>
         </div>
         <div className="flex-1 p-3">
-          <div className="serif text-[17px] font-semibold leading-tight">{u.name}</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="serif text-[17px] font-semibold leading-tight">{u.name}</div>
+            {registered && <Pill tone="gold">Вы записаны</Pill>}
+          </div>
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mt-2.5">
             <KV k="Орг. взнос" v={formatRub(u.buyin)} />
             <KV k="Стек" v={formatNumberRu(u.startingStack)} />
@@ -239,15 +243,20 @@ function UpcomingCard({
               type="button"
               disabled={busy}
               onClick={toggle}
-              className="border-0 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
+              className="relative rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
               style={{
                 background: registered ? 'transparent' : 'var(--ink)',
                 color: registered ? 'var(--ink)' : 'var(--paper)',
-                border: registered ? '1px solid var(--line)' : 'none',
+                border: `1px solid ${registered ? 'var(--line)' : 'transparent'}`,
                 fontFamily: 'inherit',
+                transition: 'background 0.25s ease, color 0.25s ease, border-color 0.25s ease',
               }}
             >
-              {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+              {/* Longest label sizes the button invisibly — no footprint jump. */}
+              <span style={{ visibility: 'hidden' }}>Отменить запись</span>
+              <span className="absolute inset-0 flex items-center justify-center">
+                {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+              </span>
             </button>
           </div>
           {error && (

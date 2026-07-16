@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   HallOfFameEntry,
   PlayerSeason,
@@ -12,7 +12,7 @@ import { Card } from '@/components/card';
 import { ArrowDownIcon, ArrowUpIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { fetchPlayerApi } from '@/lib/api';
-import { formatNumberRu } from '@/lib/format';
+import { formatNumberRu, formatPoints } from '@/lib/format';
 
 type Tab = 'season' | 'hof';
 
@@ -31,10 +31,15 @@ export function RatingScreen({
   initialYear,
   initialMonth,
 }: Props) {
+  const PAGE = 50;
   const [tab, setTab] = useState<Tab>('season');
   const [seasonKey, setSeasonKey] = useState(`${initialYear}-${initialMonth}`);
   const [entries, setEntries] = useState(initialEntries);
   const [loading, setLoading] = useState(false);
+  // Infinite scroll: a full page means there may be more rows behind it.
+  const [hasMore, setHasMore] = useState(initialEntries.length >= PAGE);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const currentSeasonLabel =
     seasons.find((s) => `${s.year}-${s.month}` === seasonKey)?.label ?? '';
@@ -45,24 +50,59 @@ export function RatingScreen({
     // crucially reset to it so switching back doesn't leave another season's rows.
     if (seasonKey === `${initialYear}-${initialMonth}`) {
       setEntries(initialEntries);
+      setHasMore(initialEntries.length >= PAGE);
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
     void fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
-      `/api/player/rating/season?year=${y}&month=${m}&limit=50`,
+      `/api/player/rating/season?year=${y}&month=${m}&limit=${PAGE}`,
     )
       .catch(() => ({ entries: [] }))
       .then((s) => {
         if (cancelled) return;
         setEntries(s.entries);
+        setHasMore(s.entries.length >= PAGE);
         setLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [seasonKey, initialYear, initialMonth, initialEntries]);
+
+  // Append the next page when the sentinel below the table scrolls into view.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || tab !== 'season') return;
+    const obs = new IntersectionObserver((hits) => {
+      if (!hits.some((h) => h.isIntersecting)) return;
+      if (loading || loadingMore || !hasMore) return;
+      const [y, m] = seasonKey.split('-').map(Number);
+      const offset = entries.length;
+      setLoadingMore(true);
+      void fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
+        `/api/player/rating/season?year=${y}&month=${m}&limit=${PAGE}&offset=${offset}`,
+      )
+        .catch(() => ({ entries: [] }))
+        .then((s) => {
+          // Guard against a backend that ignores `offset` (or any overlap):
+          // only genuinely new players extend the list; an all-duplicate page
+          // means no progress — stop asking.
+          const seen = new Set(entries.map((e) => e.playerId));
+          const fresh = s.entries.filter((e) => !seen.has(e.playerId));
+          if (fresh.length === 0) {
+            setHasMore(false);
+          } else {
+            setEntries((prev) => [...prev, ...fresh]);
+            setHasMore(s.entries.length >= PAGE);
+          }
+          setLoadingMore(false);
+        });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [tab, seasonKey, entries.length, hasMore, loading, loadingMore]);
 
   return (
     <ScrollScreen>
@@ -150,39 +190,68 @@ export function RatingScreen({
               <div
                 className="grid gap-2.5 px-3.5 py-2.5 uppercase font-bold"
                 style={{
-                  gridTemplateColumns: '36px 1fr 60px 56px 28px',
+                  gridTemplateColumns: '36px 1fr 60px 96px',
                   fontSize: 9,
                   color: 'var(--ink-3)',
                   letterSpacing: 0.6,
                   borderBottom: '1px solid var(--line-2)',
+                  // Rows carry a 3px qualification accent — keep columns aligned.
+                  borderLeft: '3px solid transparent',
                 }}
               >
                 <div>#</div>
                 <div>Игрок</div>
-                <div className="text-right">Очки</div>
-                <div className="text-right">ITM</div>
-                <div />
+                <div className="text-right">Баллы</div>
+                <div className="text-center" style={{ whiteSpace: 'nowrap' }}>Рейтинговая зона</div>
               </div>
               {loading && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Загрузка…</div>
               )}
-              {!loading && entries.map((p, i, arr) => (
+              {!loading && entries.map((p, i, arr) => {
+                /* Season-final qualification: 1–3 medal colors, 4–27 a soft
+                   gold accent — all 27 advance to the month's final. */
+                const medal =
+                  p.rank === 1
+                    ? '#D4A645'
+                    : p.rank === 2
+                      ? '#B8B0A0'
+                      : p.rank === 3
+                        ? '#A87750'
+                        : null;
+                const qualifies = p.rank <= 27;
+                return (
                 <Link
                   key={`${p.rank}-${p.playerId}`}
                   href={`/players/${p.playerId}`}
                   className="grid items-center gap-2.5 px-3.5"
                   style={{
-                    gridTemplateColumns: '36px 1fr 60px 56px 28px',
+                    gridTemplateColumns: '36px 1fr 60px 96px',
                     padding: '11px 14px',
                     borderBottom: i < arr.length - 1 ? '1px solid var(--line-2)' : 'none',
-                    background: p.isMe ? 'rgba(181,138,60,0.10)' : 'transparent',
+                    borderLeft: `3px solid ${
+                      medal ?? (qualifies ? 'rgba(181,138,60,0.35)' : 'transparent')
+                    }`,
+                    // The whole row is tinted, not just the accent stripe:
+                    // medal rows in their metal, finalists in soft gold; the
+                    // «me» row keeps the strongest tint either way.
+                    background: p.isMe
+                      ? 'rgba(181,138,60,0.18)'
+                      : p.rank === 1
+                        ? 'rgba(212,166,69,0.14)'
+                        : p.rank === 2
+                          ? 'rgba(184,176,160,0.18)'
+                          : p.rank === 3
+                            ? 'rgba(168,119,80,0.14)'
+                            : qualifies
+                              ? 'rgba(181,138,60,0.07)'
+                              : 'transparent',
                   }}
                 >
                   <div
                     className="mono font-bold"
                     style={{
                       fontSize: 13,
-                      color: p.rank <= 3 ? 'var(--gold-2)' : 'var(--ink)',
+                      color: medal ?? (qualifies ? 'var(--gold-2)' : 'var(--ink)'),
                     }}
                   >
                     {p.rank}
@@ -199,18 +268,21 @@ export function RatingScreen({
                   <div className="mono text-right" style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
                     {formatNumberRu(p.points)}
                   </div>
-                  <div className="mono text-right text-[11px] text-ink-2">
+                  <div className="mono text-center text-[11px] text-ink-2">
                     {p.itm}/{p.played}
                   </div>
-                  <div className="text-center">
-                    <span className="text-ink-3 font-bold" style={{ fontSize: 12 }}>—</span>
-                  </div>
                 </Link>
-              ))}
+                );
+              })}
               {!loading && entries.length === 0 && (
                 <div className="text-center text-[11px] text-ink-3 py-6">Нет данных</div>
               )}
             </Card>
+            {!loading && hasMore && (
+              <div ref={sentinelRef} className="text-center text-[11px] text-ink-3 py-3">
+                {loadingMore ? 'Загрузка…' : ''}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -345,7 +417,7 @@ function Pillar({
         {p.name ?? p.nickname}
       </div>
       <div className="mono" style={{ fontSize: 10, color: 'var(--gold)', marginTop: 1 }}>
-        {formatNumberRu(p.points)}
+        {formatPoints(p.points)}
       </div>
       <div
         className="w-full mt-2 flex items-start justify-center pt-2"
