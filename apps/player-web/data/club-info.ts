@@ -8,7 +8,7 @@ export const CLUB_INFO = {
     sub: 'Чат · 24/7',
     links: [
       { label: 'Телеграм', href: 'https://t.me/nuts_mate' },
-      { label: 'ВКонтакте', href: 'https://vk.ru/nuts_msk' },
+      { label: 'ВКонтакте', href: 'https://vk.me/nuts_msk' },
     ],
   },
   qa: {
@@ -113,7 +113,7 @@ export const QA_CLUB: Array<{
     a: 'Вы можете написать нам, где удобнее:',
     links: [
       { label: 'Телеграм — @nuts_mate', href: 'https://t.me/nuts_mate' },
-      { label: 'ВКонтакте — vk.ru/nuts_msk', href: 'https://vk.ru/nuts_msk' },
+      { label: 'ВКонтакте — vk.me/nuts_msk', href: 'https://vk.me/nuts_msk' },
     ],
   },
 ];
