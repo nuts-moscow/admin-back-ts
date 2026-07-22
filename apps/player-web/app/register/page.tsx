@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getStoredToken } from '@/lib/api';
 import { registerPlayer } from '@/lib/auth';
+import { LEGAL_DOCS } from '@/data/legal';
 
 const LOGIN_RE = /^[a-zA-Z0-9_.]{3,32}$/;
 
@@ -23,8 +24,12 @@ export default function RegisterPage() {
   const router = useRouter();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [consentPd, setConsentPd] = useState(false);
+  const [consentAck, setConsentAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const consentGiven = consentPd && consentAck;
 
   useEffect(() => {
     if (getStoredToken()) {
@@ -38,6 +43,10 @@ export default function RegisterPage() {
     const localErr = localValidation(login, password);
     if (localErr) {
       setError(localErr);
+      return;
+    }
+    if (!consentGiven) {
+      setError('Для регистрации необходимо согласиться с обоими документами');
       return;
     }
     setError(null);
@@ -97,6 +106,23 @@ export default function RegisterPage() {
             </span>
           </label>
 
+          <div className="mt-6 flex flex-col gap-3">
+            <ConsentRow
+              checked={consentPd}
+              onChange={setConsentPd}
+              slug="consent-pd"
+              prefix="Я даю"
+              linkText={LEGAL_DOCS['consent-pd']!.short}
+            />
+            <ConsentRow
+              checked={consentAck}
+              onChange={setConsentAck}
+              slug="acknowledgment"
+              prefix="Я ознакомлен(а) с"
+              linkText={LEGAL_DOCS['acknowledgment']!.short}
+            />
+          </div>
+
           {error && (
             <div className="mt-4 text-sm text-crimson" role="alert">
               {error}
@@ -105,7 +131,7 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !consentGiven}
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
           >
             {submitting ? 'Создаём…' : 'Зарегистрироваться'}
@@ -120,5 +146,42 @@ export default function RegisterPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+function ConsentRow({
+  checked,
+  onChange,
+  slug,
+  prefix,
+  linkText,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  slug: string;
+  prefix: string;
+  linkText: string;
+}) {
+  return (
+    <label className="flex items-start gap-2.5 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--ink)]"
+      />
+      <span className="text-[12px] leading-snug text-ink-2">
+        {prefix}{' '}
+        <Link
+          href={`/legal/${slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-ink underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {linkText}
+        </Link>
+      </span>
+    </label>
   );
 }
