@@ -7,6 +7,8 @@
 
 export interface LegalDoc {
   readonly slug: string;
+  /** Effective date of the text; must match the backend's required version. */
+  readonly version: string;
   /** Full title shown on the document page. */
   readonly title: string;
   /** Short label for the registration checkbox link. */
@@ -17,6 +19,7 @@ export interface LegalDoc {
 export const LEGAL_DOCS: Record<string, LegalDoc> = {
   'consent-pd': {
     slug: 'consent-pd',
+    version: '2026-02-01',
     title: 'Согласие на обработку персональных данных',
     short: 'согласие на обработку персональных данных',
     paragraphs: [
@@ -29,6 +32,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
   },
   acknowledgment: {
     slug: 'acknowledgment',
+    version: '2026-02-01',
     title: 'Лист ознакомления с документами',
     short: 'листом ознакомления с документами',
     paragraphs: [
@@ -48,3 +52,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
 };
 
 export const LEGAL_ORDER: readonly string[] = ['consent-pd', 'acknowledgment'];
+
+/** The (slug, version) pairs the backend expects at registration. */
+export const REQUIRED_CONSENTS: ReadonlyArray<{ slug: string; version: string }> =
+  LEGAL_ORDER.map((s) => ({ slug: s, version: LEGAL_DOCS[s]!.version }));

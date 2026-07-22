@@ -1,6 +1,7 @@
 export { adminUserRepository } from "./AdminUserRepository";
 export { tournamentAuditLogRepository } from "./TournamentAuditLogRepository";
 export { playerRepository } from "./PlayerRepository";
+export { playerConsentRepository } from "./PlayerConsentRepository";
 export { PostgresClient } from "./PostgresClient";
 export { ratingTableRepository } from "./RatingTableRepository";
 export { tournamentCashSnapshotRepository } from "./TournamentCashSnapshotRepository";
