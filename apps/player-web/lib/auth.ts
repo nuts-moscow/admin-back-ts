@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { PlayerAuthMeResponse, PlayerLoginResponse } from '@admin/schemas';
 import { apiBaseUrl, clearStoredToken, fetchPlayerApi, getStoredToken, setStoredToken } from './api';
+import { REQUIRED_CONSENTS } from '@/data/legal';
 
 export type PlayerSession = PlayerAuthMeResponse;
 
@@ -11,11 +12,12 @@ async function postAuth(
   path: '/api/player-auth/login' | '/api/player-auth/register',
   login: string,
   password: string,
+  extra?: Record<string, unknown>,
 ): Promise<PlayerLoginResponse> {
   const res = await fetch(`${apiBaseUrl()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login: login.trim(), password }),
+    body: JSON.stringify({ login: login.trim(), password, ...extra }),
     credentials: 'omit',
   });
   const text = await res.text();
@@ -46,7 +48,11 @@ export function loginPlayer(login: string, password: string): Promise<PlayerLogi
 }
 
 export function registerPlayer(login: string, password: string): Promise<PlayerLoginResponse> {
-  return postAuth('/api/player-auth/register', login, password);
+  // The user consents in the UI; send the accepted (slug, version) pairs so
+  // the backend records and enforces them.
+  return postAuth('/api/player-auth/register', login, password, {
+    consents: REQUIRED_CONSENTS,
+  });
 }
 
 export async function logoutPlayer(): Promise<void> {
