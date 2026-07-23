@@ -11,6 +11,7 @@ import { playerAuthRoutes } from "./routes/PlayerAuthRoute";
 import { playerRoutes } from "./routes/PlayerRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
 import { publicRoutes } from "./routes/PublicRoute";
+import { seasonFinalRoutes } from "./routes/SeasonFinalRoute";
 import { tournamentRoutes } from "./routes/TournamentRoute";
 import { requireAuth } from "./middleware/auth";
 import {
@@ -44,6 +45,7 @@ export async function createHttpServer() {
     ...hallOfFameRoutes(),
     ...playerAuthRoutes(),
     ...playerRoutes(),
+    ...seasonFinalRoutes(),
   };
 
   // Route handlers expect BunRequest; router passes Request with params (compatible at runtime)

@@ -239,6 +239,15 @@ function UpcomingCard({
             <KV k="Игроков" v={String(u.registeredCount)} />
           </div>
           <div className="flex justify-end items-center mt-2.5 pt-2.5 border-t border-line-2">
+            {u.monthFinal ? (
+              // Month-final tournaments are invite-only: no self-registration.
+              <span
+                className="rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider"
+                style={{ color: 'var(--ink-3)', border: '1px solid var(--line)' }}
+              >
+                По приглашению
+              </span>
+            ) : (
             <button
               type="button"
               disabled={busy}
@@ -258,6 +267,7 @@ function UpcomingCard({
                 {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
               </span>
             </button>
+            )}
           </div>
           {error && (
             <div className="mt-2 text-[11px] text-crimson" role="alert">

@@ -189,6 +189,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
               tournamentId={detail.id}
               initiallyRegistered={myState != null}
               lateRegClosed={detail.lateRegistrationClosed}
+              monthFinal={detail.monthFinal}
               onChanged={onChanged}
             />
           </div>
@@ -250,6 +251,24 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
           </>
         )}
       </div>
+
+      {detail.dropReason && (
+        // Pull-based drop notice: shown where the player opens their tournament
+        // after a month-final flip removed their self-registration.
+        <div className="px-5 pt-4">
+          <div
+            className="rounded-lg px-3 py-2.5 text-[12px]"
+            style={{
+              background: 'rgba(181,138,60,0.12)',
+              border: '1px solid rgba(181,138,60,0.3)',
+              color: 'var(--ink)',
+            }}
+            role="status"
+          >
+            {detail.dropReason}
+          </div>
+        </div>
+      )}
 
       {!isCompleted && (
         <div className="px-5 pt-4 pb-3">
@@ -469,11 +488,13 @@ function RegisterButton({
   tournamentId,
   initiallyRegistered,
   lateRegClosed,
+  monthFinal,
   onChanged,
 }: {
   tournamentId: number;
   initiallyRegistered: boolean;
   lateRegClosed: boolean;
+  monthFinal: boolean;
   onChanged?: () => void;
 }) {
   const [registered, setRegistered] = useState(initiallyRegistered);
@@ -485,6 +506,24 @@ function RegisterButton({
   useEffect(() => {
     setRegistered(initiallyRegistered);
   }, [initiallyRegistered]);
+
+  // Month-final tournaments are invite-only: the roster is filled by admins,
+  // never self-registration — show a marker instead of the toggle.
+  if (monthFinal) {
+    return (
+      <span
+        className="rounded-full font-bold uppercase tracking-wider text-center"
+        style={{
+          padding: '10px 16px',
+          fontSize: 12,
+          color: 'rgba(251,245,233,0.7)',
+          border: '1px solid rgba(251,245,233,0.2)',
+        }}
+      >
+        По приглашению
+      </span>
+    );
+  }
 
   // Hide entirely when late registration has closed AND player isn't already
   // signed up — they can still see (and cancel) an existing registration.

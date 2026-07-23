@@ -532,6 +532,12 @@ export function tournamentRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        if (o.monthFinal !== undefined && typeof o.monthFinal !== "boolean") {
+          return new Response(
+            JSON.stringify({ error: "monthFinal must be a boolean" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
         const structureParsed = validateStructureBody(o.structure);
         if (!structureParsed.ok) {
           return new Response(
@@ -558,6 +564,7 @@ export function tournamentRoutes() {
           ratingEnabled: ratingParsed.ratingEnabled,
           ratingSeasonYear: ratingParsed.ratingSeasonYear,
           ratingSeasonMonth: ratingParsed.ratingSeasonMonth,
+          monthFinal: o.monthFinal === true,
         });
         if (!result.ok) {
           return new Response(
@@ -1095,6 +1102,66 @@ export function tournamentRoutes() {
         }
         await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentLateRegistrationClosed, {
           lateRegistrationClosed: o.lateRegistrationClosed,
+        });
+        return Response.json(result.tournament);
+      },
+    },
+    "/api/tournaments/:id/month-final": {
+      PATCH: async (
+        req: BunRequest<"/api/tournaments/:id/month-final"> & { params: { id: string } }
+      ) => {
+        const idStr = req.params?.id;
+        if (!idStr) {
+          return new Response(
+            JSON.stringify({ error: "id is required" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const id = parseInt(idStr, 10);
+        if (Number.isNaN(id)) {
+          return new Response(
+            JSON.stringify({ error: "id must be a number" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        let body: unknown;
+        try {
+          body = await req.json();
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (typeof body !== "object" || body === null) {
+          return new Response(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const o = body as Record<string, unknown>;
+        if (typeof o.monthFinal !== "boolean") {
+          return new Response(
+            JSON.stringify({ error: "monthFinal must be a boolean" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        const result = await service.setMonthFinal(id, o.monthFinal);
+        if (!result.ok) {
+          if (result.error === "not_found") {
+            return new Response(
+              JSON.stringify({ error: "Tournament not found" }),
+              { status: 404, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: "Failed to update month final flag" }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentMonthFinalSet, {
+          monthFinal: o.monthFinal,
+          droppedCount: result.droppedCount,
         });
         return Response.json(result.tournament);
       },

@@ -36,6 +36,7 @@ export const TournamentAuditEventType = {
   RatingNonPlacementAccruedAdjusted: "rating_non_placement_accrued_adjusted",
 
   TournamentLateRegistrationClosed: "tournament_late_registration_closed",
+  TournamentMonthFinalSet: "tournament_month_final_set",
 } as const;
 
 export type TournamentAuditEventTypeName =

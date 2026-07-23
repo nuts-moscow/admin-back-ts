@@ -165,7 +165,23 @@ export function ActiveTournamentCard({
             )}
           </div>
 
-          {isUpcoming ? (
+          {isUpcoming && t.monthFinal ? (
+            <div className="mt-3">
+              {/* Month-final tournaments are invite-only: no self-registration. */}
+              <span
+                className="flex items-center justify-center rounded-lg font-bold uppercase tracking-wider select-none"
+                style={{
+                  padding: '9px 12px',
+                  fontSize: 12,
+                  background: 'transparent',
+                  color: primary ? 'rgba(251,245,233,0.7)' : 'var(--ink-3)',
+                  border: `1px solid ${primary ? 'rgba(251,245,233,0.3)' : 'var(--line)'}`,
+                }}
+              >
+                По приглашению
+              </span>
+            </div>
+          ) : isUpcoming ? (
             <div className="mt-3">
               <span
                 role="button"
