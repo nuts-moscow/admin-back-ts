@@ -33,6 +33,24 @@ export interface TournamentRow {
   ratingSeasonYear: number | null;
   ratingSeasonMonth: number | null;
   lateRegistrationClosed: boolean;
+  monthFinal: boolean;
+}
+
+/**
+ * Pure selection for the season-final announcement: the nearest FUTURE
+ * month-final tournament, ties broken by lower id so the result is stable
+ * regardless of storage row order or how many are flagged. A tournament dated
+ * exactly at `nowMs` counts as past. Returns null when none is still ahead.
+ */
+export function pickNearestFutureMonthFinal(
+  rows: ReadonlyArray<{ id: number; date: number }>,
+  nowMs: number
+): { id: number; date: number } | null {
+  const future = rows
+    .filter((r) => r.date > nowMs)
+    .sort((a, b) => a.date - b.date || a.id - b.id);
+  const first = future[0];
+  return first ? { id: first.id, date: first.date } : null;
 }
 
 const DEFAULT_STATUS = "registration_open";
@@ -59,6 +77,7 @@ function rowToTournament(row: Record<string, unknown>): TournamentRow {
     ratingSeasonYear: row.rating_season_year != null ? Number(row.rating_season_year) : null,
     ratingSeasonMonth: row.rating_season_month != null ? Number(row.rating_season_month) : null,
     lateRegistrationClosed: Boolean(row.late_registration_closed ?? false),
+    monthFinal: Boolean(row.month_final ?? false),
   };
 }
 
@@ -84,7 +103,7 @@ const SELECT_COLUMNS = `
   rating_guarantee_enabled, rating_guarantee_bonus_points,
   rating_points_coefficient, rating_bounty_coefficient,
   rating_table_id, rating_enabled, rating_season_year, rating_season_month,
-  late_registration_closed
+  late_registration_closed, month_final
 `;
 
 export interface TournamentRepository {
@@ -106,6 +125,18 @@ export interface TournamentRepository {
     month: number | null
   ): Promise<TournamentRow | null>;
   updateLateRegistrationClosed(id: number, closed: boolean): Promise<TournamentRow | null>;
+  /** Set the month-final flag on a tournament row. */
+  updateMonthFinal(id: number, monthFinal: boolean): Promise<TournamentRow | null>;
+  /**
+   * The nearest future month-final tournament (date > nowMs), ties broken by
+   * lower id — or null when none is still ahead. Feeds the season-final
+   * announcement (AdminBack.SeasonFinal).
+   */
+  findFutureMonthFinal(nowMs: number): Promise<{ id: number; date: number } | null>;
+  /** Persist a drop reason for a player removed from a tournament (upsert). */
+  addDropNotice(tournamentId: number, playerId: string, reason: string): Promise<boolean>;
+  /** Read the drop reason a player would see on next open, or null. */
+  getDropNotice(tournamentId: number, playerId: string): Promise<string | null>;
 }
 
 class TournamentRepositoryImpl implements TournamentRepository {
@@ -313,6 +344,75 @@ class TournamentRepositoryImpl implements TournamentRepository {
       return rowToTournament(row as Record<string, unknown>);
     } catch (err) {
       logger.info({ err, id }, "[Postgres] TournamentRepository.updateLateRegistrationClosed failed");
+      return null;
+    }
+  }
+
+  async updateMonthFinal(id: number, monthFinal: boolean): Promise<TournamentRow | null> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `UPDATE tournaments SET month_final = $1 WHERE id = $2
+         RETURNING ${SELECT_COLUMNS}`,
+        [monthFinal, id]
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return rowToTournament(row as Record<string, unknown>);
+    } catch (err) {
+      logger.info({ err, id }, "[Postgres] TournamentRepository.updateMonthFinal failed");
+      return null;
+    }
+  }
+
+  async findFutureMonthFinal(nowMs: number): Promise<{ id: number; date: number } | null> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `SELECT id, date FROM tournaments WHERE month_final = true`
+      );
+      const rows = result.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return { id: Number(r.id), date: Number(r.date ?? 0) };
+      });
+      return pickNearestFutureMonthFinal(rows, nowMs);
+    } catch (err) {
+      logger.info({ err }, "[Postgres] TournamentRepository.findFutureMonthFinal failed");
+      return null;
+    }
+  }
+
+  async addDropNotice(tournamentId: number, playerId: string, reason: string): Promise<boolean> {
+    try {
+      await PostgresClient.instance.query(
+        `INSERT INTO tournament_drop_notice (tournament_id, player_id, reason)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (tournament_id, player_id)
+         DO UPDATE SET reason = EXCLUDED.reason, created_at = now()`,
+        [tournamentId, playerId, reason]
+      );
+      return true;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, playerId },
+        "[Postgres] TournamentRepository.addDropNotice failed"
+      );
+      return false;
+    }
+  }
+
+  async getDropNotice(tournamentId: number, playerId: string): Promise<string | null> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `SELECT reason FROM tournament_drop_notice
+         WHERE tournament_id = $1 AND player_id = $2`,
+        [tournamentId, playerId]
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? String(row.reason ?? "") : null;
+    } catch (err) {
+      logger.info(
+        { err, tournamentId, playerId },
+        "[Postgres] TournamentRepository.getDropNotice failed"
+      );
       return null;
     }
   }

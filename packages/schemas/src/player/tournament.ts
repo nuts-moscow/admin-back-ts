@@ -45,6 +45,10 @@ export const PlayerTournamentSummary = z.object({
   currentStepDurationMin: z.number().int().nullable(),
   /** True when the step right after the current one is a Break. */
   nextStepIsBreak: z.boolean(),
+  /** True when this tournament is a «финал месяца»: invite-only, admin-filled roster. */
+  monthFinal: z.boolean(),
+  /** Reason shown to a player removed by a month-final flag flip (pull, on next open); null otherwise. */
+  dropReason: z.string().nullable(),
 });
 export type PlayerTournamentSummary = z.infer<typeof PlayerTournamentSummary>;
 

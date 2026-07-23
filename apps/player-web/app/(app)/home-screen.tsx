@@ -6,6 +6,7 @@ import type {
   PlayerMeProfile,
   PlayerSeasonRatingEntry,
   PlayerTournamentSummary,
+  SeasonFinalAnnouncement,
 } from '@admin/schemas';
 import { ActiveTournamentCard } from '@/components/active-tournament-card';
 import { Card } from '@/components/card';
@@ -21,12 +22,14 @@ interface HomeScreenProps {
   active: PlayerTournamentSummary[];
   upcoming: PlayerTournamentSummary[];
   leaders: PlayerSeasonRatingEntry[];
+  seasonFinal: SeasonFinalAnnouncement;
   onChanged?: () => void;
 }
 
-export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScreenProps) {
+export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChanged }: HomeScreenProps) {
   const firstName = (me.name ?? me.nickname).split(' ')[0] ?? me.nickname;
   const [supportOpen, setSupportOpen] = useState(false);
+  const finalDate = seasonFinal.date != null ? formatTournamentDate(seasonFinal.date) : null;
 
   // When nothing is live, promote the nearest upcoming (open-registration)
   // tournament into the hero slot, and drop it from the schedule list below.
@@ -43,6 +46,41 @@ export function HomeScreen({ me, active, upcoming, leaders, onChanged }: HomeScr
           <br />
           {firstName}
         </h1>
+      </div>
+
+      {/* Monthly-final announcement — always above «Ближайший турнир», sized
+          like the hero card. Date comes from the nearest flagged tournament;
+          «дата пока не анонсирована» when none. See SeasonFinalAnnouncement. */}
+      <div className="mt-5 px-5">
+        <Card
+          padding={14}
+          className="overflow-hidden relative"
+          style={{ background: 'var(--ink)', color: 'var(--paper)', border: '1px solid var(--ink)' }}
+        >
+          <div className="grain" style={{ opacity: 0.15, mixBlendMode: 'screen' }} />
+          <div className="relative">
+            <div
+              className="text-[10px] uppercase font-bold"
+              style={{ letterSpacing: 1, color: 'var(--gold)' }}
+            >
+              Финал месяца
+            </div>
+            <div
+              className="serif mt-1"
+              style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.15, color: 'var(--paper)' }}
+            >
+              {finalDate ? `${finalDate.day}, ${finalDate.date} · ${finalDate.time}` : 'Дата пока не анонсирована'}
+            </div>
+            <p
+              className="text-[12px] mt-2 m-0"
+              style={{ color: 'rgba(251,245,233,0.75)', lineHeight: 1.5 }}
+            >
+              В конце каждого сезона проходит финал месяца в загородном доме. Топ-27 игроков по
+              рейтингу попадают в дом бесплатно. Остальные могут оплатить проживание вместе со всеми,
+              но без доступа к самому финалу игры.
+            </p>
+          </div>
+        </Card>
       </div>
 
       <div className="mt-5">

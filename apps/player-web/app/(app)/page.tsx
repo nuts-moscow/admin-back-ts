@@ -5,6 +5,7 @@ import type {
   PlayerMeProfile,
   PlayerSeasonRatingEntry,
   PlayerTournamentSummary,
+  SeasonFinalAnnouncement,
 } from '@admin/schemas';
 import { fetchPlayerApi } from '@/lib/api';
 import { HomeScreen } from './home-screen';
@@ -14,6 +15,7 @@ interface HomeData {
   active: PlayerTournamentSummary[];
   upcoming: PlayerTournamentSummary[];
   leaders: PlayerSeasonRatingEntry[];
+  seasonFinal: SeasonFinalAnnouncement;
 }
 
 /**
@@ -28,7 +30,7 @@ async function fetchHomeData(): Promise<HomeData> {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const [me, active, upcoming, season] = await Promise.all([
+  const [me, active, upcoming, season, seasonFinal] = await Promise.all([
     fetchPlayerApi<PlayerMeProfile>('/api/player/me'),
     fetchPlayerApi<{ tournaments: PlayerTournamentSummary[] }>(
       '/api/player/tournaments?status=in_progress',
@@ -39,12 +41,16 @@ async function fetchHomeData(): Promise<HomeData> {
     fetchPlayerApi<{ entries: PlayerSeasonRatingEntry[] }>(
       `/api/player/rating/season?year=${year}&month=${month}&limit=6`,
     ).catch(() => ({ entries: [] })),
+    fetchPlayerApi<SeasonFinalAnnouncement>('/api/player/season-final').catch(() => ({
+      date: null,
+    })),
   ]);
   return {
     me,
     active: active.tournaments,
     upcoming: upcoming.tournaments,
     leaders: season.entries,
+    seasonFinal,
   };
 }
 

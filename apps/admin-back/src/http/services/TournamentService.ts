@@ -1,4 +1,5 @@
 import type { BlindType } from "../../domain/BlindType";
+import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { effectiveAllowedReentryCount } from "../../domain/tournamentReentryPolicy";
 import type { TournamentStructure } from "../../domain/TournamentStructure";
 import { tournamentStructureCache } from "../../cache";
@@ -107,6 +108,31 @@ export type GetSeasonalRatingResult = SeasonalRatingEntry[];
 export type SetLateRegistrationClosedResult =
   | { ok: true; tournament: TournamentApiSummary }
   | { ok: false; error: "not_found" | "failed" };
+
+export type SetMonthFinalResult =
+  | { ok: true; tournament: TournamentApiSummary; droppedCount: number }
+  | { ok: false; error: "not_found" | "failed" };
+
+/** The reason stamped on a self-registration cleared by a month-final flip. */
+export const MONTH_FINAL_DROP_REASON = "снят: турнир стал финалом месяца";
+
+/**
+ * Which roster entries a month-final flip should clear: only self-registrations
+ * (status Registered) when the flag goes on; nothing when it goes off. Origin
+ * (self vs admin-added) is not tracked yet — admin-added rosters land later, so
+ * for now every Registered entry is a self-registration.
+ */
+export function planMonthFinalFlip(
+  states: ReadonlyArray<{ playerId: string | number; status: string }>,
+  monthFinal: boolean
+): { toRemove: string[] } {
+  if (!monthFinal) return { toRemove: [] };
+  return {
+    toRemove: states
+      .filter((s) => s.status === InGamePlayerStatus.Registered)
+      .map((s) => String(s.playerId)),
+  };
+}
 
 export class TournamentService {
   constructor(
@@ -420,6 +446,36 @@ export class TournamentService {
     const row = await tournamentRepository.updateLateRegistrationClosed(tournamentId, closed);
     if (!row) return { ok: false, error: "not_found" };
     return { ok: true, tournament: tournamentRowToApi(row) };
+  }
+
+  /**
+   * Set the month-final flag. When turning it on, clear the self-registered
+   * roster and leave each dropped player a pull-based drop reason (they read it
+   * on next open — no push). Admin-added / in-game entries are left in place.
+   */
+  async setMonthFinal(
+    tournamentId: number,
+    monthFinal: boolean
+  ): Promise<SetMonthFinalResult> {
+    const row = await tournamentRepository.updateMonthFinal(tournamentId, monthFinal);
+    if (!row) return { ok: false, error: "not_found" };
+
+    let droppedCount = 0;
+    if (monthFinal && this.inGameUserStateService) {
+      const states = await this.inGameUserStateService.getAllByTournament(String(tournamentId));
+      const { toRemove } = planMonthFinalFlip(states, monthFinal);
+      for (const playerId of toRemove) {
+        const removed = await this.inGameUserStateService.removePlayerFromTournament(
+          playerId,
+          String(tournamentId)
+        );
+        if (removed) {
+          await tournamentRepository.addDropNotice(tournamentId, playerId, MONTH_FINAL_DROP_REASON);
+          droppedCount++;
+        }
+      }
+    }
+    return { ok: true, tournament: tournamentRowToApi(row), droppedCount };
   }
 
   async updateTournamentStructure(

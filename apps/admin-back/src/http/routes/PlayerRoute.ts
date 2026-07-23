@@ -125,12 +125,17 @@ interface TournamentSummaryPayload {
   currentStepDurationMin: number | null;
   /** True when the step right after the current one is a Break. */
   nextStepIsBreak: boolean;
+  /** True when this tournament is a «финал месяца»: invite-only. */
+  monthFinal: boolean;
+  /** Reason a dropped player sees on next open, or null. Populated on the detail path only. */
+  dropReason: string | null;
 }
 
 async function buildTournamentSummary(
   tournament: TournamentRow,
   states: InGameUserState[],
-  myPlayerId: number
+  myPlayerId: number,
+  dropReason: string | null = null
 ): Promise<TournamentSummaryPayload> {
   const aliveStates = states.filter(isAlive);
   const eliminatedStates = states.filter(isOut);
@@ -206,6 +211,8 @@ async function buildTournamentSummary(
     breakActive,
     currentStepDurationMin,
     nextStepIsBreak,
+    monthFinal: tournament.monthFinal,
+    dropReason,
   };
 }
 
@@ -437,6 +444,11 @@ export function playerRoutes() {
         if (tournament.status === "completed") {
           return badRequest("Tournament already completed");
         }
+        if (tournament.monthFinal) {
+          // Month-final tournaments are invite-only: the roster is filled by
+          // admins, never by player self-registration, regardless of status.
+          return badRequest("Registration is by invitation only");
+        }
         if (tournament.status === "in_progress" && tournament.lateRegistrationClosed) {
           return badRequest("Late registration is closed");
         }
@@ -552,7 +564,10 @@ export function playerRoutes() {
         const tournament = await tournamentRepository.findById(id);
         if (!tournament) return notFound("Tournament not found");
         const { states } = await loadStatesAndNicknames(id);
-        const summary = await buildTournamentSummary(tournament, states, ctx.playerId);
+        // Drop reason is surfaced where the player opens their tournament (pull,
+        // no push): only fetched on the single-tournament detail path.
+        const dropReason = await tournamentRepository.getDropNotice(id, String(ctx.playerId));
+        const summary = await buildTournamentSummary(tournament, states, ctx.playerId, dropReason);
         const structure = await tournamentStructureCache.get(String(id));
         const myResult = await buildMyCompletedResult(tournament, id, ctx.playerId);
         return Response.json({
