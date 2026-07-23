@@ -38,16 +38,29 @@ export interface TournamentRow {
 }
 
 /**
+ * Normalize a stored tournament `date` to epoch milliseconds. Rows may hold
+ * either seconds (10-digit) or ms (13-digit); values below 1e12 are treated as
+ * seconds and scaled — same rule as PlayerRoute's epochMs, so the season-final
+ * date is comparable to Date.now() and formats correctly on the client.
+ */
+function tournamentDateMs(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return value < 1_000_000_000_000 ? Math.round(value * 1000) : value;
+}
+
+/**
  * Pure selection for the season-final announcement: the nearest FUTURE
  * month-final tournament, ties broken by lower id so the result is stable
- * regardless of storage row order or how many are flagged. A tournament dated
- * exactly at `nowMs` counts as past. Returns null when none is still ahead.
+ * regardless of storage row order or how many are flagged. Row dates are
+ * normalized to epoch ms first; a tournament dated exactly at `nowMs` counts as
+ * past. Returns the picked date in epoch ms, or null when none is still ahead.
  */
 export function pickNearestFutureMonthFinal(
   rows: ReadonlyArray<{ id: number; date: number }>,
   nowMs: number
 ): { id: number; date: number } | null {
   const future = rows
+    .map((r) => ({ id: r.id, date: tournamentDateMs(r.date) }))
     .filter((r) => r.date > nowMs)
     .sort((a, b) => a.date - b.date || a.id - b.id);
   const first = future[0];
