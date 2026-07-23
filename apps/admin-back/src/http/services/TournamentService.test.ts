@@ -1,5 +1,32 @@
 import { describe, expect, test } from "bun:test";
-import { planMonthFinalFlip } from "./TournamentService";
+import type { TournamentRow } from "../../postgres/TournamentRepository";
+import { planMonthFinalFlip, tournamentRowToApi } from "./TournamentService";
+
+const baseRow: TournamentRow = {
+  id: 1,
+  name: "t",
+  status: "registration_open",
+  date: 0,
+  entryPrice: 1000,
+  reentryPrice: 1000,
+  ratingGuaranteeEnabled: false,
+  ratingGuaranteeBonusPoints: 10,
+  ratingPointsCoefficient: 1,
+  ratingBountyCoefficient: 1,
+  ratingTableId: 1,
+  ratingEnabled: true,
+  ratingSeasonYear: null,
+  ratingSeasonMonth: null,
+  lateRegistrationClosed: false,
+  monthFinal: false,
+};
+
+describe("tournamentRowToApi", () => {
+  test("exposes monthFinal so the admin edit form reads current state", () => {
+    expect(tournamentRowToApi({ ...baseRow, monthFinal: true }).monthFinal).toBe(true);
+    expect(tournamentRowToApi(baseRow).monthFinal).toBe(false);
+  });
+});
 
 const reg = (playerId: string | number) => ({ playerId, status: "Registered" });
 const inGame = (playerId: string | number) => ({ playerId, status: "InGamePaid" });

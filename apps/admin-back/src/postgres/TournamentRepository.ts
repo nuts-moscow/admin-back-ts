@@ -15,6 +15,7 @@ export interface MakeTournamentInput {
   ratingEnabled?: boolean;
   ratingSeasonYear?: number | null;
   ratingSeasonMonth?: number | null;
+  monthFinal?: boolean;
 }
 
 export interface TournamentRow {
@@ -151,14 +152,16 @@ class TournamentRepositoryImpl implements TournamentRepository {
       const ratingEnabled = input.ratingEnabled ?? true;
       const ratingSeasonYear = ratingEnabled ? (input.ratingSeasonYear ?? null) : null;
       const ratingSeasonMonth = ratingEnabled ? (input.ratingSeasonMonth ?? null) : null;
+      const monthFinal = input.monthFinal ?? false;
       const result = await PostgresClient.instance.query(
         `INSERT INTO tournaments (
            name, status, date, entry_price, reentry_price,
            rating_guarantee_enabled, rating_guarantee_bonus_points,
            rating_points_coefficient, rating_bounty_coefficient,
-           rating_table_id, rating_enabled, rating_season_year, rating_season_month
+           rating_table_id, rating_enabled, rating_season_year, rating_season_month,
+           month_final
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          RETURNING ${SELECT_COLUMNS}`,
         [
           input.name,
@@ -174,6 +177,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           ratingEnabled,
           ratingSeasonYear,
           ratingSeasonMonth,
+          monthFinal,
         ]
       );
       const row = result.rows[0];

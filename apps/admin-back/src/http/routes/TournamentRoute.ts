@@ -532,6 +532,12 @@ export function tournamentRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        if (o.monthFinal !== undefined && typeof o.monthFinal !== "boolean") {
+          return new Response(
+            JSON.stringify({ error: "monthFinal must be a boolean" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
         const structureParsed = validateStructureBody(o.structure);
         if (!structureParsed.ok) {
           return new Response(
@@ -558,6 +564,7 @@ export function tournamentRoutes() {
           ratingEnabled: ratingParsed.ratingEnabled,
           ratingSeasonYear: ratingParsed.ratingSeasonYear,
           ratingSeasonMonth: ratingParsed.ratingSeasonMonth,
+          monthFinal: o.monthFinal === true,
         });
         if (!result.ok) {
           return new Response(

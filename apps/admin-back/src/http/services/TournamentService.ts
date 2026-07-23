@@ -39,6 +39,8 @@ export interface MakeTournamentBody {
   ratingEnabled?: boolean;
   ratingSeasonYear?: number | null;
   ratingSeasonMonth?: number | null;
+  /** Create the tournament as a month final (invite-only); default false. */
+  monthFinal?: boolean;
 }
 
 export type TournamentApiSummary = {
@@ -55,6 +57,7 @@ export type TournamentApiSummary = {
   ratingSeasonYear: number | null;
   ratingSeasonMonth: number | null;
   lateRegistrationClosed: boolean;
+  monthFinal: boolean;
 };
 
 export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
@@ -72,6 +75,7 @@ export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
     ratingSeasonYear: row.ratingSeasonYear,
     ratingSeasonMonth: row.ratingSeasonMonth,
     lateRegistrationClosed: row.lateRegistrationClosed,
+    monthFinal: row.monthFinal,
   };
 }
 
@@ -185,6 +189,7 @@ export class TournamentService {
       ratingEnabled,
       ratingSeasonYear: ratingEnabled ? (input.ratingSeasonYear ?? null) : null,
       ratingSeasonMonth: ratingEnabled ? (input.ratingSeasonMonth ?? null) : null,
+      monthFinal: input.monthFinal ?? false,
     });
     if (!tournament) return { ok: false, error: "failed" };
 
