@@ -500,6 +500,7 @@ export function tournamentRoutes() {
             ratingSeasonYear: t.ratingSeasonYear,
             ratingSeasonMonth: t.ratingSeasonMonth,
             lateRegistrationClosed: t.lateRegistrationClosed,
+            monthFinal: t.monthFinal,
           })),
         });
       },
