@@ -1,9 +1,29 @@
 import type { BunRequest } from "bun";
+import {
+  REQUIRED_LEGAL_DOCS,
+  consentsSatisfyRequirements,
+} from "../../domain/legalDocuments";
+import { playerConsentRepository } from "../../postgres/PlayerConsentRepository";
 import { playerRepository } from "../../postgres/PlayerRepository";
 import { playerUserRepository } from "../../postgres/PlayerUserRepository";
 import type { PlayerAuthContext } from "../middleware/playerAuth";
 import { getClientIp } from "../services/AuthService";
 import { playerLogin, playerLogout, playerRegister } from "../services/PlayerAuthService";
+
+/** Parses the client-submitted list of accepted (slug, version) document pairs. */
+function parseConsents(
+  raw: unknown
+): Array<{ slug: string; version: string }> | null {
+  if (!Array.isArray(raw)) return null;
+  const out: Array<{ slug: string; version: string }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") return null;
+    const { slug, version } = item as Record<string, unknown>;
+    if (typeof slug !== "string" || typeof version !== "string") return null;
+    out.push({ slug, version });
+  }
+  return out;
+}
 
 /** 3–32 chars: letters, digits, underscore or dot. */
 const LOGIN_RE = /^[a-zA-Z0-9_.]{3,32}$/;
@@ -130,6 +150,15 @@ export function playerAuthRoutes() {
         const pwIssue = passwordPolicyIssue(password);
         if (pwIssue) return jsonError(pwIssue, 400);
 
+        // Registration is gated on consent to the required legal documents.
+        const consents = parseConsents((body as Record<string, unknown>).consents);
+        if (!consents || !consentsSatisfyRequirements(consents)) {
+          return jsonError(
+            "Consent to the required documents is mandatory",
+            400
+          );
+        }
+
         const ip = getClientIp(req);
         const result = await playerRegister(normalizedLogin, password, ip);
 
@@ -144,6 +173,14 @@ export function playerAuthRoutes() {
           }
           return jsonError("Registration failed", 500);
         }
+
+        // Record consent at the current required versions. Best-effort: the
+        // account is already created, so a write failure is logged, not fatal.
+        await playerConsentRepository.record(
+          result.user.playerId,
+          REQUIRED_LEGAL_DOCS,
+          ip
+        );
 
         return Response.json({
           token: result.token,
