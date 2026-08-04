@@ -50,7 +50,9 @@ export default function LoginPage() {
           className="bg-paper border border-line-2 rounded-md p-6 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset,0_6px_14px_-10px_rgba(27,22,18,0.18)]"
         >
           <label className="block">
-            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">Логин</span>
+            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">
+              Почта
+            </span>
             <input
               type="text"
               autoComplete="username"
@@ -60,6 +62,9 @@ export default function LoginPage() {
               onChange={(e) => setLogin(e.target.value)}
               className="mt-1 block w-full border-b border-line bg-transparent py-2 text-ink focus:outline-none focus:border-ink"
             />
+            <span className="mt-1 block text-[11px] text-ink-3">
+              Аккаунты, созданные до перехода на почту, входят по своему логину
+            </span>
           </label>
 
           <label className="block mt-5">
@@ -89,6 +94,12 @@ export default function LoginPage() {
           </button>
 
           <p className="mt-5 text-center text-xs text-ink-3 leading-relaxed">
+            <Link href="/password" className="font-bold text-ink underline">
+              Забыли пароль?
+            </Link>
+          </p>
+
+          <p className="mt-3 text-center text-xs text-ink-3 leading-relaxed">
             Нет аккаунта?{' '}
             <Link href="/register" className="font-bold text-ink underline">
               Зарегистрироваться
