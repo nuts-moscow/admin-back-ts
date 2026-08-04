@@ -46,6 +46,10 @@ function fakeStore(): ChallengeStore & { live: Map<string, OtpChallenge> } {
     async mintsLeft(address, purpose) {
       return Math.max(0, MAX_MINTS - (mints.get(key(address, purpose)) ?? 0));
     },
+    async refundMint(address, purpose) {
+      const k = key(address, purpose);
+      mints.set(k, Math.max(0, (mints.get(k) ?? 0) - 1));
+    },
     async recordDelivery(address, purpose, state, detail) {
       const k = key(address, purpose);
       const existing = live.get(k);
@@ -305,5 +309,45 @@ describe("EmailVerificationService — a refusal is surfaced where it can be", (
       hasher
     );
     expect(await svc.issue("a@example.com", "password_reset")).toEqual({ ok: true });
+  });
+});
+
+describe("EmailVerificationService — a mint that sent nothing costs nothing", () => {
+  test("a provider refusal leaves the budget where it was", async () => {
+    const store = fakeStore();
+    const svc = new EmailVerificationService(
+      store,
+      fakeMailer({ taken: false, reason: "forbidden" }),
+      accounts({}),
+      hasher
+    );
+
+    for (let i = 0; i < MAX_MINTS + 3; i += 1) {
+      expect(await svc.issue("a@example.com", "signup")).toEqual({
+        ok: false,
+        reason: "undeliverable",
+      });
+    }
+    // Every attempt failed at the provider, so none of them counted: once the
+    // outage clears, the player is not locked out of their own signup.
+    expect(await store.mintsLeft("a@example.com", "signup")).toBe(MAX_MINTS);
+  });
+
+  test("a reset for an unknown address does not spend the budget either", async () => {
+    const store = fakeStore();
+    const svc = new EmailVerificationService(store, fakeMailer(), accounts({}), hasher);
+
+    await svc.issue("nobody@example.com", "password_reset");
+
+    expect(await store.mintsLeft("nobody@example.com", "password_reset")).toBe(MAX_MINTS);
+  });
+
+  test("a letter that did go out still costs one", async () => {
+    const store = fakeStore();
+    const svc = new EmailVerificationService(store, fakeMailer(), accounts({}), hasher);
+
+    await svc.issue("a@example.com", "signup");
+
+    expect(await store.mintsLeft("a@example.com", "signup")).toBe(MAX_MINTS - 1);
   });
 });

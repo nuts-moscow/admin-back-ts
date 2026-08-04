@@ -39,6 +39,7 @@ export interface ChallengeStore {
   spendAttempt(address: string, purpose: OtpPurpose): Promise<number>;
   attemptsLeft(address: string, purpose: OtpPurpose): Promise<number>;
   spendMint(address: string, purpose: OtpPurpose): Promise<number>;
+  refundMint(address: string, purpose: OtpPurpose): Promise<void>;
   mintsLeft(address: string, purpose: OtpPurpose): Promise<number>;
   recordDelivery(
     address: string,
@@ -97,6 +98,8 @@ export class EmailVerificationService {
       purpose === "signup" ? null : await this.accounts.findAccountIdByEmail(address);
 
     if (purpose === "password_reset" && accountId == null) {
+      // No letter goes out, so the budget was not really spent.
+      await this.store.refundMint(address, purpose);
       logger?.info(
         { purpose },
         "[EmailVerification] reset asked for an address with no account — answered as if sent"
@@ -135,6 +138,9 @@ export class EmailVerificationService {
     );
 
     if (!outcome.taken) {
+      // The mailbox received nothing, so this attempt costs the player
+      // nothing: a provider outage must not lock them out of trying again.
+      await this.store.refundMint(address, purpose);
       logger?.error({ purpose }, "[EmailVerification] letter refused by the provider");
       // A refusal is surfaced on signup, where the address is not yet an
       // account and telling the player their mailbox is unreachable costs

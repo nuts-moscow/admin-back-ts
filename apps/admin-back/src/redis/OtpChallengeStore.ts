@@ -74,6 +74,11 @@ export interface OtpChallengeStore {
 
   /** Spends one mint from the address's budget; answers what is left. */
   spendMint(address: string, purpose: OtpPurpose): Promise<number>;
+  /**
+   * Gives one back. The budget exists to stop a mailbox being flooded, so a
+   * mint that produced no letter must not count against it.
+   */
+  refundMint(address: string, purpose: OtpPurpose): Promise<void>;
   mintsLeft(address: string, purpose: OtpPurpose): Promise<number>;
 
   /** Records what became of the letter carrying this address's live code. */
@@ -155,6 +160,18 @@ class OtpChallengeStoreImpl implements OtpChallengeStore {
   async spendMint(address: string, purpose: OtpPurpose): Promise<number> {
     const used = await this.spend(mintsKey(address, purpose));
     return Math.max(0, OTP_MAX_MINTS - used);
+  }
+
+  async refundMint(address: string, purpose: OtpPurpose): Promise<void> {
+    try {
+      const key = mintsKey(address, purpose);
+      // Never below zero: a refund for a mint that expired out of the window
+      // would otherwise hand out free budget.
+      const left = await RedisClient.instance.decr(key);
+      if (left < 0) await RedisClient.instance.set(key, "0", "KEEPTTL");
+    } catch (err) {
+      logger.error({ err, purpose }, "[OtpChallengeStore] refundMint failed");
+    }
   }
 
   async mintsLeft(address: string, purpose: OtpPurpose): Promise<number> {
