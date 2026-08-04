@@ -28,7 +28,9 @@ export type OtpVerdict =
  * way, and only `rate_limited` is distinguishable, because a caller hitting
  * their own budget has a right to know.
  */
-export type IssueResult = { ok: true } | { ok: false; reason: "rate_limited" };
+export type IssueResult =
+  | { ok: true }
+  | { ok: false; reason: "rate_limited" | "undeliverable" };
 
 export interface ChallengeStore {
   put(challenge: OtpChallenge): Promise<void>;
@@ -127,6 +129,12 @@ export class EmailVerificationService {
 
     if (!outcome.taken) {
       logger?.error({ purpose }, "[EmailVerification] letter refused by the provider");
+      // A refusal is surfaced on signup, where the address is not yet an
+      // account and telling the player their mailbox is unreachable costs
+      // nothing. On a reset it is swallowed: the answer there has to look the
+      // same for an address the club knows and one it does not, and "we tried
+      // and failed" would say that it knows this one.
+      if (purpose === "signup") return { ok: false, reason: "undeliverable" };
     }
     return { ok: true };
   }

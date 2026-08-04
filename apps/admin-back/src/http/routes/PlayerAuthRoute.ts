@@ -135,6 +135,9 @@ export function playerAuthRoutes() {
             400
           );
         }
+        if (result.reason === "undeliverable") {
+          return jsonError("Could not deliver a code to this address", 502);
+        }
         return jsonError("Too many attempts. Please try again later.", 429, {
           "Retry-After": "900",
         });

@@ -13,7 +13,7 @@ import { playerSessionService } from "./PlayerSessionService";
 
 export type BeginResult =
   | { ok: true }
-  | { ok: false; reason: "taken" | "rate_limited" | "weak_password" };
+  | { ok: false; reason: "taken" | "rate_limited" | "weak_password" | "undeliverable" };
 
 export type CompleteResult =
   | { ok: true; accountId: number; playerId: number; token: string; nickname: string }
@@ -28,7 +28,10 @@ export interface Consent {
 }
 
 export interface SignupCodes {
-  issue(address: string, purpose: "signup"): Promise<{ ok: boolean }>;
+  issue(
+    address: string,
+    purpose: "signup"
+  ): Promise<{ ok: boolean; reason?: "rate_limited" | "undeliverable" }>;
   check(address: string, purpose: "signup", code: string): Promise<OtpVerdict>;
 }
 
@@ -97,7 +100,8 @@ export class PlayerSignupService {
       return { ok: false, reason: "taken" };
     }
     const issued = await this.codes.issue(address, "signup");
-    return issued.ok ? { ok: true } : { ok: false, reason: "rate_limited" };
+    if (issued.ok) return { ok: true };
+    return { ok: false, reason: issued.reason ?? "rate_limited" };
   }
 
   async complete(input: {

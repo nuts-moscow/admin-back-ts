@@ -282,3 +282,28 @@ describe("the letter carries only the code", () => {
     expect(renderOtpLetter("signup", "123456").text).toContain("никогда не спросит");
   });
 });
+
+describe("EmailVerificationService — a refusal is surfaced where it can be", () => {
+  test("signup says the address is undeliverable", async () => {
+    const svc = new EmailVerificationService(
+      fakeStore(),
+      fakeMailer({ taken: false, reason: "mailbox unavailable" }),
+      accounts({}),
+      hasher
+    );
+    expect(await svc.issue("a@example.com", "signup")).toEqual({
+      ok: false,
+      reason: "undeliverable",
+    });
+  });
+
+  test("a reset swallows it — the answer must not say the club knows this address", async () => {
+    const svc = new EmailVerificationService(
+      fakeStore(),
+      fakeMailer({ taken: false, reason: "mailbox unavailable" }),
+      accounts({ "a@example.com": 42 }),
+      hasher
+    );
+    expect(await svc.issue("a@example.com", "password_reset")).toEqual({ ok: true });
+  });
+});
