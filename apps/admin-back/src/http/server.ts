@@ -9,6 +9,7 @@ import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
 import { mailWebhookRoutes } from "./routes/MailWebhookRoute";
 import { playerAuthRoutes } from "./routes/PlayerAuthRoute";
+import { playerPasswordRoutes } from "./routes/PlayerPasswordRoute";
 import { playerSessionRoutes } from "./routes/PlayerSessionRoute";
 import { playerRoutes } from "./routes/PlayerRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
@@ -47,6 +48,7 @@ export async function createHttpServer() {
     ...hallOfFameRoutes(),
     ...mailWebhookRoutes(),
     ...playerAuthRoutes(),
+    ...playerPasswordRoutes(),
     ...playerSessionRoutes(),
     ...playerRoutes(),
     ...seasonFinalRoutes(),

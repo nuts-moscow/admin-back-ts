@@ -1,14 +1,10 @@
 import type { BunRequest } from "bun";
-import {
-  REQUIRED_LEGAL_DOCS,
-  consentsSatisfyRequirements,
-} from "../../domain/legalDocuments";
-import { playerConsentRepository } from "../../postgres/PlayerConsentRepository";
 import { playerRepository } from "../../postgres/PlayerRepository";
 import { playerUserRepository } from "../../postgres/PlayerUserRepository";
 import type { PlayerAuthContext } from "../middleware/playerAuth";
 import { getClientIp } from "../services/AuthService";
-import { playerLogin, playerLogout, playerRegister } from "../services/PlayerAuthService";
+import { playerLogin, playerLogout } from "../services/PlayerAuthService";
+import { playerSignupService } from "../services/PlayerSignupService";
 
 /** Parses the client-submitted list of accepted (slug, version) document pairs. */
 function parseConsents(
@@ -23,18 +19,6 @@ function parseConsents(
     out.push({ slug, version });
   }
   return out;
-}
-
-/** 3–32 chars: letters, digits, underscore or dot. */
-const LOGIN_RE = /^[a-zA-Z0-9_.]{3,32}$/;
-
-/** Password policy: "complex but not too much" — ≥8 chars with a letter and a digit. */
-function passwordPolicyIssue(pw: string): string | null {
-  if (pw.length < 8) return "Password must be at least 8 characters";
-  if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) {
-    return "Password must contain at least one letter and one digit";
-  }
-  return null;
 }
 
 function jsonError(error: string, status: number, extraHeaders?: Record<string, string>): Response {
@@ -121,7 +105,7 @@ export function playerAuthRoutes() {
       },
     },
 
-    "/api/player-auth/register": {
+    "/api/player-auth/signup/begin": {
       POST: async (req: BunRequest) => {
         const ctErr = requireJsonContentType(req);
         if (ctErr) return ctErr;
@@ -132,63 +116,89 @@ export function playerAuthRoutes() {
         } catch {
           return jsonError("Invalid JSON", 400);
         }
-        if (!body || typeof body !== "object") {
-          return jsonError("Invalid body", 400);
+        if (!body || typeof body !== "object") return jsonError("Invalid body", 400);
+
+        const { email, password } = body as Record<string, unknown>;
+        if (typeof email !== "string" || typeof password !== "string") {
+          return jsonError("email and password are required", 400);
         }
 
-        const { login, password } = body as Record<string, unknown>;
-        if (typeof login !== "string" || typeof password !== "string") {
-          return jsonError("login and password are required", 400);
+        const result = await playerSignupService.begin(email, password);
+        if (result.ok) {
+          // Nothing exists yet: the address is claimed, not registered.
+          return new Response(null, { status: 202 });
         }
-        const normalizedLogin = login.trim();
-        if (!LOGIN_RE.test(normalizedLogin)) {
+        if (result.reason === "taken") return jsonError("Email already registered", 409);
+        if (result.reason === "weak_password") {
           return jsonError(
-            "Login must be 3-32 characters: letters, digits, underscore or dot",
+            "Password must be at least 8 characters and contain a letter and a digit",
             400
           );
         }
-        const pwIssue = passwordPolicyIssue(password);
-        if (pwIssue) return jsonError(pwIssue, 400);
+        return jsonError("Too many attempts. Please try again later.", 429, {
+          "Retry-After": "900",
+        });
+      },
+    },
 
-        // Registration is gated on consent to the required legal documents.
+    "/api/player-auth/signup/complete": {
+      POST: async (req: BunRequest) => {
+        const ctErr = requireJsonContentType(req);
+        if (ctErr) return ctErr;
+
+        let body: unknown;
+        try {
+          body = await req.json();
+        } catch {
+          return jsonError("Invalid JSON", 400);
+        }
+        if (!body || typeof body !== "object") return jsonError("Invalid body", 400);
+
+        const { email, code, password } = body as Record<string, unknown>;
+        if (
+          typeof email !== "string" ||
+          typeof code !== "string" ||
+          typeof password !== "string"
+        ) {
+          return jsonError("email, code and password are required", 400);
+        }
+
         const consents = parseConsents((body as Record<string, unknown>).consents);
-        if (!consents || !consentsSatisfyRequirements(consents)) {
-          return jsonError(
-            "Consent to the required documents is mandatory",
-            400
-          );
-        }
+        if (!consents) return jsonError("Consent to the required documents is mandatory", 400);
 
-        const ip = getClientIp(req);
-        const result = await playerRegister(normalizedLogin, password, ip);
+        const result = await playerSignupService.complete({
+          address: email,
+          code,
+          password,
+          consents,
+          ip: getClientIp(req),
+        });
 
         if (!result.ok) {
-          if (result.reason === "rate_limited") {
-            return jsonError("Too many attempts. Please try again later.", 429, {
-              "Retry-After": "900",
-            });
+          switch (result.reason) {
+            case "invalid_code":
+              return jsonError("Invalid or expired code", 401);
+            case "taken":
+              return jsonError("Email already registered", 409);
+            case "consent_required":
+              return jsonError("Consent to the required documents is mandatory", 400);
+            case "weak_password":
+              return jsonError(
+                "Password must be at least 8 characters and contain a letter and a digit",
+                400
+              );
+            default:
+              return jsonError("Registration failed", 500);
           }
-          if (result.reason === "login_taken") {
-            return jsonError("Login already taken", 409);
-          }
-          return jsonError("Registration failed", 500);
         }
-
-        // Record consent at the current required versions. Best-effort: the
-        // account is already created, so a write failure is logged, not fatal.
-        await playerConsentRepository.record(
-          result.user.playerId,
-          REQUIRED_LEGAL_DOCS,
-          ip
-        );
 
         return Response.json({
           token: result.token,
           player: {
-            id: result.user.playerId,
-            login: result.user.login,
-            email: result.user.email,
-            nickname: normalizedLogin,
+            id: result.playerId,
+            login: null,
+            email,
+            nickname: result.nickname,
           },
         });
       },
