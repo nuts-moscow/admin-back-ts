@@ -85,7 +85,13 @@ class UnisenderGoMailClient implements MailClient {
         const detail =
           payload?.message ?? `HTTP ${response.status}`;
         logger?.error(
-          { status: response.status, code: payload?.code },
+          {
+            status: response.status,
+            code: payload?.code,
+            message: payload?.message,
+            from: this.from,
+            apiUrl: this.apiUrl,
+          },
           "[Mail] Unisender Go refused the request"
         );
         return { taken: false, reason: String(detail).slice(0, 200) };
@@ -95,7 +101,10 @@ class UnisenderGoMailClient implements MailClient {
       // however healthy the request was.
       const failure = payload?.failed_emails?.[letter.to];
       if (failure) {
-        logger?.error({ failure }, "[Mail] Unisender Go rejected the address");
+        logger?.error(
+          { failure, from: this.from },
+          "[Mail] Unisender Go rejected the address"
+        );
         return { taken: false, reason: failure };
       }
 
