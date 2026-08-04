@@ -119,7 +119,14 @@ export class EmailVerificationService {
     });
 
     const { subject, text } = renderOtpLetter(purpose, code);
-    const outcome = await this.mailer.send({ to: address, subject, text });
+    // The purpose rides along so the provider echoes it on the delivery
+    // webhook: one address can hold a signup and a reset challenge at once.
+    const outcome = await this.mailer.send({
+      to: address,
+      subject,
+      text,
+      metadata: { purpose },
+    });
     await this.store.recordDelivery(
       address,
       purpose,

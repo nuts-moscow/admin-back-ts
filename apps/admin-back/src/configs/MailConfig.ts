@@ -1,24 +1,32 @@
+/** Unisender Go, in the datacentre the club's account lives in. */
+const DEFAULT_API_URL =
+  "https://go2.unisender.ru/ru/transactional/api/v1/email/send.json";
+
 export interface MailConfig {
   /**
-   * Transactional provider endpoint. Unset in development: the club then runs
-   * without a sender and codes go to the log instead of a mailbox.
+   * Transactional send endpoint. Defaults to the club's datacentre; the other
+   * hosts (`go1`, `goapi`) speak the same API.
    */
-  apiUrl: string | null;
-  apiToken: string | null;
-  /** Envelope sender; must be on a domain the provider is allowed to send for. */
-  from: string;
+  apiUrl: string;
   /**
-   * Shared secret the provider echoes on its delivery webhook. The webhook is
-   * an unauthenticated entry point otherwise — it carries no player grant.
+   * Unisender Go API key. Unset in development: the club then runs without a
+   * sender and codes go to the log instead of a mailbox.
+   *
+   * It doubles as the webhook secret — Unisender Go signs each callback by
+   * MD5-ing the body with this key substituted for the signature field, so
+   * there is no second secret to configure.
    */
-  webhookSecret: string | null;
+  apiToken: string | null;
+  /** Envelope sender; must be on a domain the account has verified. */
+  from: string;
+  fromName: string;
 }
 
 export function loadMailConfig(): MailConfig {
   return {
-    apiUrl: process.env.MAIL_API_URL ?? null,
+    apiUrl: process.env.MAIL_API_URL ?? DEFAULT_API_URL,
     apiToken: process.env.MAIL_API_TOKEN ?? null,
     from: process.env.MAIL_FROM ?? "no-reply@localhost",
-    webhookSecret: process.env.MAIL_WEBHOOK_SECRET ?? null,
+    fromName: process.env.MAIL_FROM_NAME ?? "NUTS Family",
   };
 }
