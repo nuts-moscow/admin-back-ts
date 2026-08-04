@@ -10,7 +10,19 @@ export interface PlayerUser {
   passwordHash: string;
   playerId: number;
   createdAt: Date;
+  /** When the address was proved by a code; null for rows that never were. */
+  emailVerifiedAt: Date | null;
 }
+
+/**
+ * The unique index on the address is the authority on who owns it, not the
+ * application's pre-check — two signups racing on one address must leave one
+ * account, and the loser has to know it lost rather than see a generic
+ * failure.
+ */
+export type CreatePlayerUserResult =
+  | { ok: true; user: PlayerUser }
+  | { ok: false; reason: "taken" | "error" };
 
 export interface PlayerUserRepository {
   findByLogin(login: string): Promise<PlayerUser | null>;
@@ -22,12 +34,25 @@ export interface PlayerUserRepository {
     email?: string | null;
     passwordHash: string;
     playerId: number;
+    emailVerifiedAt?: Date | null;
   }): Promise<PlayerUser | null>;
+  /** Same insert, but says whether the unique index refused it. */
+  tryCreate(input: {
+    login?: string | null;
+    email?: string | null;
+    passwordHash: string;
+    playerId: number;
+    emailVerifiedAt?: Date | null;
+  }): Promise<CreatePlayerUserResult>;
   updatePassword(id: number, passwordHash: string): Promise<boolean>;
   delete(id: number): Promise<boolean>;
 }
 
-const COLUMNS = "id, login, email, password_hash, player_id, created_at";
+const COLUMNS =
+  "id, login, email, password_hash, player_id, created_at, email_verified_at";
+
+/** Postgres unique-violation; the address (or login) is already taken. */
+const UNIQUE_VIOLATION = "23505";
 
 function rowToPlayerUser(row: Record<string, unknown>): PlayerUser {
   return {
@@ -38,6 +63,12 @@ function rowToPlayerUser(row: Record<string, unknown>): PlayerUser {
     playerId: Number(row.player_id),
     createdAt:
       row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+    emailVerifiedAt:
+      row.email_verified_at == null
+        ? null
+        : row.email_verified_at instanceof Date
+          ? row.email_verified_at
+          : new Date(String(row.email_verified_at)),
   };
 }
 
@@ -57,11 +88,12 @@ class PlayerUserRepositoryImpl implements PlayerUserRepository {
   }
 
   findByLogin(login: string): Promise<PlayerUser | null> {
-    return this.findOneBy("login", login);
+    return this.findOneBy("login", login.trim());
   }
 
+  // citext makes the comparison case-insensitive; trimming is ours to do.
   findByEmail(email: string): Promise<PlayerUser | null> {
-    return this.findOneBy("email", email);
+    return this.findOneBy("email", email.trim());
   }
 
   findById(id: number): Promise<PlayerUser | null> {
@@ -77,18 +109,39 @@ class PlayerUserRepositoryImpl implements PlayerUserRepository {
     email?: string | null;
     passwordHash: string;
     playerId: number;
+    emailVerifiedAt?: Date | null;
   }): Promise<PlayerUser | null> {
+    const result = await this.tryCreate(input);
+    return result.ok ? result.user : null;
+  }
+
+  async tryCreate(input: {
+    login?: string | null;
+    email?: string | null;
+    passwordHash: string;
+    playerId: number;
+    emailVerifiedAt?: Date | null;
+  }): Promise<CreatePlayerUserResult> {
     try {
       const result = await PostgresClient.instance.query(
-        `INSERT INTO player_users (login, email, password_hash, player_id)
-         VALUES ($1, $2, $3, $4) RETURNING ${COLUMNS}`,
-        [input.login ?? null, input.email ?? null, input.passwordHash, input.playerId]
+        `INSERT INTO player_users (login, email, password_hash, player_id, email_verified_at)
+         VALUES ($1, $2, $3, $4, $5) RETURNING ${COLUMNS}`,
+        [
+          input.login ?? null,
+          input.email?.trim() ?? null,
+          input.passwordHash,
+          input.playerId,
+          input.emailVerifiedAt ?? null,
+        ]
       );
-      if (result.rows.length === 0) return null;
-      return rowToPlayerUser(result.rows[0] as Record<string, unknown>);
+      if (result.rows.length === 0) return { ok: false, reason: "error" };
+      return { ok: true, user: rowToPlayerUser(result.rows[0] as Record<string, unknown>) };
     } catch (err) {
+      if ((err as { code?: string }).code === UNIQUE_VIOLATION) {
+        return { ok: false, reason: "taken" };
+      }
       logger.error({ err }, "[PlayerUserRepository] create failed");
-      return null;
+      return { ok: false, reason: "error" };
     }
   }
 

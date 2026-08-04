@@ -7,6 +7,7 @@ import { authRoutes } from "./routes/AuthRoute";
 import { hallOfFameRoutes } from "./routes/HallOfFameRoute";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
+import { mailWebhookRoutes } from "./routes/MailWebhookRoute";
 import { playerAuthRoutes } from "./routes/PlayerAuthRoute";
 import { playerRoutes } from "./routes/PlayerRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
@@ -43,6 +44,7 @@ export async function createHttpServer() {
     ...tournamentRoutes(),
     ...openApiRoutes(),
     ...hallOfFameRoutes(),
+    ...mailWebhookRoutes(),
     ...playerAuthRoutes(),
     ...playerRoutes(),
     ...seasonFinalRoutes(),
@@ -79,6 +81,15 @@ export async function createHttpServer() {
             if (upgraded) return undefined;
           }
           return new Response("WebSocket upgrade failed", { status: 400 });
+        }
+
+        // The mail provider's delivery webhook belongs to neither realm: it
+        // carries no grant and authenticates itself by a shared secret, so it
+        // must reach its handler before the admin auth middleware.
+        if (url.pathname === "/api/mail/delivery") {
+          const mailResponse = await router(req);
+          if (mailResponse) return withCors(mailResponse, origin);
+          return withCors(new Response("Not Found", { status: 404 }), origin);
         }
 
         // Routing split: player-app endpoints are gated by playerAuth, never by admin auth.
