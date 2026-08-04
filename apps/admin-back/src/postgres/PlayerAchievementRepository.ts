@@ -14,6 +14,12 @@ export interface AwardInsert {
   playerId: number;
   ruleId: string;
   tournamentId: number | null;
+  /**
+   * When the rule actually closed. Omitted for the ordinary pass, where that
+   * is now; the season settlement passes the season's last tournament date,
+   * because an MVP closed in May should not be dated June.
+   */
+  earnedAt?: Date;
 }
 
 /**
@@ -89,13 +95,13 @@ class PlayerAchievementRepositoryImpl implements PlayerAchievementRepository {
     const params: unknown[] = [];
     let i = 1;
     for (const a of awards) {
-      values.push(`($${i++}, $${i++}, $${i++})`);
-      params.push(a.playerId, a.ruleId, a.tournamentId);
+      values.push(`($${i++}, $${i++}, $${i++}, COALESCE($${i++}, now()))`);
+      params.push(a.playerId, a.ruleId, a.tournamentId, a.earnedAt ?? null);
     }
     // The conflict clause is the whole idempotence story: a rule the player
     // already holds keeps its original earned_at, untouched.
     const res = await client.query(
-      `INSERT INTO player_achievements (player_id, rule_id, tournament_id)
+      `INSERT INTO player_achievements (player_id, rule_id, tournament_id, earned_at)
        VALUES ${values.join(", ")}
        ON CONFLICT (player_id, rule_id) DO NOTHING`,
       params
