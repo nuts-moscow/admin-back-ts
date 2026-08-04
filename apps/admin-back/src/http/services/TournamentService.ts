@@ -251,6 +251,7 @@ export class TournamentService {
       ratingSeasonYear: tournament.ratingSeasonYear,
       ratingSeasonMonth: tournament.ratingSeasonMonth,
       lateRegistrationClosed: tournament.lateRegistrationClosed,
+      monthFinal: tournament.monthFinal,
       structure: structureOut,
     };
   }
