@@ -2,7 +2,7 @@ import { logger } from "../../logger";
 import { playerUserRepository } from "../../postgres/PlayerUserRepository";
 import { resolveAllowedOrigin } from "../cors";
 import { getBearerToken, getClientIp } from "../services/AuthService";
-import { verifyPlayerAccessToken } from "../services/PlayerAuthService";
+import { playerSessionService } from "../services/PlayerSessionService";
 
 export interface PlayerAuthContext {
   playerUserId: number;
@@ -60,7 +60,7 @@ export async function requirePlayerAuth(req: Request): Promise<RequirePlayerAuth
     return { response: unauthorized(), ctx: null };
   }
 
-  const result = await verifyPlayerAccessToken(token);
+  const result = await playerSessionService.verify(token);
   if (!result.ok) {
     logger.warn({ path: pathname, ip }, "[PlayerAuth] Unauthorized: invalid or revoked token");
     return { response: unauthorized(), ctx: null };
