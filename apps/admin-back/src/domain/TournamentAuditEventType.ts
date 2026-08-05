@@ -37,6 +37,12 @@ export const TournamentAuditEventType = {
 
   TournamentLateRegistrationClosed: "tournament_late_registration_closed",
   TournamentMonthFinalSet: "tournament_month_final_set",
+
+  // Club-scoped: an admin's verdict on a player's picture. These rows carry no
+  // tournament — the decision belongs to the club, not to a game.
+  AvatarSubmissionAllowed: "avatar_submission_allowed",
+  AvatarSubmissionRefused: "avatar_submission_refused",
+  AvatarTakenDown: "avatar_taken_down",
 } as const;
 
 export type TournamentAuditEventTypeName =

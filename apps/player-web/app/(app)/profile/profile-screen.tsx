@@ -8,7 +8,7 @@ import type {
   PlayerMeProfile,
   PlayerTournamentHistoryEntry,
 } from '@admin/schemas';
-import { Avatar } from '@/components/avatar';
+import { ProfileAvatar } from './profile-avatar';
 import { Card } from '@/components/card';
 import { ChevRIcon, LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
@@ -128,7 +128,11 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
 
         <div className="flex items-center gap-3.5 mt-2 relative">
           <div className="relative">
-            <Avatar name={me.name ?? me.nickname} size={84} ring />
+            <ProfileAvatar
+              name={me.name ?? me.nickname}
+              avatarUrl={me.avatarUrl ?? null}
+              onChanged={onChanged}
+            />
             <div
               className="flex items-center justify-center"
               style={{

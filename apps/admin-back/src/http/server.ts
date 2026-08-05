@@ -8,6 +8,10 @@ import { hallOfFameRoutes } from "./routes/HallOfFameRoute";
 import { inGameUserStateRoutes } from "./routes/InGameUserStateRoute";
 import { openApiRoutes } from "./routes/OpenApiRoute";
 import { mailWebhookRoutes } from "./routes/MailWebhookRoute";
+import { avatarModerationRoutes } from "./routes/AvatarModerationRoute";
+import { avatarTakedownRoutes } from "./routes/AvatarTakedownRoute";
+import { playerAvatarRoutes } from "./routes/PlayerAvatarRoute";
+import { playerAvatarMediaRoutes } from "./routes/PlayerAvatarMediaRoute";
 import { playerAuthRoutes } from "./routes/PlayerAuthRoute";
 import { playerPasswordRoutes } from "./routes/PlayerPasswordRoute";
 import { playerSessionRoutes } from "./routes/PlayerSessionRoute";
@@ -52,6 +56,10 @@ export async function createHttpServer() {
     ...playerSessionRoutes(),
     ...playerRoutes(),
     ...seasonFinalRoutes(),
+    ...playerAvatarRoutes(),
+    ...playerAvatarMediaRoutes(),
+    ...avatarModerationRoutes(),
+    ...avatarTakedownRoutes(),
   };
 
   // Route handlers expect BunRequest; router passes Request with params (compatible at runtime)

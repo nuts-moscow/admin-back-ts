@@ -9,6 +9,7 @@ import { score } from "../../domain/achievements/scorer";
 import { playerAchievementRepository } from "../../postgres/PlayerAchievementRepository";
 import { playerRepository } from "../../postgres/PlayerRepository";
 import { playerRecordReader } from "../services/PlayerRecordReader";
+import { avatarMediaService } from "../services/AvatarMediaService";
 import { PostgresClient } from "../../postgres/PostgresClient";
 import {
   playerTournamentRatingFactsRepository,
@@ -307,10 +308,12 @@ export function playerRoutes() {
         const player = await playerRepository.findById(String(ctx.playerId));
         const eloLiteValue = Math.round(1500 + base.points / 50);
         const achievements = await buildAchievements(ctx.playerId, base.season);
+        const avatarAddress = await avatarMediaService.addressForPlayer(ctx.playerId);
 
         return Response.json({
           ...base,
           achievements,
+          avatarUrl: avatarAddress ? `/public/avatars/${avatarAddress}` : null,
           email: "", // populated by the /me handler in PlayerAuthRoute; not leaked again here
           freeEntryCount: player?.freeEntryCount ?? 0,
           freeReentryCount: player?.freeReentryCount ?? 0,
