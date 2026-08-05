@@ -4,6 +4,7 @@ import { logger } from "../../logger";
 import {
   type ClubTournament,
   type PlayerTournamentFact,
+  type Queryable,
   playerTournamentRatingFactsRepository,
 } from "../../postgres/PlayerTournamentRatingFactsRepository";
 import { playerAchievementRepository } from "../../postgres/PlayerAchievementRepository";
@@ -34,16 +35,16 @@ export interface PlayerRecord {
 }
 
 export interface FactSource {
-  listFactsForPlayer(playerId: string): Promise<PlayerTournamentFact[]>;
-  listRatedTournaments(): Promise<ClubTournament[]>;
+  listFactsForPlayer(playerId: string, on?: Queryable): Promise<PlayerTournamentFact[]>;
+  listRatedTournaments(on?: Queryable): Promise<ClubTournament[]>;
 }
 
 export interface AwardSource {
-  listForPlayer(playerId: number): Promise<Array<{ ruleId: string }>>;
+  listForPlayer(playerId: number, on?: Queryable): Promise<Array<{ ruleId: string }>>;
 }
 
 export interface SettlementSource {
-  listSettled(): Promise<SettledSeason[]>;
+  listSettled(on?: Queryable): Promise<SettledSeason[]>;
 }
 
 /**
@@ -58,13 +59,18 @@ export class PlayerRecordReader {
     private readonly settlements: SettlementSource
   ) {}
 
-  async assemble(playerId: number): Promise<PlayerRecord> {
+  /**
+   * `on` is the transaction the awarding pass runs in. Passing it is what
+   * makes a whole pass read one snapshot: without it every read would see
+   * whatever landed since the pass began.
+   */
+  async assemble(playerId: number, on?: Queryable): Promise<PlayerRecord> {
     const id = String(playerId);
     const [facts, clubTournaments, held, settledSeasons] = await Promise.all([
-      this.facts.listFactsForPlayer(id),
-      this.facts.listRatedTournaments(),
-      this.awards.listForPlayer(playerId),
-      this.settlements.listSettled(),
+      this.facts.listFactsForPlayer(id, on),
+      this.facts.listRatedTournaments(on),
+      this.awards.listForPlayer(playerId, on),
+      this.settlements.listSettled(on),
     ]);
 
     logger?.debug(

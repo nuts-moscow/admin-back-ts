@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { logger } from "../logger";
+import type { Queryable } from "./PlayerTournamentRatingFactsRepository";
 import { PostgresClient } from "./PostgresClient";
 
 export interface SettledSeason {
@@ -14,7 +15,7 @@ export interface SettledSeason {
  * run again on every tournament completion.
  */
 export interface SeasonSettlementRepository {
-  listSettled(): Promise<SettledSeason[]>;
+  listSettled(on?: Queryable): Promise<SettledSeason[]>;
   settleWithClient(
     client: PoolClient,
     season: SettledSeason
@@ -22,9 +23,9 @@ export interface SeasonSettlementRepository {
 }
 
 class SeasonSettlementRepositoryImpl implements SeasonSettlementRepository {
-  async listSettled(): Promise<SettledSeason[]> {
+  async listSettled(on?: Queryable): Promise<SettledSeason[]> {
     try {
-      const res = await PostgresClient.instance.query(
+      const res = await (on ?? PostgresClient.instance).query(
         `SELECT season_year, season_month, leader_player_id
            FROM season_settlements
           ORDER BY season_year ASC, season_month ASC`

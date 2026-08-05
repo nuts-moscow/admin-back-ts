@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PlayerAchievements } from './achievements';
 
 export const PlayerMedalKind = z.enum(['gold', 'silver', 'bronze', 'none']);
 export type PlayerMedalKind = z.infer<typeof PlayerMedalKind>;
@@ -32,6 +33,11 @@ export const PlayerMeProfile = z.object({
   freeEntryCount: z.number().int().nonnegative(),
   freeReentryCount: z.number().int().nonnegative(),
   bountyCount: z.number(),
+  /**
+   * Progress on every catalogue rule, plus how many awards the player has not
+   * looked at. Optional so an older backend does not break the client.
+   */
+  achievements: PlayerAchievements.optional(),
   medal: PlayerMedalKind,
   eloLite: z.object({
     value: z.number(),

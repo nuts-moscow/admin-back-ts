@@ -1,5 +1,6 @@
 import { logger } from "../logger";
 import type { PoolClient } from "pg";
+import type { Queryable } from "./PlayerTournamentRatingFactsRepository";
 import { PostgresClient } from "./PostgresClient";
 
 export interface PlayerAchievement {
@@ -31,7 +32,7 @@ export interface AwardInsert {
  * part of the award, and leaves the rule and the date alone.
  */
 export interface PlayerAchievementRepository {
-  listForPlayer(playerId: number): Promise<PlayerAchievement[]>;
+  listForPlayer(playerId: number, on?: Queryable): Promise<PlayerAchievement[]>;
   countUnseen(playerId: number): Promise<number>;
   /**
    * Writes awards, skipping any the player already holds. Answers how many
@@ -60,9 +61,9 @@ function rowToAward(row: Record<string, unknown>): PlayerAchievement {
 }
 
 class PlayerAchievementRepositoryImpl implements PlayerAchievementRepository {
-  async listForPlayer(playerId: number): Promise<PlayerAchievement[]> {
+  async listForPlayer(playerId: number, on?: Queryable): Promise<PlayerAchievement[]> {
     try {
-      const res = await PostgresClient.instance.query(
+      const res = await (on ?? PostgresClient.instance).query(
         `SELECT ${COLUMNS} FROM player_achievements WHERE player_id = $1 ORDER BY earned_at`,
         [playerId]
       );

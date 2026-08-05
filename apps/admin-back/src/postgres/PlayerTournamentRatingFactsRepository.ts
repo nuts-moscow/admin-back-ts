@@ -27,6 +27,11 @@ export interface PlayerTournamentRatingFactInsert {
  * One tournament as an achievement rule sees it. Everything a per-tournament
  * predicate or metric needs, and nothing else.
  */
+/** Anything that answers a query: the pool, or one transaction's client. */
+export interface Queryable {
+  query(text: string, params?: unknown[]): Promise<{ rows: unknown[]; rowCount: number | null }>;
+}
+
 export interface PlayerTournamentFact {
   tournamentId: number;
   tournamentDateMs: number;
@@ -103,15 +108,15 @@ export interface PlayerTournamentRatingFactsRepository {
     rows: PlayerTournamentRatingFactInsert[]
   ): Promise<boolean>;
   /** Every rated tournament this player has a fact for, oldest first. */
-  listFactsForPlayer(playerId: string): Promise<PlayerTournamentFact[]>;
+  listFactsForPlayer(playerId: string, on?: Queryable): Promise<PlayerTournamentFact[]>;
   /**
    * The club's rated tournaments in date order — the sequence a streak is
    * measured against. An unrated tournament produces no facts and is absent
    * here too, so it neither counts nor breaks anything.
    */
-  listRatedTournaments(): Promise<ClubTournament[]>;
+  listRatedTournaments(on?: Queryable): Promise<ClubTournament[]>;
   /** The seasons that actually held a rated tournament, oldest first. */
-  listSeasonsWithTournaments(): Promise<Array<{ year: number; month: number }>>;
+  listSeasonsWithTournaments(on?: Queryable): Promise<Array<{ year: number; month: number }>>;
   updateManualAdjustmentWithClient(
     client: PoolClient,
     tournamentId: number,
@@ -239,9 +244,9 @@ class PlayerTournamentRatingFactsRepositoryImpl
     return true;
   }
 
-  async listFactsForPlayer(playerId: string): Promise<PlayerTournamentFact[]> {
+  async listFactsForPlayer(playerId: string, on?: Queryable): Promise<PlayerTournamentFact[]> {
     try {
-      const res = await PostgresClient.instance.query(
+      const res = await (on ?? PostgresClient.instance).query(
         `SELECT tournament_id, tournament_date_ms, rating_season_year, rating_season_month,
                 placement, rating_field_size, base_points, bounty_count
            FROM player_tournament_rating_facts
@@ -268,9 +273,9 @@ class PlayerTournamentRatingFactsRepositoryImpl
     }
   }
 
-  async listRatedTournaments(): Promise<ClubTournament[]> {
+  async listRatedTournaments(on?: Queryable): Promise<ClubTournament[]> {
     try {
-      const res = await PostgresClient.instance.query(
+      const res = await (on ?? PostgresClient.instance).query(
         `SELECT DISTINCT tournament_id, tournament_date_ms,
                 rating_season_year, rating_season_month
            FROM player_tournament_rating_facts
@@ -291,9 +296,9 @@ class PlayerTournamentRatingFactsRepositoryImpl
     }
   }
 
-  async listSeasonsWithTournaments(): Promise<Array<{ year: number; month: number }>> {
+  async listSeasonsWithTournaments(on?: Queryable): Promise<Array<{ year: number; month: number }>> {
     try {
-      const res = await PostgresClient.instance.query(
+      const res = await (on ?? PostgresClient.instance).query(
         `SELECT DISTINCT rating_season_year AS y, rating_season_month AS m
            FROM player_tournament_rating_facts
           WHERE rating_season_year IS NOT NULL AND rating_season_month IS NOT NULL
