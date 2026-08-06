@@ -15,6 +15,8 @@ const PLAYER_AUTH_PUBLIC: Array<{ method: string; path: string }> = [
   // Open self-registration — must be reachable without an existing token.
   { method: "POST", path: "/api/player-auth/signup/begin" },
   { method: "POST", path: "/api/player-auth/signup/complete" },
+  // Asked while a newcomer is typing their name, before any account exists.
+  { method: "GET", path: "/api/player-auth/nickname-available" },
   // Recovery is for people who cannot sign in; a grant is the one thing they
   // do not have. The proof travels in the body instead.
   { method: "POST", path: "/api/player-auth/password/reset-request" },

@@ -28,6 +28,9 @@ function accountCreator(opts: { taken?: boolean; fail?: "taken" | "error" } = {}
   const written: Written[] = [];
   let nextId = 1;
   const creator: AccountCreator = {
+    async isNicknameTaken() {
+      return false;
+    },
     async isAddressTaken() {
       return opts.taken === true;
     },
@@ -122,6 +125,7 @@ describe("PlayerSignupService — the signup completes or leaves nothing", () =>
 
     const result = await svc.complete({
       address: "a@example.com",
+      nickname: "Тестовый",
       code: "123456",
       password: GOOD_PASSWORD,
       consents: CONSENTS,
@@ -145,6 +149,7 @@ describe("PlayerSignupService — the signup completes or leaves nothing", () =>
 
     const result = await svc.complete({
       address: "a@example.com",
+      nickname: "Тестовый",
       code: "123456",
       password: GOOD_PASSWORD,
       consents: CONSENTS,
@@ -166,6 +171,7 @@ describe("PlayerSignupService — the signup completes or leaves nothing", () =>
     expect(
       await svc.complete({
         address: "a@example.com",
+        nickname: "Тестовый",
         code: "123456",
         password: GOOD_PASSWORD,
         consents: CONSENTS,
@@ -181,6 +187,7 @@ describe("PlayerSignupService — the signup completes or leaves nothing", () =>
     expect(
       await svc.complete({
         address: "a@example.com",
+        nickname: "Тестовый",
         code: "000000",
         password: GOOD_PASSWORD,
         consents: CONSENTS,
@@ -200,6 +207,7 @@ describe("PlayerSignupService — consent gates the account", () => {
     expect(
       await svc.complete({
         address: "a@example.com",
+        nickname: "Тестовый",
         code: "123456",
         password: GOOD_PASSWORD,
         consents: [],
@@ -211,3 +219,127 @@ describe("PlayerSignupService — consent gates the account", () => {
     expect(codes.spent).toEqual([]);
   });
 });
+
+describe("the nickname the newcomer chooses", () => {
+  test("the account is created with the submitted name, not one derived from the address", async () => {
+    const seen: string[] = [];
+    const svc = new PlayerSignupService(
+      {
+        async isAddressTaken() {
+          return false;
+        },
+        async isNicknameTaken() {
+          return false;
+        },
+        async createAccount(input) {
+          seen.push(input.nickname);
+          return { ok: true, accountId: 1, playerId: 2 };
+        },
+      },
+      signupCodes({ status: "accepted", accountId: 1 } as never),
+      grants,
+      hasher
+    );
+
+    const result = await svc.complete({
+      address: "ivan.petrov@example.com",
+      nickname: "Ваня",
+      code: "123456",
+      password: GOOD_PASSWORD,
+      consents: CONSENTS,
+      ip: null,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual(["Ваня"]);
+  });
+
+  test("no nickname: nothing is created and the code is never checked", async () => {
+    let checked = false;
+    const svc = new PlayerSignupService(
+      {
+        async isAddressTaken() {
+          return false;
+        },
+        async isNicknameTaken() {
+          return false;
+        },
+        async createAccount() {
+          throw new Error("must not create");
+        },
+      },
+      {
+        async issue() {
+          return { ok: true };
+        },
+        async check() {
+          checked = true;
+          return { status: "accepted", accountId: null } as never;
+        },
+      },
+      grants,
+      hasher
+    );
+
+    const result = await svc.complete({
+      address: "a@example.com",
+      nickname: "  ",
+      code: "123456",
+      password: GOOD_PASSWORD,
+      consents: CONSENTS,
+      ip: null,
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "bad_nickname" });
+    expect(checked).toBe(false);
+  });
+
+  test("a taken nickname is refused before the code is spent", async () => {
+    let checked = false;
+    const svc = new PlayerSignupService(
+      {
+        async isAddressTaken() {
+          return false;
+        },
+        async isNicknameTaken() {
+          return true;
+        },
+        async createAccount() {
+          throw new Error("must not create");
+        },
+      },
+      {
+        async issue() {
+          return { ok: true };
+        },
+        async check() {
+          checked = true;
+          return { status: "accepted", accountId: null } as never;
+        },
+      },
+      grants,
+      hasher
+    );
+
+    const result = await svc.complete({
+      address: "a@example.com",
+      nickname: "Иван",
+      code: "123456",
+      password: GOOD_PASSWORD,
+      consents: CONSENTS,
+      ip: null,
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: "nickname_taken" });
+    expect(checked).toBe(false);
+  });
+
+  test("nothing in the signup path derives a name from an address any more", async () => {
+    const source = await Bun.file(
+      new URL("./PlayerSignupService.ts", import.meta.url).pathname
+    ).text();
+    expect(source).not.toMatch(/nicknameFromAddress/);
+    expect(source).not.toMatch(/split\("@"\)/);
+  });
+});
+
