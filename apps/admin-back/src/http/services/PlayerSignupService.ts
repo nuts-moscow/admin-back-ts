@@ -1,10 +1,12 @@
 // `logger` is initialised at app startup; unit tests construct this service
+import { fold, weighNickname, type NicknameRefusal } from "../../domain/nicknameRule";
 // directly, so every call site guards instead of assuming it is up.
 import { logger } from "../../logger";
 import {
   REQUIRED_LEGAL_DOCS,
   consentsSatisfyRequirements,
 } from "../../domain/legalDocuments";
+import { playerRepository } from "../../postgres/PlayerRepository";
 import { playerUserRepository } from "../../postgres/PlayerUserRepository";
 import { withTransaction } from "../../postgres/withTransaction";
 import { emailVerificationService, type OtpVerdict } from "./EmailVerificationService";
@@ -19,7 +21,16 @@ export type CompleteResult =
   | { ok: true; accountId: number; playerId: number; token: string; nickname: string }
   | {
       ok: false;
-      reason: "invalid_code" | "taken" | "consent_required" | "weak_password" | "error";
+      reason:
+        | "invalid_code"
+        | "taken"
+        | "consent_required"
+        | "weak_password"
+        | "bad_nickname"
+        | "nickname_taken"
+        | "error";
+      /** Present with `bad_nickname`: which of the rule's refusals it was. */
+      nicknameReason?: NicknameRefusal;
     };
 
 export interface Consent {
@@ -54,6 +65,12 @@ export interface AccountCreator {
   >;
   /** Whether the address is already bound. A fast path, never the authority. */
   isAddressTaken(address: string): Promise<boolean>;
+  /**
+   * Whether the name is already someone's, compared the way the index compares
+   * it. Also a fast path: the constraint in the store is the authority, and a
+   * race lost there rolls the transaction back with the code intact.
+   */
+  isNicknameTaken(nickname: string): Promise<boolean>;
 }
 
 export interface SignupGrants {
@@ -62,12 +79,6 @@ export interface SignupGrants {
 
 export interface SignupHasher {
   hash(password: string): Promise<string>;
-}
-
-/** The nickname a newcomer starts with: the local part of their address. */
-export function nicknameFromAddress(address: string): string {
-  const local = address.trim().split("@")[0] ?? "";
-  return local.slice(0, 32) || "player";
 }
 
 /**
@@ -107,12 +118,22 @@ export class PlayerSignupService {
   async complete(input: {
     address: string;
     code: string;
+    nickname: string;
     password: string;
     consents: ReadonlyArray<Consent>;
     ip: string | null;
   }): Promise<CompleteResult> {
     if (passwordPolicyIssue(input.password)) {
       return { ok: false, reason: "weak_password" };
+    }
+    // The name is weighed before anything irreversible happens. A refusal here
+    // costs the newcomer a retype, never a second letter.
+    const name = weighNickname(input.nickname);
+    if (!name.ok) {
+      return { ok: false, reason: "bad_nickname", nicknameReason: name.reason };
+    }
+    if (await this.accounts.isNicknameTaken(name.nickname)) {
+      return { ok: false, reason: "nickname_taken" };
     }
     if (!consentsSatisfyRequirements([...input.consents])) {
       return { ok: false, reason: "consent_required" };
@@ -127,7 +148,7 @@ export class PlayerSignupService {
     const created = await this.accounts.createAccount({
       email: input.address,
       passwordHash: await this.hasher.hash(input.password),
-      nickname: nicknameFromAddress(input.address),
+      nickname: name.nickname,
       consents: REQUIRED_LEGAL_DOCS,
       ip: input.ip,
     });
@@ -148,7 +169,7 @@ export class PlayerSignupService {
       accountId: created.accountId,
       playerId: created.playerId,
       token,
-      nickname: nicknameFromAddress(input.address),
+      nickname: name.nickname,
     };
   }
 }
@@ -157,6 +178,9 @@ export const playerSignupService = new PlayerSignupService(
   {
     async isAddressTaken(address) {
       return (await playerUserRepository.findByEmail(address)) != null;
+    },
+    async isNicknameTaken(nickname) {
+      return (await playerRepository.findByFoldedNickname(nickname)) != null;
     },
     createAccount: (input) => createAccountAtomically(input),
   },
@@ -190,8 +214,11 @@ async function createAccountAtomically(input: {
   try {
     return await withTransaction(async (client) => {
       const player = await client.query(
-        "INSERT INTO players (nickname) VALUES ($1) RETURNING id",
-        [input.nickname]
+        // The comparison key is written in the same statement as the name, so
+        // the unique index settles a race no pre-check could — and losing it
+        // rolls this transaction back with the code still unspent.
+        "INSERT INTO players (nickname, nickname_folded) VALUES ($1, $2) RETURNING id",
+        [input.nickname, fold(input.nickname)]
       );
       const playerId = Number(player.rows[0]?.id);
       if (!playerId) throw new Error("player insert returned no id");

@@ -68,14 +68,39 @@ export function beginSignup(email: string, password: string): Promise<void> {
 export function completeSignup(
   email: string,
   code: string,
+  nickname: string,
   password: string,
 ): Promise<PlayerLoginResponse> {
   return postForSession('/api/player-auth/signup/complete', {
     email: email.trim(),
     code: code.trim(),
+    nickname: nickname.trim(),
     password,
     consents: REQUIRED_CONSENTS,
   });
+}
+
+export interface NicknameAvailability {
+  available: boolean;
+  error?: string;
+}
+
+/**
+ * The advisory check behind the nickname field. It goes through the same rule
+ * the write uses, so the answer shown while typing and the answer on submit
+ * cannot differ for a different reason — only because someone else got there
+ * in between, which the backend still refuses without spending the code.
+ */
+export async function checkNickname(
+  nickname: string,
+  signal?: AbortSignal,
+): Promise<NicknameAvailability> {
+  const res = await fetch(
+    `${apiBaseUrl()}/api/player-auth/nickname-available?nickname=${encodeURIComponent(nickname.trim())}`,
+    { signal, credentials: 'omit' },
+  );
+  if (!res.ok) return { available: true };
+  return (await res.json()) as NicknameAvailability;
 }
 
 /**

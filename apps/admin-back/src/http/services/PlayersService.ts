@@ -1,9 +1,15 @@
 import type { CreatePlayerInput, Player, UpdatePlayerInput } from "../../domain/Player";
+import { weighNickname, type NicknameRefusal } from "../../domain/nicknameRule";
 import { playerRepository } from "../../postgres";
 
 export type CreatePlayerResult =
   | { ok: true; player: Player }
-  | { ok: false; error: "duplicate_nickname" | "failed" };
+  | {
+      ok: false;
+      error: "duplicate_nickname" | "invalid_nickname" | "failed";
+      /** Present with `invalid_nickname`: which of the rule's refusals it was. */
+      nicknameReason?: NicknameRefusal;
+    };
 
 export type UpdatePlayerResult =
   | { ok: true; player: Player }
@@ -24,7 +30,16 @@ export class PlayersService {
   }
 
   async createPlayer(input: CreatePlayerInput): Promise<CreatePlayerResult> {
-    const existing = await playerRepository.findByNickname(input.nickname);
+    // The admin console is the third writer of a player's name, and the busiest
+    // — someone is written down a minute before a tournament starts. It is
+    // bound by the same rule as the other two, and it has to say what went
+    // wrong rather than surface a constraint violation.
+    const verdict = weighNickname(input.nickname);
+    if (!verdict.ok) {
+      return { ok: false, error: "invalid_nickname", nicknameReason: verdict.reason };
+    }
+
+    const existing = await playerRepository.findByFoldedNickname(verdict.nickname);
     if (existing) {
       return { ok: false, error: "duplicate_nickname" };
     }

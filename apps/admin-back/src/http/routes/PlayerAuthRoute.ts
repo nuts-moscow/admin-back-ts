@@ -1,3 +1,4 @@
+import { nicknameRefusalMessage, weighNickname } from "../../domain/nicknameRule";
 import type { BunRequest } from "bun";
 import { playerRepository } from "../../postgres/PlayerRepository";
 import { playerUserRepository } from "../../postgres/PlayerUserRepository";
@@ -144,6 +145,31 @@ export function playerAuthRoutes() {
       },
     },
 
+    /**
+     * Advisory only: it tells a person typing a name whether it is free, so the
+     * last screen of a signup is not where they first hear «нет». The write is
+     * still the authority — a name free here can be lost in the seconds before
+     * submitting, and that refusal costs no code.
+     */
+    "/api/player-auth/nickname-available": {
+      GET: async (req: BunRequest) => {
+        const proposed = new URL(req.url).searchParams.get("nickname") ?? "";
+        const verdict = weighNickname(proposed);
+        if (!verdict.ok) {
+          return Response.json({
+            available: false,
+            error: nicknameRefusalMessage(verdict.reason),
+          });
+        }
+        const taken = await playerRepository.findByFoldedNickname(verdict.nickname);
+        return Response.json(
+          taken
+            ? { available: false, error: nicknameRefusalMessage("taken") }
+            : { available: true }
+        );
+      },
+    },
+
     "/api/player-auth/signup/complete": {
       POST: async (req: BunRequest) => {
         const ctErr = requireJsonContentType(req);
@@ -157,13 +183,18 @@ export function playerAuthRoutes() {
         }
         if (!body || typeof body !== "object") return jsonError("Invalid body", 400);
 
-        const { email, code, password } = body as Record<string, unknown>;
+        const { email, code, password, nickname } = body as Record<string, unknown>;
         if (
           typeof email !== "string" ||
           typeof code !== "string" ||
           typeof password !== "string"
         ) {
           return jsonError("email, code and password are required", 400);
+        }
+        // Required, with no default offered for acceptance: a person who does
+        // not name themselves does not finish signing up.
+        if (typeof nickname !== "string" || nickname.trim() === "") {
+          return jsonError(nicknameRefusalMessage("empty"), 400);
         }
 
         const consents = parseConsents((body as Record<string, unknown>).consents);
@@ -172,6 +203,7 @@ export function playerAuthRoutes() {
         const result = await playerSignupService.complete({
           address: email,
           code,
+          nickname,
           password,
           consents,
           ip: getClientIp(req),
@@ -183,6 +215,13 @@ export function playerAuthRoutes() {
               return jsonError("Invalid or expired code", 401);
             case "taken":
               return jsonError("Email already registered", 409);
+            case "bad_nickname":
+              return jsonError(
+                nicknameRefusalMessage(result.nicknameReason ?? "empty"),
+                400
+              );
+            case "nickname_taken":
+              return jsonError(nicknameRefusalMessage("taken"), 409);
             case "consent_required":
               return jsonError("Consent to the required documents is mandatory", 400);
             case "weak_password":
