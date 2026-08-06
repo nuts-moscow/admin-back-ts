@@ -2,6 +2,25 @@ import { logger } from "../../logger";
 import { tournamentAuditLogRepository } from "../../postgres";
 
 /**
+ * Persists an append-only club audit row that belongs to no tournament — an
+ * admin action on a player rather than on a game. Same trail, same immutability;
+ * only the tournament is missing, because there is not one.
+ */
+export async function writeClubAuditLog(
+  eventType: string,
+  payload: Record<string, unknown> = {}
+): Promise<void> {
+  const ok = await tournamentAuditLogRepository.append({
+    tournamentId: null,
+    eventType,
+    payload,
+  });
+  if (!ok) {
+    logger.info({ eventType }, "[ClubAudit] append failed (see Postgres log)");
+  }
+}
+
+/**
  * Persists an append-only tournament audit row (Postgres). Best-effort: logs on failure; does not throw.
  */
 export async function writeTournamentAuditLog(

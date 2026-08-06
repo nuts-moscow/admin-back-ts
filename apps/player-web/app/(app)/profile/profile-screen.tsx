@@ -3,9 +3,13 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import type { PlayerMeProfile, PlayerTournamentHistoryEntry } from '@admin/schemas';
-import { ACHIEVEMENTS } from '@/data/achievements';
+import type {
+  PlayerAchievementEntry,
+  PlayerMeProfile,
+  PlayerTournamentHistoryEntry,
+} from '@admin/schemas';
 import { Avatar } from '@/components/avatar';
+import { ProfileAvatarPanel } from './profile-avatar';
 import { Card } from '@/components/card';
 import { ChevRIcon, LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
@@ -30,6 +34,11 @@ interface Props {
 
 export function ProfileScreen({ me, history, onChanged }: Props) {
   const [tab, setTab] = useState<Tab>('stats');
+  const achievements = me.achievements;
+  // Grouped in catalogue order — the backend decides both the grouping and
+  // the order, so the app never holds a list of its own.
+  const achievementGroups = groupAchievements(achievements?.entries ?? []);
+  const [unseen, setUnseen] = useState(achievements?.unseenCount ?? 0);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   // Nickname editing: the login never changes, the nickname is the player's
@@ -120,7 +129,12 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
 
         <div className="flex items-center gap-3.5 mt-2 relative">
           <div className="relative">
-            <Avatar name={me.name ?? me.nickname} size={84} ring />
+            <Avatar
+              name={me.name ?? me.nickname}
+              size={84}
+              ring
+              src={me.avatarUrl ?? null}
+            />
             <div
               className="flex items-center justify-center"
               style={{
@@ -168,6 +182,8 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
             </div>
           </div>
         </div>
+
+        <ProfileAvatarPanel hasAvatar={Boolean(me.avatarUrl)} onChanged={onChanged} />
 
         <div
           className="mt-4 grid grid-cols-3 gap-2"
@@ -242,7 +258,17 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
           ] as const).map((x) => (
             <button
               key={x.id}
-              onClick={() => setTab(x.id)}
+              onClick={() => {
+                setTab(x.id);
+                if (x.id === 'achievements' && unseen > 0) {
+                  // Optimistic: the dot goes out at once, and the mark is
+                  // best-effort — a failed call only means it shows again.
+                  setUnseen(0);
+                  void fetchPlayerApi('/api/player/me/achievements/seen', {
+                    method: 'POST',
+                  }).catch(() => undefined);
+                }
+              }}
               className="flex-1 px-2 py-2 border-0 rounded-full cursor-pointer font-bold uppercase tracking-wider"
               style={{
                 fontSize: 11.5,
@@ -253,6 +279,13 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
               }}
             >
               {x.l}
+              {x.id === 'achievements' && unseen > 0 && (
+                <span
+                  aria-label={`Новых достижений: ${unseen}`}
+                  className="inline-block align-super ml-1 rounded-full"
+                  style={{ width: 6, height: 6, background: 'var(--gold)' }}
+                />
+              )}
             </button>
           ))}
         </div>
@@ -369,12 +402,27 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
       )}
 
       {tab === 'achievements' && (
-        <div className="px-5">
-          <div className="grid grid-cols-3 gap-2.5">
-            {ACHIEVEMENTS.map((a) => (
-              <AchievementTile key={a.id} a={a} />
-            ))}
-          </div>
+        <div className="px-5 flex flex-col gap-4">
+          {achievementGroups.length === 0 && (
+            <Card padding={14}>
+              <div className="text-sm text-ink-3 text-center py-3">Достижений пока нет</div>
+            </Card>
+          )}
+          {achievementGroups.map(([group, entries]) => (
+            <div key={group}>
+              <div
+                className="text-ink-3 uppercase tracking-wider font-semibold mb-2"
+                style={{ fontSize: 10.5 }}
+              >
+                {group}
+              </div>
+              <div className="grid grid-cols-3 gap-2.5">
+                {entries.map((a) => (
+                  <AchievementTile key={a.id} a={a} />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -563,22 +611,27 @@ function DarkStat({ label, v, sub }: { label: string; v: string; sub?: string })
   );
 }
 
-interface AchievementMeta {
-  id: string;
-  name: string;
-  desc: string;
-  got: boolean;
-  prog: number;
+/** Groups in the order the backend listed them. */
+function groupAchievements(
+  entries: readonly PlayerAchievementEntry[],
+): Array<[string, PlayerAchievementEntry[]]> {
+  const groups = new Map<string, PlayerAchievementEntry[]>();
+  for (const entry of entries) {
+    const bucket = groups.get(entry.group) ?? [];
+    bucket.push(entry);
+    groups.set(entry.group, bucket);
+  }
+  return [...groups.entries()];
 }
 
-function AchievementTile({ a }: { a: AchievementMeta }) {
+function AchievementTile({ a }: { a: PlayerAchievementEntry }) {
   return (
     <div
       className="rounded-[14px] border border-line-2 flex flex-col items-center text-center relative"
       style={{
         padding: '14px 10px 12px',
-        background: a.got ? 'var(--paper)' : 'rgba(255,255,255,0.35)',
-        opacity: a.got ? 1 : 0.7,
+        background: a.closed ? 'var(--paper)' : 'rgba(255,255,255,0.35)',
+        opacity: a.closed ? 1 : 0.7,
         minHeight: 130,
       }}
     >
@@ -588,11 +641,11 @@ function AchievementTile({ a }: { a: AchievementMeta }) {
           width: 44,
           height: 44,
           borderRadius: 12,
-          background: a.got
+          background: a.closed
             ? 'linear-gradient(135deg, var(--gold) 0%, var(--gold-2) 100%)'
             : 'rgba(27,22,18,0.05)',
-          color: a.got ? 'var(--paper)' : 'var(--ink-3)',
-          boxShadow: a.got ? 'inset 0 -2px 4px rgba(0,0,0,0.15)' : 'none',
+          color: a.closed ? 'var(--paper)' : 'var(--ink-3)',
+          boxShadow: a.closed ? 'inset 0 -2px 4px rgba(0,0,0,0.15)' : 'none',
         }}
       >
         <TrophyIcon size={22} />
@@ -601,23 +654,37 @@ function AchievementTile({ a }: { a: AchievementMeta }) {
         className="font-bold mt-2 leading-tight"
         style={{
           fontSize: 11,
-          color: a.got ? 'var(--ink)' : 'var(--ink-3)',
+          color: a.closed ? 'var(--ink)' : 'var(--ink-3)',
         }}
       >
         {a.name}
       </div>
       <div className="text-ink-3 mt-0.5 leading-tight" style={{ fontSize: 9.5 }}>
-        {a.desc}
+        {a.description}
       </div>
-      {!a.got && a.prog > 0 && (
+      {!a.closed && (
         <div className="w-full mt-auto pt-2">
           <div className="h-[3px] bg-[rgba(27,22,18,0.08)] rounded-sm overflow-hidden">
-            <div style={{ height: '100%', width: `${a.prog * 100}%`, background: 'var(--gold)' }} />
+            <div
+              style={{
+                height: '100%',
+                width: `${Math.min(100, (a.reached / a.threshold) * 100)}%`,
+                background: 'var(--gold)',
+              }}
+            />
           </div>
+          {/* The counts the rules actually use: «9 / 10» says more than «90%». */}
           <div className="mono text-ink-3 mt-0.5" style={{ fontSize: 9 }}>
-            {Math.round(a.prog * 100)}%
+            {a.reached} / {a.threshold}
           </div>
         </div>
+      )}
+      {a.isNew && (
+        <span
+          aria-label="Новое достижение"
+          className="absolute rounded-full"
+          style={{ top: 8, right: 8, width: 6, height: 6, background: 'var(--gold)' }}
+        />
       )}
     </div>
   );

@@ -23,6 +23,34 @@ export interface PlayerTournamentRatingFactInsert {
   ratingSeasonMonth: number | null;
 }
 
+/**
+ * One tournament as an achievement rule sees it. Everything a per-tournament
+ * predicate or metric needs, and nothing else.
+ */
+/** Anything that answers a query: the pool, or one transaction's client. */
+export interface Queryable {
+  query(text: string, params?: unknown[]): Promise<{ rows: unknown[]; rowCount: number | null }>;
+}
+
+export interface PlayerTournamentFact {
+  tournamentId: number;
+  tournamentDateMs: number;
+  seasonYear: number | null;
+  seasonMonth: number | null;
+  placement: number | null;
+  ratingFieldSize: number;
+  basePoints: number;
+  knockouts: number;
+}
+
+/** A rated tournament in the club's sequence, whoever played it. */
+export interface ClubTournament {
+  tournamentId: number;
+  tournamentDateMs: number;
+  seasonYear: number | null;
+  seasonMonth: number | null;
+}
+
 export interface SeasonalRatingEntry {
   playerId: string;
   totalPoints: number;
@@ -31,8 +59,29 @@ export interface SeasonalRatingEntry {
   ratingZoneCount: number;
 }
 
-/** Standard final-table size: finishing here or better counts as a final table. */
-export const FINAL_TABLE_SIZE = 9;
+/**
+ * The club's final table seats ten, and finishing there or better counts as
+ * reaching it. This is the one definition — the profile's «Финалов» figure and
+ * the final-table achievements both resolve through it, so they cannot
+ * disagree.
+ *
+ * Note it is relative to the field: a tournament of ten or fewer makes every
+ * finisher a final-tablist. That is arithmetic, and it is left as it stands.
+ */
+export const FINAL_TABLE_SIZE = 10;
+
+/**
+ * The final-table predicate, in code as well as in SQL. The scorer weighs the
+ * same fact rows the SQL aggregates do, and a second copy of this comparison
+ * is exactly how the badge and the profile figure would come to disagree.
+ *
+ * Placement in the facts is stored high-is-better: finishing first means
+ * `placement === ratingFieldSize`.
+ */
+export function isFinalTable(placement: number | null, ratingFieldSize: number): boolean {
+  if (placement == null) return false;
+  return placement > ratingFieldSize - FINAL_TABLE_SIZE;
+}
 
 /** Per-player aggregates over one season's rating facts. */
 export interface SeasonalPlayerAggregates {
@@ -58,6 +107,16 @@ export interface PlayerTournamentRatingFactsRepository {
     tournamentId: number,
     rows: PlayerTournamentRatingFactInsert[]
   ): Promise<boolean>;
+  /** Every rated tournament this player has a fact for, oldest first. */
+  listFactsForPlayer(playerId: string, on?: Queryable): Promise<PlayerTournamentFact[]>;
+  /**
+   * The club's rated tournaments in date order — the sequence a streak is
+   * measured against. An unrated tournament produces no facts and is absent
+   * here too, so it neither counts nor breaks anything.
+   */
+  listRatedTournaments(on?: Queryable): Promise<ClubTournament[]>;
+  /** The seasons that actually held a rated tournament, oldest first. */
+  listSeasonsWithTournaments(on?: Queryable): Promise<Array<{ year: number; month: number }>>;
   updateManualAdjustmentWithClient(
     client: PoolClient,
     tournamentId: number,
@@ -185,6 +244,76 @@ class PlayerTournamentRatingFactsRepositoryImpl
     return true;
   }
 
+  async listFactsForPlayer(playerId: string, on?: Queryable): Promise<PlayerTournamentFact[]> {
+    try {
+      const res = await (on ?? PostgresClient.instance).query(
+        `SELECT tournament_id, tournament_date_ms, rating_season_year, rating_season_month,
+                placement, rating_field_size, base_points, bounty_count
+           FROM player_tournament_rating_facts
+          WHERE player_id = $1
+          ORDER BY tournament_date_ms ASC, tournament_id ASC`,
+        [playerId]
+      );
+      return res.rows.map((raw) => {
+        const r = raw as Record<string, unknown>;
+        return {
+          tournamentId: Number(r.tournament_id),
+          tournamentDateMs: Number(r.tournament_date_ms),
+          seasonYear: r.rating_season_year == null ? null : Number(r.rating_season_year),
+          seasonMonth: r.rating_season_month == null ? null : Number(r.rating_season_month),
+          placement: r.placement == null ? null : Number(r.placement),
+          ratingFieldSize: Number(r.rating_field_size ?? 0),
+          basePoints: Number(r.base_points ?? 0),
+          knockouts: Number(r.bounty_count ?? 0),
+        };
+      });
+    } catch (err) {
+      logger?.error({ err, playerId }, `${LOG_PREFIX} listFactsForPlayer failed`);
+      throw err;
+    }
+  }
+
+  async listRatedTournaments(on?: Queryable): Promise<ClubTournament[]> {
+    try {
+      const res = await (on ?? PostgresClient.instance).query(
+        `SELECT DISTINCT tournament_id, tournament_date_ms,
+                rating_season_year, rating_season_month
+           FROM player_tournament_rating_facts
+          ORDER BY tournament_date_ms ASC, tournament_id ASC`
+      );
+      return res.rows.map((raw) => {
+        const r = raw as Record<string, unknown>;
+        return {
+          tournamentId: Number(r.tournament_id),
+          tournamentDateMs: Number(r.tournament_date_ms),
+          seasonYear: r.rating_season_year == null ? null : Number(r.rating_season_year),
+          seasonMonth: r.rating_season_month == null ? null : Number(r.rating_season_month),
+        };
+      });
+    } catch (err) {
+      logger?.error({ err }, `${LOG_PREFIX} listRatedTournaments failed`);
+      throw err;
+    }
+  }
+
+  async listSeasonsWithTournaments(on?: Queryable): Promise<Array<{ year: number; month: number }>> {
+    try {
+      const res = await (on ?? PostgresClient.instance).query(
+        `SELECT DISTINCT rating_season_year AS y, rating_season_month AS m
+           FROM player_tournament_rating_facts
+          WHERE rating_season_year IS NOT NULL AND rating_season_month IS NOT NULL
+          ORDER BY y ASC, m ASC`
+      );
+      return res.rows.map((raw) => {
+        const r = raw as Record<string, unknown>;
+        return { year: Number(r.y), month: Number(r.m) };
+      });
+    } catch (err) {
+      logger?.error({ err }, `${LOG_PREFIX} listSeasonsWithTournaments failed`);
+      throw err;
+    }
+  }
+
   async updateManualAdjustmentWithClient(
     client: PoolClient,
     tournamentId: number,
@@ -289,6 +418,7 @@ class PlayerTournamentRatingFactsRepositoryImpl
            COUNT(*) FILTER (
              WHERE placement IS NOT NULL AND placement = rating_field_size
            )                                       AS wins,
+           -- Same comparison as isFinalTable(); $4 is FINAL_TABLE_SIZE.
            COUNT(*) FILTER (
              WHERE placement IS NOT NULL AND placement > rating_field_size - $4
            )                                       AS final_tables,

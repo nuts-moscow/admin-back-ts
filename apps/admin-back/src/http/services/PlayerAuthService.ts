@@ -1,8 +1,9 @@
+// `logger` is initialised at app startup; unit tests construct this service
+// directly, so every call site guards instead of assuming it is up.
 import { logger } from "../../logger";
-import { playerRepository } from "../../postgres/PlayerRepository";
 import { playerUserRepository, type PlayerUser } from "../../postgres/PlayerUserRepository";
-import { playerAuthStore, PLAYER_JWT_ACCESS_TTL_SEC } from "../../redis/PlayerAuthStore";
-import { signPlayerToken, verifyPlayerTokenSignature } from "./PlayerJwtService";
+import { playerAuthStore } from "../../redis/PlayerAuthStore";
+import { playerSessionService } from "./PlayerSessionService";
 
 let DUMMY_HASH: string | null = null;
 export async function initPlayerDummyHash(): Promise<void> {
@@ -13,116 +14,108 @@ export type PlayerLoginResult =
   | { ok: true; user: PlayerUser; token: string; jti: string }
   | { ok: false; reason: "invalid_credentials" | "rate_limited" };
 
-export async function playerLogin(
+export interface CredentialStore {
+  findByLogin(login: string): Promise<PlayerUser | null>;
+  findByEmail(email: string): Promise<PlayerUser | null>;
+}
+
+export interface AttemptBudget {
+  isRateLimited(ip: string, identity?: string | null): Promise<boolean>;
+  incrementLoginAttempts(ip: string): Promise<number>;
+  incrementIdentityAttempts(identity: string): Promise<number>;
+  clearLoginAttempts(ip: string): Promise<void>;
+  clearIdentityAttempts(identity: string): Promise<void>;
+}
+
+export interface GrantIssuer {
+  issue(accountId: number): Promise<{ token: string; jti: string }>;
+}
+
+export interface PasswordChecker {
+  verify(password: string, hash: string): Promise<boolean>;
+}
+
+/**
+ * The credential door, and nothing else: it resolves an identifier to an
+ * account and weighs the password behind it. Minting the grant belongs to
+ * `PlayerSessionService` and writing a password to `PasswordWriteService`, so
+ * getting past this door is not the same as taking the account.
+ *
+ * Resolution deliberately stays wide. Accounts that existed before the
+ * mailbox became the identifier carry a login and a null address, and they
+ * sign in exactly as they always did.
+ */
+export class PlayerAuthService {
+  constructor(
+    private readonly credentials: CredentialStore,
+    private readonly budget: AttemptBudget,
+    private readonly grants: GrantIssuer,
+    private readonly passwords: PasswordChecker,
+    private readonly dummyHash: () => string | null
+  ) {}
+
+  async signIn(identifier: string, password: string, ip: string): Promise<PlayerLoginResult> {
+    const id = identifier.trim();
+    if (await this.budget.isRateLimited(ip, id)) {
+      logger?.warn({ ip }, "[PlayerAuth] sign-in blocked: attempt budget spent");
+      return { ok: false, reason: "rate_limited" };
+    }
+
+    // A login first, then an address; citext makes both case-insensitive.
+    const user =
+      (await this.credentials.findByLogin(id)) ?? (await this.credentials.findByEmail(id));
+
+    if (!user) {
+      // Burn a comparable amount of time, so the response does not answer the
+      // question its body refuses to.
+      const dummy = this.dummyHash();
+      if (dummy) await this.passwords.verify("__dummy_player__", dummy);
+      await this.spendAttempt(ip, id);
+      logger?.warn({ ip }, "[PlayerAuth] sign-in failed");
+      return { ok: false, reason: "invalid_credentials" };
+    }
+
+    if (!(await this.passwords.verify(password, user.passwordHash))) {
+      await this.spendAttempt(ip, id);
+      logger?.warn({ ip }, "[PlayerAuth] sign-in failed");
+      return { ok: false, reason: "invalid_credentials" };
+    }
+
+    await this.budget.clearLoginAttempts(ip);
+    await this.budget.clearIdentityAttempts(id);
+    const { token, jti } = await this.grants.issue(user.id);
+    logger?.info({ ip, jti: jti.slice(0, 8) }, "[PlayerAuth] sign-in successful");
+    return { ok: true, user, token, jti };
+  }
+
+  private async spendAttempt(ip: string, identity: string): Promise<void> {
+    await this.budget.incrementLoginAttempts(ip);
+    await this.budget.incrementIdentityAttempts(identity);
+  }
+}
+
+export const playerAuthService = new PlayerAuthService(
+  playerUserRepository,
+  playerAuthStore,
+  { issue: (accountId) => playerSessionService.issue(accountId) },
+  { verify: (password, hash) => Bun.password.verify(password, hash) },
+  () => DUMMY_HASH
+);
+
+/** The entry point the route already calls. */
+export function playerLogin(
   identifier: string,
   password: string,
   ip: string
 ): Promise<PlayerLoginResult> {
-  const attempts = await playerAuthStore.getLoginAttempts(ip);
-  if (attempts >= playerAuthStore.maxAttempts) {
-    logger.warn({ ip, attempts }, "[PlayerAuth] Login blocked: rate limit exceeded");
-    return { ok: false, reason: "rate_limited" };
-  }
-
-  // The identifier can be a login (new open-registration users) or an email
-  // (legacy seeded users); citext makes both lookups case-insensitive.
-  const user =
-    (await playerUserRepository.findByLogin(identifier)) ??
-    (await playerUserRepository.findByEmail(identifier));
-
-  if (!user) {
-    if (DUMMY_HASH) {
-      await Bun.password.verify("__dummy_player__", DUMMY_HASH);
-    }
-    const newAttempts = await playerAuthStore.incrementLoginAttempts(ip);
-    logger.warn(
-      { identifier, ip, attempts: newAttempts },
-      "[PlayerAuth] Login failed: user not found"
-    );
-    return { ok: false, reason: "invalid_credentials" };
-  }
-
-  const valid = await Bun.password.verify(password, user.passwordHash);
-  if (!valid) {
-    const newAttempts = await playerAuthStore.incrementLoginAttempts(ip);
-    logger.warn(
-      { identifier, ip, attempts: newAttempts },
-      "[PlayerAuth] Login failed: invalid password"
-    );
-    return { ok: false, reason: "invalid_credentials" };
-  }
-
-  await playerAuthStore.clearLoginAttempts(ip);
-  const ver = await playerAuthStore.getUserTokenVersion(user.id);
-  const { token, jti } = await signPlayerToken(user.id, ver, PLAYER_JWT_ACCESS_TTL_SEC);
-  logger.info({ identifier, jti: jti.slice(0, 8), ip }, "[PlayerAuth] Login successful");
-  return { ok: true, user, token, jti };
+  return playerAuthService.signIn(identifier, password, ip);
 }
 
-export type PlayerRegisterResult =
-  | { ok: true; user: PlayerUser; token: string; jti: string }
-  | { ok: false; reason: "login_taken" | "rate_limited" | "error" };
-
-/**
- * Open self-registration: creates a player profile (login as the initial @handle)
- * plus a login credential, then issues a session token. Login uniqueness is
- * enforced by the DB unique constraint; the pre-check is a fast path.
- */
-export async function playerRegister(
-  login: string,
-  password: string,
-  ip: string
-): Promise<PlayerRegisterResult> {
-  const attempts = await playerAuthStore.getLoginAttempts(ip);
-  if (attempts >= playerAuthStore.maxAttempts) {
-    logger.warn({ ip, attempts }, "[PlayerAuth] Register blocked: rate limit exceeded");
-    return { ok: false, reason: "rate_limited" };
-  }
-
-  if (await playerUserRepository.findByLogin(login)) {
-    await playerAuthStore.incrementLoginAttempts(ip);
-    return { ok: false, reason: "login_taken" };
-  }
-
-  const player = await playerRepository.create({ nickname: login });
-  if (!player) return { ok: false, reason: "error" };
-
-  const passwordHash = await Bun.password.hash(password);
-  const user = await playerUserRepository.create({
-    login,
-    passwordHash,
-    playerId: player.id,
-  });
-  if (!user) {
-    // A concurrent registration won the unique login; drop the orphan profile.
-    await playerRepository.deleteById(String(player.id));
-    return { ok: false, reason: "login_taken" };
-  }
-
-  await playerAuthStore.clearLoginAttempts(ip);
-  const ver = await playerAuthStore.getUserTokenVersion(user.id);
-  const { token, jti } = await signPlayerToken(user.id, ver, PLAYER_JWT_ACCESS_TTL_SEC);
-  logger.info(
-    { login, playerId: player.id, jti: jti.slice(0, 8), ip },
-    "[PlayerAuth] Register successful"
-  );
-  return { ok: true, user, token, jti };
-}
-
-export async function playerLogout(jti: string, playerUserId: number, ip: string): Promise<void> {
-  await playerAuthStore.addToBlocklist(jti, PLAYER_JWT_ACCESS_TTL_SEC);
-  logger.info({ playerUserId, jti: jti.slice(0, 8), ip }, "[PlayerAuth] Logout");
-}
-
-export type VerifyPlayerTokenResult =
-  | { ok: true; playerUserId: number; jti: string }
-  | { ok: false };
-
-export async function verifyPlayerAccessToken(token: string): Promise<VerifyPlayerTokenResult> {
-  const sig = await verifyPlayerTokenSignature(token);
-  if (!sig) return { ok: false };
-  if (await playerAuthStore.isBlocked(sig.jti)) return { ok: false };
-  const currentVer = await playerAuthStore.getUserTokenVersion(sig.playerUserId);
-  if (sig.ver !== currentVer) return { ok: false };
-  return { ok: true, playerUserId: sig.playerUserId, jti: sig.jti };
+/** Signing out is one grant retired; the session service owns the mechanism. */
+export function playerLogout(
+  jti: string,
+  playerUserId: number,
+  _ip: string
+): Promise<void> {
+  return playerSessionService.endOne(jti, playerUserId);
 }

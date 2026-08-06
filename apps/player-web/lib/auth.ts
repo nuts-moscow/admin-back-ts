@@ -8,16 +8,12 @@ import { REQUIRED_CONSENTS } from '@/data/legal';
 
 export type PlayerSession = PlayerAuthMeResponse;
 
-async function postAuth(
-  path: '/api/player-auth/login' | '/api/player-auth/register',
-  login: string,
-  password: string,
-  extra?: Record<string, unknown>,
-): Promise<PlayerLoginResponse> {
+/** POSTs a public auth endpoint and surfaces the backend's own error text. */
+async function postPublic(path: string, body: Record<string, unknown>): Promise<unknown> {
   const res = await fetch(`${apiBaseUrl()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login: login.trim(), password, ...extra }),
+    body: JSON.stringify(body),
     credentials: 'omit',
   });
   const text = await res.text();
@@ -34,6 +30,15 @@ async function postAuth(
         : `HTTP ${res.status}`;
     throw new Error(msg);
   }
+  return data;
+}
+
+/** Same, but the response is expected to carry a session grant. */
+async function postForSession(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<PlayerLoginResponse> {
+  const data = await postPublic(path, body);
   if (!data || typeof data !== 'object' || !('token' in data)) {
     throw new Error('Bad response');
   }
@@ -43,16 +48,67 @@ async function postAuth(
   return data as PlayerLoginResponse;
 }
 
+/** Signing in: the identifier is an address, or a legacy login. */
 export function loginPlayer(login: string, password: string): Promise<PlayerLoginResponse> {
-  return postAuth('/api/player-auth/login', login, password);
+  return postForSession('/api/player-auth/login', { login: login.trim(), password });
 }
 
-export function registerPlayer(login: string, password: string): Promise<PlayerLoginResponse> {
-  // The user consents in the UI; send the accepted (slug, version) pairs so
-  // the backend records and enforces them.
-  return postAuth('/api/player-auth/register', login, password, {
+/**
+ * Signup step one. Nothing exists after this call — the address is claimed
+ * and a code is on its way to it.
+ */
+export function beginSignup(email: string, password: string): Promise<void> {
+  return postPublic('/api/player-auth/signup/begin', {
+    email: email.trim(),
+    password,
+  }).then(() => undefined);
+}
+
+/** Signup step two: the code proves the address and the account appears. */
+export function completeSignup(
+  email: string,
+  code: string,
+  password: string,
+): Promise<PlayerLoginResponse> {
+  return postForSession('/api/player-auth/signup/complete', {
+    email: email.trim(),
+    code: code.trim(),
+    password,
     consents: REQUIRED_CONSENTS,
   });
+}
+
+/**
+ * Asks for a reset code. Answers the same whether or not the address is
+ * known, so the UI must not claim the account exists.
+ */
+export function requestPasswordReset(email: string): Promise<void> {
+  return postPublic('/api/player-auth/password/reset-request', {
+    email: email.trim(),
+  }).then(() => undefined);
+}
+
+/** Sets a new password with a code from the mailbox. Retires every grant. */
+export function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<void> {
+  return postPublic('/api/player-auth/password/reset', {
+    email: email.trim(),
+    code: code.trim(),
+    newPassword,
+  }).then(() => undefined);
+}
+
+/** Ends the player's own sessions: this grant, or all of them. */
+export async function endSessions(scope: 'current' | 'all'): Promise<void> {
+  // fetchPlayerApi sets the content type and serialises the body itself.
+  await fetchPlayerApi('/api/player-auth/sessions/end', {
+    method: 'POST',
+    body: { scope },
+  });
+  clearStoredToken();
 }
 
 export async function logoutPlayer(): Promise<void> {

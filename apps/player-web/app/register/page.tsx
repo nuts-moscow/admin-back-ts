@@ -4,15 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getStoredToken } from '@/lib/api';
-import { registerPlayer } from '@/lib/auth';
+import { beginSignup, completeSignup } from '@/lib/auth';
 import { LEGAL_DOCS } from '@/data/legal';
 
-const LOGIN_RE = /^[a-zA-Z0-9_.]{3,32}$/;
-
-function localValidation(login: string, password: string): string | null {
-  if (!LOGIN_RE.test(login.trim())) {
-    return 'Логин: 3–32 символа — латиница, цифры, «_» или «.»';
-  }
+function passwordIssue(password: string): string | null {
   if (password.length < 8) return 'Пароль — минимум 8 символов';
   if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
     return 'Пароль должен содержать букву и цифру';
@@ -20,10 +15,18 @@ function localValidation(login: string, password: string): string | null {
   return null;
 }
 
+const FIELD =
+  'mt-1 block w-full border-b border-line bg-transparent py-2 text-ink focus:outline-none focus:border-ink';
+const LABEL = 'text-xs uppercase tracking-wider font-semibold text-ink-3';
+
 export default function RegisterPage() {
   const router = useRouter();
-  const [login, setLogin] = useState('');
+  // The address is claimed first and proved second; no account exists between
+  // the two, so this is one screen with two faces rather than two routes.
+  const [step, setStep] = useState<'claim' | 'prove'>('claim');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [consentPd, setConsentPd] = useState(false);
   const [consentAck, setConsentAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,12 +40,12 @@ export default function RegisterPage() {
     }
   }, [router]);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onClaim(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    const localErr = localValidation(login, password);
-    if (localErr) {
-      setError(localErr);
+    const issue = passwordIssue(password);
+    if (issue) {
+      setError(issue);
       return;
     }
     if (!consentGiven) {
@@ -52,7 +55,22 @@ export default function RegisterPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await registerPlayer(login, password);
+      await beginSignup(email, password);
+      setStep('prove');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Сетевая ошибка');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function onProve(e: React.FormEvent) {
+    e.preventDefault();
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await completeSignup(email, code, password);
       router.replace('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Сетевая ошибка');
@@ -72,56 +90,97 @@ export default function RegisterPage() {
         </div>
 
         <form
-          onSubmit={onSubmit}
+          onSubmit={step === 'claim' ? onClaim : onProve}
           className="bg-paper border border-line-2 rounded-md p-6 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset,0_6px_14px_-10px_rgba(27,22,18,0.18)]"
         >
-          <label className="block">
-            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">Логин</span>
-            <input
-              type="text"
-              autoComplete="username"
-              autoCapitalize="none"
-              required
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              className="mt-1 block w-full border-b border-line bg-transparent py-2 text-ink focus:outline-none focus:border-ink"
-            />
-            <span className="mt-1 block text-[11px] text-ink-3">
-              3–32 символа: латиница, цифры, «_» или «.»
-            </span>
-          </label>
+          {step === 'claim' ? (
+            <>
+              <label className="block">
+                <span className={LABEL}>Почта</span>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={FIELD}
+                />
+                <span className="mt-1 block text-[11px] text-ink-3">
+                  На неё придёт код подтверждения. Через неё же восстанавливается пароль
+                </span>
+              </label>
 
-          <label className="block mt-5">
-            <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">Пароль</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full border-b border-line bg-transparent py-2 text-ink focus:outline-none focus:border-ink"
-            />
-            <span className="mt-1 block text-[11px] text-ink-3">
-              Минимум 8 символов, буква и цифра
-            </span>
-          </label>
+              <label className="block mt-5">
+                <span className={LABEL}>Пароль</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={FIELD}
+                />
+                <span className="mt-1 block text-[11px] text-ink-3">
+                  Минимум 8 символов, буква и цифра
+                </span>
+              </label>
 
-          <div className="mt-6 flex flex-col gap-3">
-            <ConsentRow
-              checked={consentPd}
-              onChange={setConsentPd}
-              slug="consent-pd"
-              prefix="Я даю"
-              linkText={LEGAL_DOCS['consent-pd']!.short}
-            />
-            <ConsentRow
-              checked={consentAck}
-              onChange={setConsentAck}
-              slug="acknowledgment"
-              prefix="Я ознакомлен(а) с"
-              linkText={LEGAL_DOCS['acknowledgment']!.short}
-            />
-          </div>
+              <div className="mt-6 flex flex-col gap-3">
+                <ConsentRow
+                  checked={consentPd}
+                  onChange={setConsentPd}
+                  slug="consent-pd"
+                  prefix="Я даю"
+                  linkText={LEGAL_DOCS['consent-pd']!.short}
+                />
+                <ConsentRow
+                  checked={consentAck}
+                  onChange={setConsentAck}
+                  slug="acknowledgment"
+                  prefix="Я ознакомлен(а) с"
+                  linkText={LEGAL_DOCS['acknowledgment']!.short}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[13px] leading-relaxed text-ink-2">
+                Код отправлен на <span className="font-semibold text-ink">{email}</span>.
+                Он действует 10 минут.
+              </p>
+
+              <label className="block mt-5">
+                <span className={LABEL}>Код из письма</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className={FIELD}
+                />
+              </label>
+
+              <p className="mt-4 text-[11px] leading-relaxed text-ink-3">
+                В письме нет ссылок — только код. Никто из клуба никогда не
+                спросит его у вас.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('claim');
+                  setCode('');
+                  setError(null);
+                }}
+                className="mt-4 text-[12px] text-ink underline"
+              >
+                Изменить почту
+              </button>
+            </>
+          )}
 
           {error && (
             <div className="mt-4 text-sm text-crimson" role="alert">
@@ -131,10 +190,16 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={submitting || !consentGiven}
+            disabled={submitting || (step === 'claim' && !consentGiven)}
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
           >
-            {submitting ? 'Создаём…' : 'Зарегистрироваться'}
+            {submitting
+              ? step === 'claim'
+                ? 'Отправляем код…'
+                : 'Создаём…'
+              : step === 'claim'
+                ? 'Получить код'
+                : 'Зарегистрироваться'}
           </button>
 
           <p className="mt-5 text-center text-xs text-ink-3 leading-relaxed">

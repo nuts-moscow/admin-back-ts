@@ -2,7 +2,7 @@ import { logger } from "../../logger";
 import { playerUserRepository } from "../../postgres/PlayerUserRepository";
 import { resolveAllowedOrigin } from "../cors";
 import { getBearerToken, getClientIp } from "../services/AuthService";
-import { verifyPlayerAccessToken } from "../services/PlayerAuthService";
+import { playerSessionService } from "../services/PlayerSessionService";
 
 export interface PlayerAuthContext {
   playerUserId: number;
@@ -13,7 +13,12 @@ export interface PlayerAuthContext {
 const PLAYER_AUTH_PUBLIC: Array<{ method: string; path: string }> = [
   { method: "POST", path: "/api/player-auth/login" },
   // Open self-registration — must be reachable without an existing token.
-  { method: "POST", path: "/api/player-auth/register" },
+  { method: "POST", path: "/api/player-auth/signup/begin" },
+  { method: "POST", path: "/api/player-auth/signup/complete" },
+  // Recovery is for people who cannot sign in; a grant is the one thing they
+  // do not have. The proof travels in the body instead.
+  { method: "POST", path: "/api/player-auth/password/reset-request" },
+  { method: "POST", path: "/api/player-auth/password/reset" },
 ];
 
 export function isPlayerAuthPublicPath(method: string, pathname: string): boolean {
@@ -60,7 +65,7 @@ export async function requirePlayerAuth(req: Request): Promise<RequirePlayerAuth
     return { response: unauthorized(), ctx: null };
   }
 
-  const result = await verifyPlayerAccessToken(token);
+  const result = await playerSessionService.verify(token);
   if (!result.ok) {
     logger.warn({ path: pathname, ip }, "[PlayerAuth] Unauthorized: invalid or revoked token");
     return { response: unauthorized(), ctx: null };
