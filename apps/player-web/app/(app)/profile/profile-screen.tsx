@@ -13,7 +13,7 @@ import { ProfileAvatarPanel } from './profile-avatar';
 import { Card } from '@/components/card';
 import { ChevRIcon, LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
-import { fetchPlayerApi } from '@/lib/api';
+import { mediaUrl, fetchPlayerApi } from '@/lib/api';
 import { logoutPlayer } from '@/lib/auth';
 import {
   currentSeasonLabel,
@@ -133,7 +133,7 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
               name={me.name ?? me.nickname}
               size={84}
               ring
-              src={me.avatarUrl ?? null}
+              src={mediaUrl(me.avatarUrl)}
             />
             <div
               className="flex items-center justify-center"
