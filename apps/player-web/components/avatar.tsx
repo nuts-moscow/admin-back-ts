@@ -22,9 +22,15 @@ interface AvatarProps {
   size?: number;
   ring?: boolean;
   className?: string;
+  /**
+   * The published avatar's address, from the payload that already carries the
+   * nickname. Absent or null means initials — including while a replacement is
+   * waiting for an admin, because the payload never carries waiting pictures.
+   */
+  src?: string | null;
 }
 
-export function Avatar({ name, seed, size = 40, ring = false, className }: AvatarProps) {
+export function Avatar({ name, seed, size = 40, ring = false, className, src }: AvatarProps) {
   const bg = pickColor(seed ?? name);
   const fontSize = size * 0.42;
   return (
@@ -43,13 +49,28 @@ export function Avatar({ name, seed, size = 40, ring = false, className }: Avata
         fontWeight: 600,
         fontSize,
         flexShrink: 0,
+        overflow: 'hidden',
         boxShadow: ring
           ? '0 0 0 2px var(--paper), 0 0 0 4px var(--gold)'
           : 'inset 0 0 0 1px rgba(0,0,0,0.08)',
         letterSpacing: 0.5,
       }}
     >
-      {initials(name) || '?'}
+      {src ? (
+        // The address is derived from the picture's content, so what lives at it
+        // never changes and the browser may cache it; how long is the backend's
+        // call, and it is bounded so a takedown reaches screens on its own.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={name}
+          width={size}
+          height={size}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : (
+        initials(name) || '?'
+      )}
     </div>
   );
 }

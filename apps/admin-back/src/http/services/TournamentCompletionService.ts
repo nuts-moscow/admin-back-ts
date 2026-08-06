@@ -8,6 +8,8 @@ import { DEFAULT_MAX_REENTRIES } from "../../domain/tournamentReentryPolicy";
 import type { InGameUserState } from "../../domain/cache/InGameUserState";
 import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { logger } from "../../logger";
+import { achievementAwardingService } from "./AchievementAwardingService";
+import { seasonSettlementService } from "./SeasonSettlementService";
 import {
   playerRepository,
   playerTournamentRatingFactsRepository,
@@ -230,6 +232,30 @@ export async function runTournamentCompletion(
         if (!factsOk) {
           throw new Error("replace_rating_facts_failed");
         }
+
+        // Achievements hang off this moment and nowhere else — no cron, no
+        // recompute on read. Inside the same transaction, so the whole pass
+        // sees one snapshot: the facts it weighs are the ones just written,
+        // and a tournament completing on the other table cannot move them
+        // half-way through.
+        //
+        // An unrated tournament writes no facts and gets no pass: it is not a
+        // played tournament for any rule, and not a gap in any streak either.
+        const season =
+          tournament.ratingSeasonYear != null && tournament.ratingSeasonMonth != null
+            ? { year: tournament.ratingSeasonYear, month: tournament.ratingSeasonMonth }
+            : null;
+
+        // The earlier seasons first: an MVP settled here may be the award the
+        // field pass then sees as already held.
+        if (season) {
+          await seasonSettlementService.settleUpTo(c, season);
+        }
+        await achievementAwardingService.runForField(c, {
+          playerIds: ratingFactRows.map((r) => Number(r.playerId)),
+          tournamentId,
+          season,
+        });
       }
     });
   } catch (err) {

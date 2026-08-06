@@ -282,6 +282,24 @@ function ScheduleRow({
           <span>{formatNumberRu(u.buyin)}</span>
         </div>
       </div>
+      {u.monthFinal ? (
+        // Month-final tournaments are invite-only: the roster is filled by
+        // admins, never by self-registration, and the backend refuses the
+        // request outright. The detail and schedule screens say so; this row
+        // used to offer a button that could only ever fail.
+        <span
+          className="shrink-0 rounded-md font-bold uppercase"
+          style={{
+            padding: '6px 10px',
+            fontSize: 10,
+            letterSpacing: 0.5,
+            color: 'var(--ink-3)',
+            border: '1px solid var(--line)',
+          }}
+        >
+          По приглашению
+        </span>
+      ) : (
       <span
         role="button"
         tabIndex={0}
@@ -309,6 +327,7 @@ function ScheduleRow({
           {busy ? '…' : registered ? 'Отменить' : 'Записаться'}
         </span>
       </span>
+      )}
     </Link>
   );
 }

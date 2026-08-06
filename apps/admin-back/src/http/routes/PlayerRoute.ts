@@ -4,7 +4,12 @@ import type { BlindType } from "../../domain/BlindType";
 import { InGamePlayerStatus, type InGameUserState } from "../../domain/cache/InGameUserState";
 import { logger } from "../../logger";
 import { hallOfFameRepository } from "../../postgres/HallOfFameRepository";
+import { activeRules } from "../../domain/achievements/catalog";
+import { score } from "../../domain/achievements/scorer";
+import { playerAchievementRepository } from "../../postgres/PlayerAchievementRepository";
 import { playerRepository } from "../../postgres/PlayerRepository";
+import { playerRecordReader } from "../services/PlayerRecordReader";
+import { avatarMediaService } from "../services/AvatarMediaService";
 import { PostgresClient } from "../../postgres/PostgresClient";
 import {
   playerTournamentRatingFactsRepository,
@@ -302,9 +307,13 @@ export function playerRoutes() {
         // Own profile adds private fields the public view never sees.
         const player = await playerRepository.findById(String(ctx.playerId));
         const eloLiteValue = Math.round(1500 + base.points / 50);
+        const achievements = await buildAchievements(ctx.playerId, base.season);
+        const avatarAddress = await avatarMediaService.addressForPlayer(ctx.playerId);
 
         return Response.json({
           ...base,
+          achievements,
+          avatarUrl: avatarAddress ? `/public/avatars/${avatarAddress}` : null,
           email: "", // populated by the /me handler in PlayerAuthRoute; not leaked again here
           freeEntryCount: player?.freeEntryCount ?? 0,
           freeReentryCount: player?.freeReentryCount ?? 0,
@@ -342,6 +351,17 @@ export function playerRoutes() {
         });
         if (!updated) return notFound("Player not found");
         return Response.json({ id: updated.id, nickname: updated.nickname, name: updated.name });
+      },
+    },
+
+    "/api/player/me/achievements/seen": {
+      POST: async (req: BunRequest) => {
+        const ctx = getCtx(req);
+        if (!ctx) return unauthorized();
+        // Touches only the marker; the rule and the date it closed are
+        // untouched, because an award is not changed by being looked at.
+        await playerAchievementRepository.markSeen(ctx.playerId);
+        return new Response(null, { status: 204 });
       },
     },
 
@@ -992,6 +1012,61 @@ async function buildPublicProfile(playerId: number): Promise<PublicProfilePayloa
     itm: ratingZonePct,
     bountyCount: agg.knockouts,
     medal,
+  };
+}
+
+
+/**
+ * Where the player stands on every catalogue rule, with the date on the ones
+ * they hold. Computed on the spot: nothing is stored, so nothing can drift
+ * from the tournaments it claims to count.
+ */
+async function buildAchievements(
+  playerId: number,
+  season: { year: number; month: number }
+): Promise<{
+  entries: Array<{
+    id: string;
+    name: string;
+    description: string;
+    group: string;
+    reached: number;
+    threshold: number;
+    closed: boolean;
+    earnedAt: string | null;
+    isNew: boolean;
+  }>;
+  unseenCount: number;
+}> {
+  const [record, held] = await Promise.all([
+    playerRecordReader.assemble(playerId),
+    playerAchievementRepository.listForPlayer(playerId),
+  ]);
+  const byRule = new Map(held.map((a) => [a.ruleId, a]));
+  const rules = activeRules();
+  const standing = score(record, { season }, rules);
+
+  const entries = rules.map((rule, i) => {
+    const progress = standing[i]!;
+    const award = byRule.get(rule.id);
+    return {
+      id: rule.id,
+      name: rule.name,
+      description: rule.description,
+      group: rule.group,
+      reached: progress.reached,
+      threshold: progress.threshold,
+      // An award is the authority on «closed»: it stands even when today's
+      // arithmetic would no longer close the rule.
+      closed: award != null || progress.closed,
+      earnedAt: award?.earnedAt.toISOString() ?? null,
+      isNew: award != null && award.seenAt == null,
+    };
+  });
+
+  return {
+    entries,
+    unseenCount: entries.filter((e) => e.isNew).length,
   };
 }
 
