@@ -57,11 +57,7 @@ export function AvatarUpload({ onSubmitted }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <p style={{ fontSize: 13, opacity: 0.75, margin: 0 }}>
-        Фото проверит администратор клуба — оно появится в профиле только после этого.
-      </p>
-
+    <div className="flex flex-col gap-1 min-w-0">
       <input
         ref={input}
         type="file"
@@ -73,12 +69,32 @@ export function AvatarUpload({ onSubmitted }: Props) {
         }}
       />
 
-      <button type="button" disabled={busy} onClick={() => input.current?.click()}>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => input.current?.click()}
+        className="border-0 cursor-pointer font-bold uppercase self-start"
+        style={{
+          background: 'rgba(251,245,233,0.1)',
+          borderRadius: 999,
+          padding: '4px 10px',
+          fontSize: 9,
+          letterSpacing: 0.5,
+          color: 'rgba(251,245,233,0.7)',
+          fontFamily: 'inherit',
+        }}
+      >
         {busy ? 'Отправляем…' : 'Загрузить фото'}
       </button>
 
+      {/* The notice sits with the control, before anything is sent: uploading is
+          the consent, so the words have to be readable at the moment of it. */}
+      <p className="text-[11px] m-0" style={{ color: 'rgba(251,245,233,0.5)' }}>
+        Фото проверит администратор — оно появится в профиле после этого.
+      </p>
+
       {error ? (
-        <p role="alert" style={{ fontSize: 13, color: 'var(--danger, #b00)', margin: 0 }}>
+        <p role="alert" className="text-[11px] m-0" style={{ color: '#e0876f' }}>
           {error}
         </p>
       ) : null}

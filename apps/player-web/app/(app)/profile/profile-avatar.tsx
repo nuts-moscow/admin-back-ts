@@ -1,21 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Avatar } from '@/components/avatar';
 import { AvatarUpload, type SubmissionState } from '@/components/avatar-upload';
 import { apiBaseUrl, fetchPlayerApi, getStoredToken } from '@/lib/api';
 
 interface Props {
-  name: string;
-  /** The published address from the profile payload; null means initials. */
-  avatarUrl: string | null;
-  /** Refetches the profile — the published avatar can change without this component knowing. */
+  /** True when the player has a published avatar — only then is there anything to remove. */
+  hasAvatar: boolean;
+  /** Refetches the profile: an approval changes the published avatar without this block knowing. */
   onChanged?: () => void;
 }
 
 /**
- * The avatar block on the player's own profile: what is published, and where
- * their submission stands.
+ * Where the player's submission stands, and how to send a new one.
+ *
+ * This is a block of its own, below the identity row, rather than something
+ * wrapped around the avatar itself: the circle up there is overlaid with the
+ * medal badge and sits in a fixed-height flex row, so anything taller than the
+ * avatar pushes the nickname off the screen.
  *
  * Waiting is invisible everywhere else by design — every screen keeps drawing
  * the approved picture — so without this the feature would read as broken to
@@ -26,7 +28,7 @@ interface Props {
  * the browser: a verdict arrives while nobody is looking, and a reload must
  * show it.
  */
-export function ProfileAvatar({ name, avatarUrl, onChanged }: Props) {
+export function ProfileAvatarPanel({ hasAvatar, onChanged }: Props) {
   const [submission, setSubmission] = useState<SubmissionState | null>(null);
   const [pendingSrc, setPendingSrc] = useState<string | null>(null);
 
@@ -50,7 +52,7 @@ export function ProfileAvatar({ name, avatarUrl, onChanged }: Props) {
       setPendingSrc(null);
       return;
     }
-    let revoked: string | null = null;
+    let objectUrl: string | null = null;
     const token = getStoredToken();
     void fetch(`${apiBaseUrl()}/api/player/avatar/pending`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -59,13 +61,13 @@ export function ProfileAvatar({ name, avatarUrl, onChanged }: Props) {
       .then((res) => (res.ok ? res.blob() : null))
       .then((blob) => {
         if (!blob) return;
-        revoked = URL.createObjectURL(blob);
-        setPendingSrc(revoked);
+        objectUrl = URL.createObjectURL(blob);
+        setPendingSrc(objectUrl);
       })
       .catch(() => undefined);
 
     return () => {
-      if (revoked) URL.revokeObjectURL(revoked);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [submission]);
 
@@ -75,30 +77,53 @@ export function ProfileAvatar({ name, avatarUrl, onChanged }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      <Avatar name={name} size={84} ring src={avatarUrl} />
-
-      {submission?.state === 'pending' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          {pendingSrc ? <Avatar name={name} size={44} src={pendingSrc} /> : null}
-          <span style={{ fontSize: 13, opacity: 0.75 }}>Фото на проверке</span>
-        </div>
+    <div className="mt-3 flex items-center gap-3">
+      {submission?.state === 'pending' && pendingSrc ? (
+        // A thumbnail, not a second avatar: what is waiting, at a size that
+        // cannot be mistaken for what is published.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={pendingSrc}
+          alt=""
+          width={36}
+          height={36}
+          style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+        />
       ) : null}
 
-      {submission?.state === 'refused' ? (
-        // Impersonal on purpose: the club did not accept it, not a named person.
-        <span style={{ fontSize: 13, opacity: 0.75 }}>Фото не принято</span>
-      ) : null}
+      <div className="flex-1 min-w-0">
+        {submission?.state === 'pending' ? (
+          <div className="text-[11px]" style={{ color: 'rgba(251,245,233,0.6)' }}>
+            Фото на проверке
+          </div>
+        ) : null}
+        {submission?.state === 'refused' ? (
+          // Impersonal on purpose: the club did not accept it, not a named person.
+          <div className="text-[11px]" style={{ color: 'rgba(251,245,233,0.6)' }}>
+            Фото не принято
+          </div>
+        ) : null}
 
-      <AvatarUpload
-        onSubmitted={(next) => {
-          setSubmission(next);
-        }}
-      />
+        <AvatarUpload onSubmitted={setSubmission} />
+      </div>
 
-      {avatarUrl ? (
-        <button type="button" onClick={() => void removeOwn()}>
-          Убрать фото
+      {hasAvatar ? (
+        <button
+          type="button"
+          onClick={() => void removeOwn()}
+          className="border-0 cursor-pointer font-bold uppercase"
+          style={{
+            background: 'rgba(251,245,233,0.1)',
+            borderRadius: 999,
+            padding: '4px 10px',
+            fontSize: 9,
+            letterSpacing: 0.5,
+            color: 'rgba(251,245,233,0.7)',
+            fontFamily: 'inherit',
+            flexShrink: 0,
+          }}
+        >
+          Убрать
         </button>
       ) : null}
     </div>

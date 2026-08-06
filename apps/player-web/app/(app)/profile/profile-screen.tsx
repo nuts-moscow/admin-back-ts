@@ -8,7 +8,8 @@ import type {
   PlayerMeProfile,
   PlayerTournamentHistoryEntry,
 } from '@admin/schemas';
-import { ProfileAvatar } from './profile-avatar';
+import { Avatar } from '@/components/avatar';
+import { ProfileAvatarPanel } from './profile-avatar';
 import { Card } from '@/components/card';
 import { ChevRIcon, LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
@@ -128,10 +129,11 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
 
         <div className="flex items-center gap-3.5 mt-2 relative">
           <div className="relative">
-            <ProfileAvatar
+            <Avatar
               name={me.name ?? me.nickname}
-              avatarUrl={me.avatarUrl ?? null}
-              onChanged={onChanged}
+              size={84}
+              ring
+              src={me.avatarUrl ?? null}
             />
             <div
               className="flex items-center justify-center"
@@ -180,6 +182,8 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
             </div>
           </div>
         </div>
+
+        <ProfileAvatarPanel hasAvatar={Boolean(me.avatarUrl)} onChanged={onChanged} />
 
         <div
           className="mt-4 grid grid-cols-3 gap-2"
