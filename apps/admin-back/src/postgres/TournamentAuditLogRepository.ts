@@ -2,7 +2,8 @@ import { logger } from "../logger";
 import { PostgresClient } from "./PostgresClient";
 
 export interface AppendTournamentAuditEventInput {
-  tournamentId: number;
+  /** Null for club-scoped admin actions that belong to no tournament — avatar moderation is the first. */
+  tournamentId: number | null;
   eventType: string;
   /** Serializable JSON object (stored as JSONB). */
   payload: Record<string, unknown>;

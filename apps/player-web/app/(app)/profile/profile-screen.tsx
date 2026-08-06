@@ -9,6 +9,7 @@ import type {
   PlayerTournamentHistoryEntry,
 } from '@admin/schemas';
 import { Avatar } from '@/components/avatar';
+import { ProfileAvatarPanel } from './profile-avatar';
 import { Card } from '@/components/card';
 import { ChevRIcon, LogoutIcon, MedalIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
@@ -128,7 +129,12 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
 
         <div className="flex items-center gap-3.5 mt-2 relative">
           <div className="relative">
-            <Avatar name={me.name ?? me.nickname} size={84} ring />
+            <Avatar
+              name={me.name ?? me.nickname}
+              size={84}
+              ring
+              src={me.avatarUrl ?? null}
+            />
             <div
               className="flex items-center justify-center"
               style={{
@@ -176,6 +182,8 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
             </div>
           </div>
         </div>
+
+        <ProfileAvatarPanel hasAvatar={Boolean(me.avatarUrl)} onChanged={onChanged} />
 
         <div
           className="mt-4 grid grid-cols-3 gap-2"

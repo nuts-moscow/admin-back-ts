@@ -13,6 +13,13 @@ export const PlayerMeProfile = z.object({
   email: z.string().email(),
   joinedAt: z.string(),
   /**
+   * Where this player's published avatar lives, or null for the generated
+   * initials. It changes whenever the picture does, so the client can cache the
+   * image hard and still see a takedown. A picture still waiting for a verdict
+   * never appears here.
+   */
+  avatarUrl: z.string().nullable().optional(),
+  /**
    * Current season by date (the season shown in the profile). Optional so an
    * older backend that doesn't send it doesn't break the client — the UI falls
    * back to a date-derived season label.
