@@ -18,6 +18,21 @@ export function apiBaseUrl(): string {
   return url.replace(/\/$/, '');
 }
 
+/**
+ * Absolute URL for a media path the backend hands back — an avatar address, say.
+ *
+ * The payload carries a path rather than a full URL on purpose: the address is
+ * derived from the picture's content and knows nothing about which host serves
+ * it. But the app is served from a different origin than the API, so a bare
+ * `/public/…` in an `<img src>` resolves against the frontend and 404s. The
+ * client is the side that knows where the API lives.
+ */
+export function mediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//.test(path)) return path;
+  return `${apiBaseUrl()}${path}`;
+}
+
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   try {
