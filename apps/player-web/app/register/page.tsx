@@ -228,7 +228,15 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={submitting || (step === 'claim' && !consentGiven)}
+            disabled={
+              submitting ||
+              (step === 'claim' && !consentGiven) ||
+              // Choosing a name is not optional, so the button says so rather
+              // than letting someone press it and be refused. Only emptiness
+              // blocks here: whether the name is free is advisory, and the
+              // write is what decides it.
+              (step === 'prove' && nickname.trim().length === 0)
+            }
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
           >
             {submitting
