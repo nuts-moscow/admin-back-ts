@@ -1,5 +1,6 @@
 import type { CreatePlayerInput, Player, UpdatePlayerInput } from "../domain/Player";
 import { logger } from "../logger";
+import { fold } from "../domain/nicknameRule";
 import { PostgresClient } from "./PostgresClient";
 
 export interface ListPlayersOptions {
@@ -12,6 +13,11 @@ export interface PlayerRepository {
   getNicknameById(playerId: string): Promise<string | null>;
   /** Returns player by nickname (case-insensitive), or null if not found */
   findByNickname(nickname: string): Promise<Player | null>;
+  /**
+   * Looks a name up by the form uniqueness is decided on, so `Ивaн` written
+   * with a Latin `a` finds the `Иван` that already holds it.
+   */
+  findByFoldedNickname(nickname: string, exceptPlayerId?: number): Promise<Player | null>;
   /** Lists players with optional offset/limit. Returns empty array on error */
   list(options?: ListPlayersOptions): Promise<Player[]>;
   /** Returns player by id, or null if not found */
@@ -114,15 +120,32 @@ class PlayerRepositoryImpl implements PlayerRepository {
     }
   }
 
+  async findByFoldedNickname(nickname: string, exceptPlayerId?: number): Promise<Player | null> {
+    try {
+      const result = await PostgresClient.instance.query(
+        `SELECT id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at
+           FROM players
+          WHERE nickname_folded = $1 AND ($2::int IS NULL OR id <> $2)`,
+        [fold(nickname), exceptPlayerId ?? null]
+      );
+      const row = result.rows[0];
+      return row ? rowToPlayer(row as Record<string, unknown>) : null;
+    } catch (err) {
+      logger.info({ err }, "[Postgres] PlayerRepository.findByFoldedNickname failed");
+      return null;
+    }
+  }
+
   async create(input: CreatePlayerInput): Promise<Player | null> {
     try {
       const signAgreement = input.signAgreement ?? false;
       const result = await PostgresClient.instance.query(
-        `INSERT INTO players (nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count)
-         VALUES ($1, $2, $3, $4, $5, $6, 0, 0)
+        `INSERT INTO players (nickname, nickname_folded, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 0)
          RETURNING id, nickname, name, phone, tg, notes, sing_agreement, free_entry_count, free_reentry_count, created_at`,
         [
           input.nickname,
+          fold(input.nickname),
           input.name ?? null,
           input.phone ?? null,
           input.tg ?? null,
@@ -149,6 +172,10 @@ class PlayerRepositoryImpl implements PlayerRepository {
       let paramIndex = 1;
 
       if (input.nickname !== undefined) {
+        // The comparison key moves with the name, always — otherwise a rename
+        // would leave the index guarding a name nobody holds any more.
+        updates.push(`nickname_folded = $${paramIndex++}`);
+        values.push(fold(input.nickname));
         updates.push(`nickname = $${paramIndex++}`);
         values.push(input.nickname.trim());
       }

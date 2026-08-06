@@ -8,6 +8,7 @@ import { activeRules } from "../../domain/achievements/catalog";
 import { score } from "../../domain/achievements/scorer";
 import { playerAchievementRepository } from "../../postgres/PlayerAchievementRepository";
 import { playerRepository } from "../../postgres/PlayerRepository";
+import { nicknameRefusalMessage, weighNickname } from "../../domain/nicknameRule";
 import { playerRecordReader } from "../services/PlayerRecordReader";
 import { avatarMediaService } from "../services/AvatarMediaService";
 import { PostgresClient } from "../../postgres/PostgresClient";
@@ -331,23 +332,26 @@ export function playerRoutes() {
         }
         if (!body || typeof body !== "object") return badRequest("Invalid body");
         const { nickname } = body as Record<string, unknown>;
+        let chosen: string | undefined;
         if (nickname !== undefined) {
-          if (typeof nickname !== "string") {
-            return badRequest("nickname must be a string");
-          }
-          const trimmed = nickname.trim();
-          if (trimmed.length < 2 || trimmed.length > 24) {
-            return badRequest("Никнейм должен быть от 2 до 24 символов");
-          }
+          // The same rule that decides at signup and in the admin console —
+          // one implementation, so a name refused at one door is refused at
+          // all of them, and for the same stated reason.
+          const verdict = weighNickname(nickname);
+          if (!verdict.ok) return badRequest(nicknameRefusalMessage(verdict.reason));
+
           // The login (player_users.login) never changes; the nickname is the
-          // player's display identity — keep it unique among players.
-          const taken = await playerRepository.findByNickname(trimmed);
-          if (taken && Number(taken.id) !== ctx.playerId) {
-            return badRequest("Этот никнейм уже занят");
-          }
+          // player's display identity — kept unique among players by the index
+          // this only anticipates.
+          const taken = await playerRepository.findByFoldedNickname(
+            verdict.nickname,
+            ctx.playerId
+          );
+          if (taken) return badRequest(nicknameRefusalMessage("taken"));
+          chosen = verdict.nickname;
         }
         const updated = await playerRepository.update(String(ctx.playerId), {
-          nickname: typeof nickname === "string" ? nickname.trim() : undefined,
+          nickname: chosen,
         });
         if (!updated) return notFound("Player not found");
         return Response.json({ id: updated.id, nickname: updated.nickname, name: updated.name });

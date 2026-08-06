@@ -1,3 +1,4 @@
+import { nicknameRefusalMessage } from "../../domain/nicknameRule";
 import type { BunRequest } from "bun";
 import { InGameUserStateCache } from "../../cache";
 import { logger } from "../../logger";
@@ -107,6 +108,14 @@ export function playersRoutes() {
             return new Response(
               JSON.stringify({ error: "Player with this nickname already exists" }),
               { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+          }
+          if (result.error === "invalid_nickname") {
+            // Says what is wrong with the name, not that a constraint fired —
+            // this runs while someone is standing at the desk.
+            return new Response(
+              JSON.stringify({ error: nicknameRefusalMessage(result.nicknameReason ?? "empty") }),
+              { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
           return new Response(

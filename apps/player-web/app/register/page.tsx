@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getStoredToken } from '@/lib/api';
-import { beginSignup, completeSignup } from '@/lib/auth';
+import { beginSignup, checkNickname, completeSignup } from '@/lib/auth';
 import { LEGAL_DOCS } from '@/data/legal';
 
 function passwordIssue(password: string): string | null {
@@ -27,6 +27,9 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [nickname, setNickname] = useState('');
+  // Advisory: what the club says about this name while it is being typed.
+  const [nicknameHint, setNicknameHint] = useState<string | null>(null);
   const [consentPd, setConsentPd] = useState(false);
   const [consentAck, setConsentAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export default function RegisterPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await completeSignup(email, code, password);
+      await completeSignup(email, code, nickname, password);
       router.replace('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Сетевая ошибка');
@@ -163,6 +166,39 @@ export default function RegisterPage() {
                 />
               </label>
 
+              <label className="block mt-5">
+                <span className={LABEL}>Никнейм</span>
+                <input
+                  type="text"
+                  autoComplete="nickname"
+                  required
+                  value={nickname}
+                  onChange={(e) => {
+                    setNickname(e.target.value);
+                    setNicknameHint(null);
+                  }}
+                  onBlur={async () => {
+                    // On leaving the field, not on every keystroke: the point is
+                    // to answer before the button, not to chatter at the server.
+                    if (nickname.trim().length === 0) return;
+                    try {
+                      const verdict = await checkNickname(nickname);
+                      setNicknameHint(verdict.available ? null : (verdict.error ?? null));
+                    } catch {
+                      // Advisory only — silence here costs nothing, the write decides.
+                    }
+                  }}
+                  className={FIELD}
+                />
+              </label>
+              {nicknameHint ? (
+                <p className="mt-1 text-[11px] text-danger">{nicknameHint}</p>
+              ) : (
+                <p className="mt-1 text-[11px] leading-relaxed text-ink-3">
+                  Так вас будут видеть в клубе. Поменять можно в профиле.
+                </p>
+              )}
+
               <p className="mt-4 text-[11px] leading-relaxed text-ink-3">
                 В письме нет ссылок — только код. Никто из клуба никогда не
                 спросит его у вас.
@@ -173,6 +209,8 @@ export default function RegisterPage() {
                 onClick={() => {
                   setStep('claim');
                   setCode('');
+                  setNickname('');
+                  setNicknameHint(null);
                   setError(null);
                 }}
                 className="mt-4 text-[12px] text-ink underline"
@@ -190,7 +228,15 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={submitting || (step === 'claim' && !consentGiven)}
+            disabled={
+              submitting ||
+              (step === 'claim' && !consentGiven) ||
+              // Choosing a name is not optional, so the button says so rather
+              // than letting someone press it and be refused. Only emptiness
+              // blocks here: whether the name is free is advisory, and the
+              // write is what decides it.
+              (step === 'prove' && nickname.trim().length === 0)
+            }
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
           >
             {submitting
