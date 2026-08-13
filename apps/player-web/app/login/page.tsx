@@ -5,11 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { getStoredToken } from '@/lib/api';
 import { loginPlayer } from '@/lib/auth';
-import { ConsentRow } from '@/components/consent-row';
-import { LEGAL_DOCS } from '@/data/legal';
 import {
   mountTelegramWidget,
-  openAccountWithTelegram,
   signInWithTelegram,
   telegramBotName,
   type TelegramPayload,
@@ -22,15 +19,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // The proved-but-unbound payload, held while the person answers the one
-  // question the system is forbidden to answer for them: is this a new player,
-  // or someone the club already knows arriving by a new door.
+  // Proved, and bound to nobody. Opening an account this way is deliberately
+  // not offered yet: until it is, the only honest thing to say is that this
+  // Telegram is not attached to anything here, and where to attach it.
   const [unbound, setUnbound] = useState<TelegramPayload | null>(null);
-  const [nickname, setNickname] = useState('');
-  const [consentPd, setConsentPd] = useState(false);
-  const [consentAck, setConsentAck] = useState(false);
   const widgetRef = useRef<HTMLDivElement | null>(null);
-  const consentGiven = consentPd && consentAck;
 
   // If user is already logged in, bounce home.
   useEffect(() => {
@@ -64,20 +57,6 @@ export default function LoginPage() {
     );
   }, [router, unbound]);
 
-  async function onOpenAccount(e: React.FormEvent) {
-    e.preventDefault();
-    if (!unbound || submitting || !consentGiven) return;
-    setError(null);
-    setSubmitting(true);
-    try {
-      await openAccountWithTelegram(unbound, nickname);
-      router.replace('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Сетевая ошибка');
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -105,85 +84,42 @@ export default function LoginPage() {
         </div>
 
         {unbound ? (
-          <form
-            onSubmit={onOpenAccount}
-            className="bg-paper border border-line-2 rounded-md p-6 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset,0_6px_14px_-10px_rgba(27,22,18,0.18)]"
-          >
+          <div className="bg-paper border border-line-2 rounded-md p-6 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset,0_6px_14px_-10px_rgba(27,22,18,0.18)]">
             <p className="text-[13px] leading-relaxed text-ink-2">
-              Телеграм подтверждён, но он пока ни к чему не привязан. Мы не
-              угадываем: скажите сами, вы здесь впервые или уже играете в клубе.
+              Телеграм подтверждён, но он пока ни к чему не привязан — и сам по
+              себе аккаунт не заводит.
+            </p>
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-2">
+              Если вы уже играете в клубе, войдите как обычно и привяжите
+              телеграм в профиле: дальше можно будет входить одной кнопкой, а
+              турнирная история останется на месте. Если аккаунта ещё нет —
+              зарегистрируйтесь по почте.
             </p>
 
-            <div className="mt-6 border-t border-line pt-5">
-              <div className="text-xs uppercase tracking-wider font-semibold text-ink-3">
-                Я здесь впервые
+            {error && (
+              <div className="mt-4 text-sm text-crimson" role="alert">
+                {error}
               </div>
-              <label className="block mt-3">
-                <span className="text-xs uppercase tracking-wider font-semibold text-ink-3">
-                  Никнейм
-                </span>
-                <input
-                  type="text"
-                  required
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  className="mt-1 block w-full border-b border-line bg-transparent py-2 text-ink focus:outline-none focus:border-ink"
-                />
-              </label>
+            )}
 
-              <div className="mt-5 flex flex-col gap-3">
-                <ConsentRow
-                  checked={consentPd}
-                  onChange={setConsentPd}
-                  slug="consent-pd"
-                  prefix="Я даю"
-                  linkText={LEGAL_DOCS['consent-pd']!.short}
-                />
-                <ConsentRow
-                  checked={consentAck}
-                  onChange={setConsentAck}
-                  slug="acknowledgment"
-                  prefix="Я ознакомлен(а) с"
-                  linkText={LEGAL_DOCS['acknowledgment']!.short}
-                />
-              </div>
+            <button
+              type="button"
+              onClick={() => {
+                setUnbound(null);
+                setError(null);
+              }}
+              className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider"
+            >
+              Войти как обычно
+            </button>
 
-              {error && (
-                <div className="mt-4 text-sm text-crimson" role="alert">
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting || !consentGiven || nickname.trim() === ''}
-                className="mt-5 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
-              >
-                {submitting ? 'Создаём…' : 'Создать аккаунт'}
-              </button>
-            </div>
-
-            <div className="mt-6 border-t border-line pt-5">
-              <div className="text-xs uppercase tracking-wider font-semibold text-ink-3">
-                Я уже играю в клубе
-              </div>
-              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-                Тогда не создавайте второй аккаунт — войдите как обычно и
-                привяжите телеграм в профиле, чтобы дальше входить одной
-                кнопкой. Турнирная история останется на месте.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setUnbound(null);
-                  setError(null);
-                }}
-                className="mt-4 w-full rounded-md border border-line-2 py-3 text-sm font-bold uppercase tracking-wider text-ink"
-              >
-                Войти как обычно
-              </button>
-            </div>
-          </form>
+            <p className="mt-4 text-center text-xs text-ink-3 leading-relaxed">
+              Нет аккаунта?{' '}
+              <Link href="/register" className="font-bold text-ink underline">
+                Зарегистрироваться по почте
+              </Link>
+            </p>
+          </div>
         ) : (
         <form
           onSubmit={onSubmit}

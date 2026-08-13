@@ -61,8 +61,9 @@ export function mountTelegramWidget(
 
 /**
  * The three answers signing in by Telegram can have. `unbound` is not an
- * error: the payload proved itself and simply belongs to nobody here yet, and
- * everything the fork screen does hangs off telling it apart from a failure.
+ * error: the payload proved itself and simply belongs to nobody here yet.
+ * Telling it apart from a failure is what lets the screen say something true
+ * instead of «неверные данные».
  */
 export type TelegramSignInOutcome =
   | { status: 'signed-in'; session: PlayerLoginResponse }
@@ -94,6 +95,11 @@ export async function signInWithTelegram(
  * The deliberate act, and the only call here that creates anything. Consents
  * travel with it because an account without them must not exist — the same
  * rule the mail signup obeys.
+ *
+ * Not called from any screen right now: opening an account by Telegram is
+ * closed in the UI for the time being, and newcomers register by mailbox. The
+ * endpoint behind this is live and tested, so turning it back on is a screen,
+ * not a feature.
  */
 export async function openAccountWithTelegram(
   payload: TelegramPayload,
