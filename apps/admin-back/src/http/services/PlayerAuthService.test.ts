@@ -36,36 +36,26 @@ function credentials(rows: PlayerUser[]): CredentialStore {
 }
 
 const MAX_IDENTITY = 5;
-const MAX_CLIENT = 50;
 
 function budget() {
-  const byIp = new Map<string, number>();
   const byIdentity = new Map<string, number>();
   const key = (s: string) => s.trim().toLowerCase();
   const b: AttemptBudget = {
-    async isRateLimited(ip, identity) {
-      if ((byIp.get(ip) ?? 0) >= MAX_CLIENT) return true;
-      if (identity && (byIdentity.get(key(identity)) ?? 0) >= MAX_IDENTITY) return true;
-      return false;
-    },
-    async incrementLoginAttempts(ip) {
-      const n = (byIp.get(ip) ?? 0) + 1;
-      byIp.set(ip, n);
-      return n;
+    maxAttempts: MAX_IDENTITY,
+    windowSec: 900,
+    async getIdentityAttempts(identity) {
+      return byIdentity.get(key(identity)) ?? 0;
     },
     async incrementIdentityAttempts(identity) {
       const n = (byIdentity.get(key(identity)) ?? 0) + 1;
       byIdentity.set(key(identity), n);
       return n;
     },
-    async clearLoginAttempts(ip) {
-      byIp.delete(ip);
-    },
     async clearIdentityAttempts(identity) {
       byIdentity.delete(key(identity));
     },
   };
-  return Object.assign(b, { byIp, byIdentity });
+  return Object.assign(b, { byIdentity });
 }
 
 const grants: GrantIssuer = {
@@ -135,28 +125,40 @@ describe("PlayerAuthService — the budget follows the identity", () => {
     expect((await svc.signIn("theirs@example.com", "passw0rd", "1.2.3.4")).ok).toBe(true);
   });
 
-  test("a spread of failures across many accounts still exhausts the client budget", async () => {
+  test("a roomful of failures from one address never refuses a fresh identity", async () => {
     const b = budget();
     const svc = service([user({ id: 9, email: "known@example.com" })], b);
 
-    for (let i = 0; i < MAX_CLIENT; i += 1) {
+    // The whole club is on one NAT and the evening has gone badly: far more
+    // failures from this address than any per-client bound would have allowed.
+    for (let i = 0; i < MAX_IDENTITY * 20; i += 1) {
       await svc.signIn(`nobody${i}@example.com`, "wrongpw1", "5.6.7.8");
     }
 
-    expect(await svc.signIn("known@example.com", "passw0rd", "5.6.7.8")).toEqual({
+    expect((await svc.signIn("known@example.com", "passw0rd", "5.6.7.8")).ok).toBe(true);
+  });
+
+  test("one identity failing from many addresses is still refused", async () => {
+    const b = budget();
+    const svc = service([user({ id: 11, email: "target@example.com" })], b);
+
+    for (let i = 0; i < MAX_IDENTITY; i += 1) {
+      await svc.signIn("target@example.com", "wrongpw1", `10.0.0.${i}`);
+    }
+
+    expect(await svc.signIn("target@example.com", "passw0rd", "10.0.0.99")).toEqual({
       ok: false,
       reason: "rate_limited",
     });
   });
 
-  test("a successful sign-in clears both counters", async () => {
+  test("a successful sign-in clears the identity counter", async () => {
     const b = budget();
     const svc = service([user({ id: 10, email: "known@example.com" })], b);
 
     await svc.signIn("known@example.com", "wrongpw1", "1.2.3.4");
     expect((await svc.signIn("known@example.com", "passw0rd", "1.2.3.4")).ok).toBe(true);
 
-    expect(b.byIp.get("1.2.3.4")).toBeUndefined();
     expect(b.byIdentity.get("known@example.com")).toBeUndefined();
   });
 });

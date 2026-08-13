@@ -3,16 +3,16 @@ import { RedisClient } from "./RedisClient";
 
 const JWT_TTL_SEC = 86400; // 24 hours — must match player JWT exp
 
-// Two budgets, aimed at different things. The club plays offline: a live
-// tournament is twenty people behind one NAT, so the per-client bound is set
-// well above what one person generates in an evening and exists to stop a
-// spread of failures across many accounts. The per-identity bound is the one
-// that actually slows a guesser — and it deliberately slows rather than locks,
-// because an identity can be aimed at: knowing someone's address must not let
-// you shut them out before a tournament.
+// One budget, aimed at the identity being attempted. The club plays offline:
+// a live tournament is twenty people behind one NAT, so a budget counted per
+// client address is counted on a random variable — the room shared the old
+// per-client bound of fifty and spent it at two and a half fumbles a head,
+// which is the same outage the per-identity counter was added to prevent, only
+// later and harder to see in a log. What is left deliberately slows rather
+// than locks, because an identity can be aimed at: knowing someone's address
+// must not let you shut them out before a tournament.
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_SEC = 900; // 15 minutes
-const CLIENT_RATE_LIMIT_MAX = 50;
 
 function blocklistKey(jti: string): string {
   return `player_jwt_blocklist:${jti}`;
@@ -20,10 +20,6 @@ function blocklistKey(jti: string): string {
 
 function userTokenVerKey(playerUserId: number): string {
   return `player_token_ver:${playerUserId}`;
-}
-
-function clientRateLimitKey(ip: string): string {
-  return `player_auth_attempts:ip:${ip}`;
 }
 
 /** The account or address being attempted, lowercased — mailboxes ignore case. */
@@ -37,28 +33,18 @@ export interface PlayerAuthStore {
   incrementUserTokenVersion(playerUserId: number): Promise<number>;
   getUserTokenVersion(playerUserId: number): Promise<number>;
 
-  incrementLoginAttempts(ip: string): Promise<number>;
-  getLoginAttempts(ip: string): Promise<number>;
-  clearLoginAttempts(ip: string): Promise<void>;
-
+  /** Spends one attempt against this identity; answers how many are now spent. */
   incrementIdentityAttempts(identity: string): Promise<number>;
+  /** How many failures this identity has already spent inside the window. */
   getIdentityAttempts(identity: string): Promise<number>;
   clearIdentityAttempts(identity: string): Promise<void>;
 
-  /**
-   * True when either attempt budget is spent. `identity` is the account or
-   * address being attempted; omit it where the caller has none yet.
-   */
-  isRateLimited(ip: string, identity?: string | null): Promise<boolean>;
-
   readonly maxAttempts: number;
-  readonly maxClientAttempts: number;
   readonly windowSec: number;
 }
 
 class PlayerAuthStoreImpl implements PlayerAuthStore {
   readonly maxAttempts = RATE_LIMIT_MAX;
-  readonly maxClientAttempts = CLIENT_RATE_LIMIT_MAX;
   readonly windowSec = RATE_LIMIT_WINDOW_SEC;
 
   async addToBlocklist(jti: string, ttlSec: number): Promise<void> {
@@ -100,6 +86,8 @@ class PlayerAuthStoreImpl implements PlayerAuthStore {
     }
   }
 
+  // Redis keys carry the identity being attempted — a mailbox — so they never
+  // reach a log line. A failure to count is reported by what it was counting.
   private async bump(key: string): Promise<number> {
     try {
       const redis = RedisClient.instance;
@@ -109,7 +97,7 @@ class PlayerAuthStoreImpl implements PlayerAuthStore {
       }
       return count;
     } catch (err) {
-      logger.error({ err, key }, "[PlayerAuthStore] increment failed");
+      logger.error({ err, counter: "identity" }, "[PlayerAuthStore] increment failed");
       return 0;
     }
   }
@@ -120,17 +108,9 @@ class PlayerAuthStoreImpl implements PlayerAuthStore {
       if (!val) return 0;
       return parseInt(val, 10) || 0;
     } catch (err) {
-      logger.error({ err, key }, "[PlayerAuthStore] read failed");
+      logger.error({ err, counter: "identity" }, "[PlayerAuthStore] read failed");
       return 0;
     }
-  }
-
-  incrementLoginAttempts(ip: string): Promise<number> {
-    return this.bump(clientRateLimitKey(ip));
-  }
-
-  getLoginAttempts(ip: string): Promise<number> {
-    return this.read(clientRateLimitKey(ip));
   }
 
   incrementIdentityAttempts(identity: string): Promise<number> {
@@ -145,23 +125,7 @@ class PlayerAuthStoreImpl implements PlayerAuthStore {
     try {
       await RedisClient.instance.del(identityRateLimitKey(identity));
     } catch (err) {
-      logger.error({ err }, "[PlayerAuthStore] clearIdentityAttempts failed");
-    }
-  }
-
-  async isRateLimited(ip: string, identity?: string | null): Promise<boolean> {
-    if ((await this.getLoginAttempts(ip)) >= CLIENT_RATE_LIMIT_MAX) return true;
-    if (identity && (await this.getIdentityAttempts(identity)) >= RATE_LIMIT_MAX) {
-      return true;
-    }
-    return false;
-  }
-
-  async clearLoginAttempts(ip: string): Promise<void> {
-    try {
-      await RedisClient.instance.del(clientRateLimitKey(ip));
-    } catch (err) {
-      logger.error({ err, ip }, "[PlayerAuthStore] clearLoginAttempts failed");
+      logger.error({ err, counter: "identity" }, "[PlayerAuthStore] clear failed");
     }
   }
 }
