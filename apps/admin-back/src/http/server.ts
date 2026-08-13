@@ -14,6 +14,7 @@ import { playerAvatarRoutes } from "./routes/PlayerAvatarRoute";
 import { playerAvatarMediaRoutes } from "./routes/PlayerAvatarMediaRoute";
 import { playerAuthRoutes } from "./routes/PlayerAuthRoute";
 import { playerPasswordRoutes } from "./routes/PlayerPasswordRoute";
+import { telegramAuthRoutes } from "./routes/TelegramAuthRoute";
 import { playerSessionRoutes } from "./routes/PlayerSessionRoute";
 import { playerRoutes } from "./routes/PlayerRoute";
 import { playersRoutes } from "./routes/PlayersRoute";
@@ -53,6 +54,7 @@ export async function createHttpServer() {
     ...mailWebhookRoutes(),
     ...playerAuthRoutes(),
     ...playerPasswordRoutes(),
+    ...telegramAuthRoutes(),
     ...playerSessionRoutes(),
     ...playerRoutes(),
     ...seasonFinalRoutes(),

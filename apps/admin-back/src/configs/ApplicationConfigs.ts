@@ -8,6 +8,8 @@ import type { RedisConfig } from "./RedisConfig";
 import { loadRedisConfig } from "./RedisConfig";
 import type { ServerConfig } from "./ServerConfig";
 import { loadServerConfig } from "./ServerConfig";
+import type { TelegramConfig } from "./TelegramConfig";
+import { loadTelegramConfig } from "./TelegramConfig";
 
 export class ApplicationConfigs {
   private static _instance: ApplicationConfigs | null = null;
@@ -17,19 +19,22 @@ export class ApplicationConfigs {
   readonly postgres: PostgresConfig;
   readonly redis: RedisConfig;
   readonly server: ServerConfig;
+  readonly telegram: TelegramConfig;
 
   private constructor(
     logger: LoggerConfig,
     mail: MailConfig,
     postgres: PostgresConfig,
     redis: RedisConfig,
-    server: ServerConfig
+    server: ServerConfig,
+    telegram: TelegramConfig
   ) {
     this.logger = logger;
     this.mail = mail;
     this.postgres = postgres;
     this.redis = redis;
     this.server = server;
+    this.telegram = telegram;
   }
 
   static init(): ApplicationConfigs {
@@ -41,7 +46,8 @@ export class ApplicationConfigs {
       loadMailConfig(),
       loadPostgresConfig(),
       loadRedisConfig(),
-      loadServerConfig()
+      loadServerConfig(),
+      loadTelegramConfig()
     );
     return ApplicationConfigs._instance;
   }

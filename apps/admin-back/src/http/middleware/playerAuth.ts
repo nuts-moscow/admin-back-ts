@@ -12,6 +12,11 @@ export interface PlayerAuthContext {
 
 const PLAYER_AUTH_PUBLIC: Array<{ method: string; path: string }> = [
   { method: "POST", path: "/api/player-auth/login" },
+  // The second door's public half: proving a payload needs no session, and the
+  // deliberate act of opening an account cannot have one yet. Binding is
+  // deliberately absent — it is only reachable from inside a session.
+  { method: "POST", path: "/api/player-auth/telegram" },
+  { method: "POST", path: "/api/player-auth/telegram/open" },
   // Open self-registration — must be reachable without an existing token.
   { method: "POST", path: "/api/player-auth/signup/begin" },
   { method: "POST", path: "/api/player-auth/signup/complete" },
