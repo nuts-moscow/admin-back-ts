@@ -1,7 +1,7 @@
 import { ApplicationConfigs } from "../../configs";
-// `logger` is initialised at app startup; unit tests construct this service
-// directly, so the sink is injected rather than reached for.
-import { logger } from "../../logger";
+// The sink is injected rather than reached for: unit tests construct this
+// service directly, and what its lines say is part of the contract.
+import { logger, moduleLogSink, type LogSink } from "../../logger";
 import {
   verifyTelegramPayload,
   type TelegramIdentity,
@@ -57,20 +57,10 @@ export interface TelegramGrants {
   issue(accountId: number): Promise<{ token: string; jti: string }>;
 }
 
-export interface TelegramLogSink {
-  info(fields: Record<string, unknown>, message: string): void;
-  warn(fields: Record<string, unknown>, message: string): void;
-}
-
 export interface TelegramSettings {
   botToken: string | null;
   maxAgeSec: number;
 }
-
-const moduleLog: TelegramLogSink = {
-  info: (fields, message) => logger?.info(fields, message),
-  warn: (fields, message) => logger?.warn(fields, message),
-};
 
 /**
  * The second door.
@@ -91,7 +81,7 @@ export class TelegramAuthService {
     private readonly grants: TelegramGrants,
     private readonly settings: () => TelegramSettings,
     private readonly now: () => number = () => Math.floor(Date.now() / 1000),
-    private readonly log: TelegramLogSink = moduleLog
+    private readonly log: LogSink = moduleLogSink
   ) {}
 
   private prove(payload: TelegramPayload): TelegramIdentity | "disabled" | null {

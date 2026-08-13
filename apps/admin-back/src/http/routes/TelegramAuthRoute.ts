@@ -1,5 +1,5 @@
 import type { BunRequest } from "bun";
-import { consentsSatisfyRequirements } from "../../domain/legalDocuments";
+import { consentsSatisfyRequirements, parseConsents } from "../../domain/legalDocuments";
 import { nicknameRefusalMessage } from "../../domain/nicknameRule";
 import type { TelegramPayload } from "../../domain/telegramPayload";
 import { playerRepository } from "../../postgres/PlayerRepository";
@@ -41,16 +41,9 @@ function readPayload(raw: unknown): TelegramPayload | null {
   return out.hash ? out : null;
 }
 
-function parseConsents(raw: unknown): Consent[] | null {
-  if (!Array.isArray(raw)) return null;
-  const out: Consent[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") return null;
-    const { slug, version } = item as Record<string, unknown>;
-    if (typeof slug !== "string" || typeof version !== "string") return null;
-    out.push({ slug, version });
-  }
-  return consentsSatisfyRequirements(out) ? out : null;
+function requiredConsents(raw: unknown): Consent[] | null {
+  const given = parseConsents(raw);
+  return given && consentsSatisfyRequirements(given) ? given : null;
 }
 
 function grant(result: { token: string; user: { id: number; playerId: number } }, nickname: string) {
@@ -113,7 +106,7 @@ export function telegramAuthRoutes() {
           return jsonError(nicknameRefusalMessage("empty"), 400);
         }
 
-        const consents = parseConsents(body.consents);
+        const consents = requiredConsents(body.consents);
         if (!consents) return jsonError("Consent to the required documents is mandatory", 400);
 
         const result = await telegramAuthService.openAccount(payload, nickname, consents);

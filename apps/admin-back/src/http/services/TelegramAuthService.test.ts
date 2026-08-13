@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { signTelegramPayload, type TelegramPayload } from "../../domain/telegramPayload";
+import type { LogSink } from "../../logger";
 import type { PlayerUser } from "../../postgres/PlayerUserRepository";
 import {
   TelegramAuthService,
   type Consent,
   type TelegramAccounts,
   type TelegramGrants,
-  type TelegramLogSink,
 } from "./TelegramAuthService";
 
 const TOKEN = "123456:test-bot-token";
@@ -76,7 +76,7 @@ const grants: TelegramGrants = {
 
 function sink() {
   const lines: Array<{ fields: Record<string, unknown>; message: string }> = [];
-  const log: TelegramLogSink = {
+  const log: LogSink = {
     info: (fields, message) => lines.push({ fields, message }),
     warn: (fields, message) => lines.push({ fields, message }),
   };

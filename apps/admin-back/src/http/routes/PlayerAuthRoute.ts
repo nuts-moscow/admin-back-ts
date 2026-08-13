@@ -1,3 +1,4 @@
+import { parseConsents } from "../../domain/legalDocuments";
 import { nicknameRefusalMessage, weighNickname } from "../../domain/nicknameRule";
 import type { BunRequest } from "bun";
 import { playerRepository } from "../../postgres/PlayerRepository";
@@ -6,21 +7,6 @@ import type { PlayerAuthContext } from "../middleware/playerAuth";
 import { getClientIp } from "../services/AuthService";
 import { playerLogin, playerLogout } from "../services/PlayerAuthService";
 import { playerSignupService } from "../services/PlayerSignupService";
-
-/** Parses the client-submitted list of accepted (slug, version) document pairs. */
-function parseConsents(
-  raw: unknown
-): Array<{ slug: string; version: string }> | null {
-  if (!Array.isArray(raw)) return null;
-  const out: Array<{ slug: string; version: string }> = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") return null;
-    const { slug, version } = item as Record<string, unknown>;
-    if (typeof slug !== "string" || typeof version !== "string") return null;
-    out.push({ slug, version });
-  }
-  return out;
-}
 
 function jsonError(error: string, status: number, extraHeaders?: Record<string, string>): Response {
   return new Response(JSON.stringify({ error }), {

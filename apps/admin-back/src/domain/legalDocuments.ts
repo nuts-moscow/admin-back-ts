@@ -25,3 +25,20 @@ export function consentsSatisfyRequirements(
     given.some((g) => g.slug === req.slug && g.version === req.version)
   );
 }
+
+/**
+ * Reads the client-submitted list of accepted (slug, version) pairs, or null
+ * if it is not one. Parsing only: whether the pairs *satisfy* the requirements
+ * is a separate question, asked by whoever is gating on it.
+ */
+export function parseConsents(raw: unknown): Array<{ slug: string; version: string }> | null {
+  if (!Array.isArray(raw)) return null;
+  const out: Array<{ slug: string; version: string }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") return null;
+    const { slug, version } = item as Record<string, unknown>;
+    if (typeof slug !== "string" || typeof version !== "string") return null;
+    out.push({ slug, version });
+  }
+  return out;
+}

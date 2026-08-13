@@ -1,6 +1,6 @@
 // `logger` is initialised at app startup; unit tests construct this service
 // directly, so every call site guards instead of assuming it is up.
-import { logger } from "../../logger";
+import { moduleLogSink, type LogSink } from "../../logger";
 import { playerUserRepository, type PlayerUser } from "../../postgres/PlayerUserRepository";
 import { playerAuthStore } from "../../redis/PlayerAuthStore";
 import { playerSessionService } from "./PlayerSessionService";
@@ -41,21 +41,6 @@ export interface PasswordChecker {
 }
 
 /**
- * Where this door's lines go. Injected for the same reason every other
- * collaborator here is: what the log says is part of the contract now that
- * there are two doors, and a contract nothing can assert is a wish.
- */
-export interface LogSink {
-  info(fields: Record<string, unknown>, message: string): void;
-  warn(fields: Record<string, unknown>, message: string): void;
-}
-
-const moduleLog: LogSink = {
-  info: (fields, message) => logger?.info(fields, message),
-  warn: (fields, message) => logger?.warn(fields, message),
-};
-
-/**
  * The credential door, and nothing else: it resolves an identifier to an
  * account and weighs the password behind it. Minting the grant belongs to
  * `PlayerSessionService` and writing a password to `PasswordWriteService`, so
@@ -77,7 +62,7 @@ export class PlayerAuthService {
     private readonly grants: GrantIssuer,
     private readonly passwords: PasswordChecker,
     private readonly dummyHash: () => string | null,
-    private readonly log: LogSink = moduleLog
+    private readonly log: LogSink = moduleLogSink
   ) {}
 
   async signIn(identifier: string, password: string, ip: string): Promise<PlayerLoginResult> {

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import type { LogSink } from "../../logger";
 import type { PlayerUser } from "../../postgres/PlayerUserRepository";
 import {
   PlayerAuthService,
   type AttemptBudget,
   type CredentialStore,
   type GrantIssuer,
-  type LogSink,
   type PasswordChecker,
 } from "./PlayerAuthService";
 

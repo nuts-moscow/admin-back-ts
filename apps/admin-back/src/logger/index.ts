@@ -48,3 +48,19 @@ export async function initLogger(): Promise<void> {
     ])
   );
 }
+
+/**
+ * The two calls a service needs from a log, as a type it can be handed rather
+ * than reach for. Both player doors take one: what a line says is part of what
+ * they promise, and a promise nothing can assert is a wish.
+ */
+export interface LogSink {
+  info(fields: Record<string, unknown>, message: string): void;
+  warn(fields: Record<string, unknown>, message: string): void;
+}
+
+/** The sink that writes to the real logger, once it exists. */
+export const moduleLogSink: LogSink = {
+  info: (fields, message) => logger?.info(fields, message),
+  warn: (fields, message) => logger?.warn(fields, message),
+};
