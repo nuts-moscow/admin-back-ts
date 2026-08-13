@@ -3,8 +3,9 @@
 import Link from 'next/link';
 
 /**
- * One legal document, its checkbox and the link that opens it. Both doors ask
- * for the same consents, so both ask in the same words.
+ * One legal document, its checkbox and the link that opens it. Registration
+ * asks for two of these, and any future screen that gates on consent asks in
+ * the same words.
  */
 export function ConsentRow({
   checked,
