@@ -19,12 +19,17 @@ export interface CredentialStore {
   findByEmail(email: string): Promise<PlayerUser | null>;
 }
 
+/**
+ * The failures one identity has spent, and the bound they are spent against.
+ * Nothing here is keyed by the client address: twenty players at a live
+ * tournament share one, so counting them together counts noise.
+ */
 export interface AttemptBudget {
-  isRateLimited(ip: string, identity?: string | null): Promise<boolean>;
-  incrementLoginAttempts(ip: string): Promise<number>;
+  getIdentityAttempts(identity: string): Promise<number>;
   incrementIdentityAttempts(identity: string): Promise<number>;
-  clearLoginAttempts(ip: string): Promise<void>;
   clearIdentityAttempts(identity: string): Promise<void>;
+  readonly maxAttempts: number;
+  readonly windowSec: number;
 }
 
 export interface GrantIssuer {
@@ -56,8 +61,22 @@ export class PlayerAuthService {
 
   async signIn(identifier: string, password: string, ip: string): Promise<PlayerLoginResult> {
     const id = identifier.trim();
-    if (await this.budget.isRateLimited(ip, id)) {
-      logger?.warn({ ip }, "[PlayerAuth] sign-in blocked: attempt budget spent");
+    // Read the count rather than ask a yes/no: a refusal has to be able to say
+    // in the log which budget stopped it and how far past the bound it was,
+    // otherwise "we blocked them" and "something upstream blocked them" look
+    // identical from the outside.
+    const spent = await this.budget.getIdentityAttempts(id);
+    if (spent >= this.budget.maxAttempts) {
+      logger?.warn(
+        {
+          ip,
+          counter: "identity",
+          attempts: spent,
+          max: this.budget.maxAttempts,
+          windowSec: this.budget.windowSec,
+        },
+        "[PlayerAuth] sign-in refused: identity attempt budget spent"
+      );
       return { ok: false, reason: "rate_limited" };
     }
 
@@ -71,26 +90,37 @@ export class PlayerAuthService {
       const dummy = this.dummyHash();
       if (dummy) await this.passwords.verify("__dummy_player__", dummy);
       await this.spendAttempt(ip, id);
-      logger?.warn({ ip }, "[PlayerAuth] sign-in failed");
       return { ok: false, reason: "invalid_credentials" };
     }
 
     if (!(await this.passwords.verify(password, user.passwordHash))) {
       await this.spendAttempt(ip, id);
-      logger?.warn({ ip }, "[PlayerAuth] sign-in failed");
       return { ok: false, reason: "invalid_credentials" };
     }
 
-    await this.budget.clearLoginAttempts(ip);
     await this.budget.clearIdentityAttempts(id);
     const { token, jti } = await this.grants.issue(user.id);
     logger?.info({ ip, jti: jti.slice(0, 8) }, "[PlayerAuth] sign-in successful");
     return { ok: true, user, token, jti };
   }
 
+  /**
+   * One line for both refusals — an unknown identifier and a wrong password
+   * are indistinguishable to the caller, and a log that told them apart would
+   * hand the answer to anyone who can read it.
+   */
   private async spendAttempt(ip: string, identity: string): Promise<void> {
-    await this.budget.incrementLoginAttempts(ip);
-    await this.budget.incrementIdentityAttempts(identity);
+    const attempts = await this.budget.incrementIdentityAttempts(identity);
+    logger?.warn(
+      {
+        ip,
+        counter: "identity",
+        attempts,
+        max: this.budget.maxAttempts,
+        left: Math.max(0, this.budget.maxAttempts - attempts),
+      },
+      "[PlayerAuth] sign-in failed"
+    );
   }
 }
 

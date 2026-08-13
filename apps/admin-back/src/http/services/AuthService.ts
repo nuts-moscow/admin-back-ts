@@ -35,7 +35,16 @@ export async function login(
 ): Promise<LoginResult> {
   const attempts = await authStore.getLoginAttempts(ip);
   if (attempts >= authStore.maxAttempts) {
-    logger.warn({ ip, attempts }, "[Auth] Login blocked: rate limit exceeded");
+    logger.warn(
+      {
+        ip,
+        counter: "ip",
+        attempts,
+        max: authStore.maxAttempts,
+        windowSec: authStore.windowSec,
+      },
+      "[Auth] Login refused: client address attempt budget spent"
+    );
     return { ok: false, reason: "rate_limited" };
   }
 
@@ -46,14 +55,20 @@ export async function login(
       await Bun.password.verify("__dummy__", DUMMY_HASH);
     }
     const newAttempts = await authStore.incrementLoginAttempts(ip);
-    logger.warn({ username, ip, attempts: newAttempts }, "[Auth] Login failed: user not found");
+    logger.warn(
+      { username, ip, counter: "ip", attempts: newAttempts, max: authStore.maxAttempts },
+      "[Auth] Login failed: user not found"
+    );
     return { ok: false, reason: "invalid_credentials" };
   }
 
   const valid = await Bun.password.verify(password, user.passwordHash);
   if (!valid) {
     const newAttempts = await authStore.incrementLoginAttempts(ip);
-    logger.warn({ username, ip, attempts: newAttempts }, "[Auth] Login failed: invalid password");
+    logger.warn(
+      { username, ip, counter: "ip", attempts: newAttempts, max: authStore.maxAttempts },
+      "[Auth] Login failed: invalid password"
+    );
     return { ok: false, reason: "invalid_credentials" };
   }
 

@@ -2,7 +2,13 @@ import { logger } from "../logger";
 import { RedisClient } from "./RedisClient";
 
 const JWT_TTL_SEC = 86400; // 24 hours — must match JWT exp
-const RATE_LIMIT_MAX = 5;
+// Counted per client address, and the club plays offline: at a live tournament
+// the judges' laptops sit behind the same NAT as everyone else, so five
+// failures locked the whole desk out of the panel at the moment it was needed.
+// The bound is set well above what one evening of fumbled passwords generates
+// across a room. It is a coarse contour, not the defence — a per-identity
+// budget like the players' one is still missing here.
+const RATE_LIMIT_MAX = 50;
 const RATE_LIMIT_WINDOW_SEC = 900; // 15 minutes
 
 function blocklistKey(jti: string): string {
