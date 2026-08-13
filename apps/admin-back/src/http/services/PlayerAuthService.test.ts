@@ -5,6 +5,7 @@ import {
   type AttemptBudget,
   type CredentialStore,
   type GrantIssuer,
+  type LogSink,
   type PasswordChecker,
 } from "./PlayerAuthService";
 
@@ -17,6 +18,7 @@ function user(over: Partial<PlayerUser>): PlayerUser {
     playerId: 100,
     createdAt: new Date(0),
     emailVerifiedAt: null,
+    telegramId: null,
     ...over,
   };
 }
@@ -70,8 +72,26 @@ const passwords: PasswordChecker = {
   },
 };
 
-function service(rows: PlayerUser[], b = budget()) {
-  return new PlayerAuthService(credentials(rows), b, grants, passwords, () => "h:__dummy__");
+type Line = { fields: Record<string, unknown>; message: string };
+
+function sink() {
+  const lines: Line[] = [];
+  const log: LogSink = {
+    info: (fields, message) => lines.push({ fields, message }),
+    warn: (fields, message) => lines.push({ fields, message }),
+  };
+  return Object.assign(log, { lines });
+}
+
+function service(rows: PlayerUser[], b = budget(), log = sink()) {
+  return new PlayerAuthService(
+    credentials(rows),
+    b,
+    grants,
+    passwords,
+    () => "h:__dummy__",
+    log
+  );
 }
 
 describe("PlayerAuthService — legacy logins keep working", () => {
@@ -160,5 +180,41 @@ describe("PlayerAuthService — the budget follows the identity", () => {
     expect((await svc.signIn("known@example.com", "passw0rd", "1.2.3.4")).ok).toBe(true);
 
     expect(b.byIdentity.get("known@example.com")).toBeUndefined();
+  });
+});
+
+describe("PlayerAuthService — the log names its door", () => {
+  test("every line this door writes says which door it was", async () => {
+    const log = sink();
+    const svc = service([user({ id: 12, email: "known@example.com" })], budget(), log);
+
+    await svc.signIn("known@example.com", "passw0rd", "1.2.3.4");
+    await svc.signIn("known@example.com", "wrongpw1", "1.2.3.4");
+
+    expect(log.lines.length).toBeGreaterThanOrEqual(2);
+    for (const line of log.lines) {
+      expect(line.fields.door).toBe("password");
+    }
+  });
+
+  test("the failure line still does not say whether the account existed", async () => {
+    const known = sink();
+    const unknown = sink();
+
+    await service([user({ id: 13, email: "known@example.com" })], budget(), known).signIn(
+      "known@example.com",
+      "wrongpw1",
+      "1.2.3.4"
+    );
+    await service([user({ id: 14, email: "known@example.com" })], budget(), unknown).signIn(
+      "nobody@example.com",
+      "wrongpw1",
+      "1.2.3.4"
+    );
+
+    expect(unknown.lines.map((l) => l.message)).toEqual(known.lines.map((l) => l.message));
+    expect(unknown.lines.map((l) => Object.keys(l.fields).sort())).toEqual(
+      known.lines.map((l) => Object.keys(l.fields).sort())
+    );
   });
 });

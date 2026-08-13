@@ -41,6 +41,21 @@ export interface PasswordChecker {
 }
 
 /**
+ * Where this door's lines go. Injected for the same reason every other
+ * collaborator here is: what the log says is part of the contract now that
+ * there are two doors, and a contract nothing can assert is a wish.
+ */
+export interface LogSink {
+  info(fields: Record<string, unknown>, message: string): void;
+  warn(fields: Record<string, unknown>, message: string): void;
+}
+
+const moduleLog: LogSink = {
+  info: (fields, message) => logger?.info(fields, message),
+  warn: (fields, message) => logger?.warn(fields, message),
+};
+
+/**
  * The credential door, and nothing else: it resolves an identifier to an
  * account and weighs the password behind it. Minting the grant belongs to
  * `PlayerSessionService` and writing a password to `PasswordWriteService`, so
@@ -49,6 +64,11 @@ export interface PasswordChecker {
  * Resolution deliberately stays wide. Accounts that existed before the
  * mailbox became the identifier carry a login and a null address, and they
  * sign in exactly as they always did.
+ *
+ * Every line this door writes carries `door: "password"`. There are two doors
+ * now, and the question "how did they get in" has to have an answer before it
+ * is asked — the club spent a locked-out tournament learning that a log which
+ * does not name what it did is a log that cannot be read afterwards.
  */
 export class PlayerAuthService {
   constructor(
@@ -56,7 +76,8 @@ export class PlayerAuthService {
     private readonly budget: AttemptBudget,
     private readonly grants: GrantIssuer,
     private readonly passwords: PasswordChecker,
-    private readonly dummyHash: () => string | null
+    private readonly dummyHash: () => string | null,
+    private readonly log: LogSink = moduleLog
   ) {}
 
   async signIn(identifier: string, password: string, ip: string): Promise<PlayerLoginResult> {
@@ -67,9 +88,10 @@ export class PlayerAuthService {
     // identical from the outside.
     const spent = await this.budget.getIdentityAttempts(id);
     if (spent >= this.budget.maxAttempts) {
-      logger?.warn(
+      this.log.warn(
         {
           ip,
+          door: "password",
           counter: "identity",
           attempts: spent,
           max: this.budget.maxAttempts,
@@ -100,7 +122,10 @@ export class PlayerAuthService {
 
     await this.budget.clearIdentityAttempts(id);
     const { token, jti } = await this.grants.issue(user.id);
-    logger?.info({ ip, jti: jti.slice(0, 8) }, "[PlayerAuth] sign-in successful");
+    this.log.info(
+      { ip, door: "password", jti: jti.slice(0, 8) },
+      "[PlayerAuth] sign-in successful"
+    );
     return { ok: true, user, token, jti };
   }
 
@@ -111,9 +136,10 @@ export class PlayerAuthService {
    */
   private async spendAttempt(ip: string, identity: string): Promise<void> {
     const attempts = await this.budget.incrementIdentityAttempts(identity);
-    logger?.warn(
+    this.log.warn(
       {
         ip,
+        door: "password",
         counter: "identity",
         attempts,
         max: this.budget.maxAttempts,

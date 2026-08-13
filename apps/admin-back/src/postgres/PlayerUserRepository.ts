@@ -12,6 +12,8 @@ export interface PlayerUser {
   createdAt: Date;
   /** When the address was proved by a code; null for rows that never were. */
   emailVerifiedAt: Date | null;
+  /** The Telegram identity that may open this account; null until one is bound. */
+  telegramId: number | null;
 }
 
 /**
@@ -24,17 +26,29 @@ export type CreatePlayerUserResult =
   | { ok: true; user: PlayerUser }
   | { ok: false; reason: "taken" | "error" };
 
+/**
+ * Whether the binding stuck. `taken` is the index speaking: this Telegram
+ * already belongs to someone, or this account already has one — the caller
+ * cannot tell which, and must not, because that answer would say who else is
+ * a member.
+ */
+export type BindTelegramResult =
+  | { ok: true }
+  | { ok: false; reason: "taken" | "error" };
+
 export interface PlayerUserRepository {
   findByLogin(login: string): Promise<PlayerUser | null>;
   findByEmail(email: string): Promise<PlayerUser | null>;
   findById(id: number): Promise<PlayerUser | null>;
   findByPlayerId(playerId: number): Promise<PlayerUser | null>;
+  findByTelegramId(telegramId: number): Promise<PlayerUser | null>;
   create(input: {
     login?: string | null;
     email?: string | null;
     passwordHash: string;
     playerId: number;
     emailVerifiedAt?: Date | null;
+    telegramId?: number | null;
   }): Promise<PlayerUser | null>;
   /** Same insert, but says whether the unique index refused it. */
   tryCreate(input: {
@@ -43,15 +57,24 @@ export interface PlayerUserRepository {
     passwordHash: string;
     playerId: number;
     emailVerifiedAt?: Date | null;
+    telegramId?: number | null;
   }): Promise<CreatePlayerUserResult>;
+  /**
+   * Ties an identity to an account, refusing rather than overwriting: an
+   * account that already carries a binding keeps the one it has, so a second
+   * Telegram cannot displace the first.
+   */
+  bindTelegram(id: number, telegramId: number): Promise<BindTelegramResult>;
+  /** Drops the binding, leaving the account reachable only by its other door. */
+  unbindTelegram(id: number): Promise<boolean>;
   updatePassword(id: number, passwordHash: string): Promise<boolean>;
   delete(id: number): Promise<boolean>;
 }
 
 const COLUMNS =
-  "id, login, email, password_hash, player_id, created_at, email_verified_at";
+  "id, login, email, password_hash, player_id, created_at, email_verified_at, telegram_id";
 
-/** Postgres unique-violation; the address (or login) is already taken. */
+/** Postgres unique-violation; the address, login or Telegram identity is already taken. */
 const UNIQUE_VIOLATION = "23505";
 
 function rowToPlayerUser(row: Record<string, unknown>): PlayerUser {
@@ -69,6 +92,7 @@ function rowToPlayerUser(row: Record<string, unknown>): PlayerUser {
         : row.email_verified_at instanceof Date
           ? row.email_verified_at
           : new Date(String(row.email_verified_at)),
+    telegramId: row.telegram_id == null ? null : Number(row.telegram_id),
   };
 }
 
@@ -104,12 +128,17 @@ class PlayerUserRepositoryImpl implements PlayerUserRepository {
     return this.findOneBy("player_id", playerId);
   }
 
+  findByTelegramId(telegramId: number): Promise<PlayerUser | null> {
+    return this.findOneBy("telegram_id", telegramId);
+  }
+
   async create(input: {
     login?: string | null;
     email?: string | null;
     passwordHash: string;
     playerId: number;
     emailVerifiedAt?: Date | null;
+    telegramId?: number | null;
   }): Promise<PlayerUser | null> {
     const result = await this.tryCreate(input);
     return result.ok ? result.user : null;
@@ -121,17 +150,19 @@ class PlayerUserRepositoryImpl implements PlayerUserRepository {
     passwordHash: string;
     playerId: number;
     emailVerifiedAt?: Date | null;
+    telegramId?: number | null;
   }): Promise<CreatePlayerUserResult> {
     try {
       const result = await PostgresClient.instance.query(
-        `INSERT INTO player_users (login, email, password_hash, player_id, email_verified_at)
-         VALUES ($1, $2, $3, $4, $5) RETURNING ${COLUMNS}`,
+        `INSERT INTO player_users (login, email, password_hash, player_id, email_verified_at, telegram_id)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${COLUMNS}`,
         [
           input.login ?? null,
           input.email?.trim() ?? null,
           input.passwordHash,
           input.playerId,
           input.emailVerifiedAt ?? null,
+          input.telegramId ?? null,
         ]
       );
       if (result.rows.length === 0) return { ok: false, reason: "error" };
@@ -142,6 +173,42 @@ class PlayerUserRepositoryImpl implements PlayerUserRepository {
       }
       logger.error({ err }, "[PlayerUserRepository] create failed");
       return { ok: false, reason: "error" };
+    }
+  }
+
+  async bindTelegram(id: number, telegramId: number): Promise<BindTelegramResult> {
+    try {
+      // `telegram_id IS NULL` in the predicate is what makes an existing
+      // binding win over a new one. Without it the statement would silently
+      // replace whatever was there, and a second identity could take an
+      // account away from the first.
+      const result = await PostgresClient.instance.query(
+        "UPDATE player_users SET telegram_id = $1 WHERE id = $2 AND telegram_id IS NULL",
+        [telegramId, id]
+      );
+      // No row updated means the account already carries a binding. The unique
+      // index answers the other half — this identity belongs elsewhere — by
+      // throwing, and both come back as the same refusal on purpose.
+      return (result.rowCount ?? 0) > 0 ? { ok: true } : { ok: false, reason: "taken" };
+    } catch (err) {
+      if ((err as { code?: string }).code === UNIQUE_VIOLATION) {
+        return { ok: false, reason: "taken" };
+      }
+      logger.error({ err }, "[PlayerUserRepository] bindTelegram failed");
+      return { ok: false, reason: "error" };
+    }
+  }
+
+  async unbindTelegram(id: number): Promise<boolean> {
+    try {
+      const result = await PostgresClient.instance.query(
+        "UPDATE player_users SET telegram_id = NULL WHERE id = $1",
+        [id]
+      );
+      return (result.rowCount ?? 0) > 0;
+    } catch (err) {
+      logger.error({ err }, "[PlayerUserRepository] unbindTelegram failed");
+      return false;
     }
   }
 
