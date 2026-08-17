@@ -29,6 +29,40 @@ function jsonError(error: string, status: number, extraHeaders?: Record<string, 
   });
 }
 
+/**
+ * A refusal the player is entitled to understand, tagged with a stable code.
+ *
+ * The status alone cannot carry this: a taken address and a taken nickname are
+ * both `409`, and the client has to tell them apart to say which field to fix.
+ * `error` stays for callers that only read text; `code` is what the app keys
+ * its wording off, so the copy can change without the contract moving.
+ *
+ * Anything not tagged here is a technical failure and stays that way — the
+ * client shows one neutral line rather than repeating our internals.
+ */
+function jsonRefusal(
+  code: SignupRefusal,
+  error: string,
+  status: number,
+  extraHeaders?: Record<string, string>
+): Response {
+  return new Response(JSON.stringify({ error, code }), {
+    status,
+    headers: { "Content-Type": "application/json", ...extraHeaders },
+  });
+}
+
+/** The refusals a signup can end in that are the player's to act on. */
+export type SignupRefusal =
+  | "email_taken"
+  | "weak_password"
+  | "undeliverable"
+  | "rate_limited"
+  | "invalid_code"
+  | "bad_nickname"
+  | "nickname_taken"
+  | "consent_required";
+
 export type PlayerAuthRequest = Request & { playerAuthCtx?: PlayerAuthContext };
 
 function getCtx(req: Request): PlayerAuthContext | null {
@@ -129,17 +163,24 @@ export function playerAuthRoutes() {
           // Nothing exists yet: the address is claimed, not registered.
           return new Response(null, { status: 202 });
         }
-        if (result.reason === "taken") return jsonError("Email already registered", 409);
+        if (result.reason === "taken") {
+          return jsonRefusal("email_taken", "Email already registered", 409);
+        }
         if (result.reason === "weak_password") {
-          return jsonError(
+          return jsonRefusal(
+            "weak_password",
             "Password must be at least 8 characters and contain a letter and a digit",
             400
           );
         }
         if (result.reason === "undeliverable") {
-          return jsonError("Could not deliver a code to this address", 502);
+          return jsonRefusal(
+            "undeliverable",
+            "Could not deliver a code to this address",
+            502
+          );
         }
-        return jsonError("Too many attempts. Please try again later.", 429, {
+        return jsonRefusal("rate_limited", "Too many attempts. Please try again later.", 429, {
           "Retry-After": "900",
         });
       },
@@ -194,11 +235,17 @@ export function playerAuthRoutes() {
         // Required, with no default offered for acceptance: a person who does
         // not name themselves does not finish signing up.
         if (typeof nickname !== "string" || nickname.trim() === "") {
-          return jsonError(nicknameRefusalMessage("empty"), 400);
+          return jsonRefusal("bad_nickname", nicknameRefusalMessage("empty"), 400);
         }
 
         const consents = parseConsents((body as Record<string, unknown>).consents);
-        if (!consents) return jsonError("Consent to the required documents is mandatory", 400);
+        if (!consents) {
+          return jsonRefusal(
+            "consent_required",
+            "Consent to the required documents is mandatory",
+            400
+          );
+        }
 
         const result = await playerSignupService.complete({
           address: email,
@@ -212,24 +259,33 @@ export function playerAuthRoutes() {
         if (!result.ok) {
           switch (result.reason) {
             case "invalid_code":
-              return jsonError("Invalid or expired code", 401);
+              return jsonRefusal("invalid_code", "Invalid or expired code", 401);
             case "taken":
-              return jsonError("Email already registered", 409);
+              return jsonRefusal("email_taken", "Email already registered", 409);
             case "bad_nickname":
-              return jsonError(
+              // The message is already the player's: it names which rule the
+              // proposed nickname broke, and the client shows it verbatim.
+              return jsonRefusal(
+                "bad_nickname",
                 nicknameRefusalMessage(result.nicknameReason ?? "empty"),
                 400
               );
             case "nickname_taken":
-              return jsonError(nicknameRefusalMessage("taken"), 409);
+              return jsonRefusal("nickname_taken", nicknameRefusalMessage("taken"), 409);
             case "consent_required":
-              return jsonError("Consent to the required documents is mandatory", 400);
+              return jsonRefusal(
+                "consent_required",
+                "Consent to the required documents is mandatory",
+                400
+              );
             case "weak_password":
-              return jsonError(
+              return jsonRefusal(
+                "weak_password",
                 "Password must be at least 8 characters and contain a letter and a digit",
                 400
               );
             default:
+              // Untagged on purpose: nothing here is the player's to fix.
               return jsonError("Registration failed", 500);
           }
         }

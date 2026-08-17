@@ -3,7 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { PlayerAuthMeResponse, PlayerLoginResponse } from '@admin/schemas';
-import { apiBaseUrl, clearStoredToken, fetchPlayerApi, getStoredToken, setStoredToken } from './api';
+import {
+  apiBaseUrl,
+  AuthRefusal,
+  clearStoredToken,
+  fetchPlayerApi,
+  getStoredToken,
+  setStoredToken,
+} from './api';
 import { REQUIRED_CONSENTS } from '@/data/legal';
 
 export type PlayerSession = PlayerAuthMeResponse;
@@ -24,11 +31,12 @@ async function postPublic(path: string, body: Record<string, unknown>): Promise<
     data = null;
   }
   if (!res.ok) {
-    const msg =
-      data && typeof data === 'object' && 'error' in data
-        ? String((data as { error: unknown }).error)
-        : `HTTP ${res.status}`;
-    throw new Error(msg);
+    const shape = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+    throw new AuthRefusal(
+      res.status,
+      typeof shape?.code === 'string' ? shape.code : null,
+      typeof shape?.error === 'string' ? shape.error : null,
+    );
   }
   return data;
 }
