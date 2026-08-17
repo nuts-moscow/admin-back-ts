@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getStoredToken } from '@/lib/api';
 import { beginSignup, checkNickname, completeSignup } from '@/lib/auth';
+import { signupErrorMessage } from '@/lib/signupErrors';
 import { LEGAL_DOCS } from '@/data/legal';
 
 function passwordIssue(password: string): string | null {
@@ -63,7 +64,7 @@ export default function RegisterPage() {
       await beginSignup(email, password);
       setStep('prove');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Сетевая ошибка');
+      setError(signupErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -78,7 +79,7 @@ export default function RegisterPage() {
       await completeSignup(email, code, nickname, password);
       router.replace('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Сетевая ошибка');
+      setError(signupErrorMessage(err));
     } finally {
       setSubmitting(false);
     }

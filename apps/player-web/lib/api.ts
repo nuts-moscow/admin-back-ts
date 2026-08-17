@@ -70,6 +70,26 @@ export class PlayerApiError extends Error {
   }
 }
 
+/**
+ * A refusal the player can act on, as the backend tagged it. `code` is null
+ * for everything else — a bug, an outage, a shape the server did not expect —
+ * and the screens turn that into one neutral line rather than showing it.
+ */
+export class AuthRefusal extends Error {
+  readonly code: string | null;
+  readonly status: number;
+  /** The server's own wording, kept for the few refusals that phrase themselves. */
+  readonly serverMessage: string | null;
+
+  constructor(status: number, code: string | null, serverMessage: string | null) {
+    super(serverMessage ?? `HTTP ${status}`);
+    this.name = 'AuthRefusal';
+    this.status = status;
+    this.code = code;
+    this.serverMessage = serverMessage;
+  }
+}
+
 export interface FetchPlayerApiOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
