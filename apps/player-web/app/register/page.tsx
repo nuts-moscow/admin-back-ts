@@ -294,7 +294,7 @@ function ConsentRow({
       <span className="text-[12px] leading-snug text-ink-2">
         {prefix}{' '}
         <Link
-          href={`/legal/${slug}`}
+          href={`/legal/${slug}?standalone=1`}
           target="_blank"
           rel="noopener noreferrer"
           className="font-semibold text-ink underline"

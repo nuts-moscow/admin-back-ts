@@ -1,21 +1,25 @@
 'use client';
 
-import { notFound, useParams, useRouter } from 'next/navigation';
+import { notFound, useParams, useRouter, useSearchParams } from 'next/navigation';
 import { LEGAL_DOCS } from '@/data/legal';
 
 export default function LegalDocPage() {
   const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const doc = LEGAL_DOCS[params.slug];
   if (!doc) notFound();
 
-  // Opened in a new tab from the registration checkboxes → close it;
-  // navigated in-app from the Оферта list → go back.
+  // Opened in a new tab from the registration checkboxes (marked with
+  // ?standalone=1 on that link) → close it; navigated in-app from the
+  // Оферта list → go back. Used to guess from window.history.length, but
+  // that's an unreliable signal — some browsers report >1 even for a
+  // freshly opened tab, sending router.back() nowhere useful in it.
   function onBack() {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-    } else {
+    if (searchParams.get('standalone') === '1') {
       window.close();
+    } else {
+      router.back();
     }
   }
 
