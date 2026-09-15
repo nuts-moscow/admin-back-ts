@@ -11,7 +11,7 @@ import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
 import { ArrowDownIcon, ArrowUpIcon, TrophyIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
-import { fetchPlayerApi } from '@/lib/api';
+import { fetchPlayerApi, mediaUrl } from '@/lib/api';
 import { formatNumberRu, formatPoints } from '@/lib/format';
 
 type Tab = 'season' | 'hof';
@@ -257,7 +257,12 @@ export function RatingScreen({
                     {p.rank}
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
-                    <Avatar name={p.nickname ?? p.name} size={28} ring={p.isMe} />
+                    <Avatar
+                      name={p.nickname ?? p.name}
+                      size={28}
+                      ring={p.isMe}
+                      src={mediaUrl(p.avatarUrl)}
+                    />
                     <div className="min-w-0">
                       <div className="text-[13px] font-bold text-ink truncate">
                         {p.nickname ?? p.name}
@@ -322,7 +327,12 @@ export function RatingScreen({
                     </div>
                   </div>
                   <div className="flex-1 p-3.5 flex items-center gap-3">
-                    <Avatar name={h.nickname ?? h.name} size={48} ring />
+                    <Avatar
+                      name={h.nickname ?? h.name}
+                      size={48}
+                      ring
+                      src={mediaUrl(h.avatarUrl)}
+                    />
                     <div className="flex-1 min-w-0">
                       <div
                         className="uppercase font-bold"
@@ -404,7 +414,7 @@ function Pillar({
 }) {
   return (
     <div className="flex-1 flex flex-col items-center">
-      <Avatar name={p.nickname ?? p.name} size={avatar} ring />
+      <Avatar name={p.nickname ?? p.name} size={avatar} ring src={mediaUrl(p.avatarUrl)} />
       <div
         className="font-bold text-center truncate"
         style={{

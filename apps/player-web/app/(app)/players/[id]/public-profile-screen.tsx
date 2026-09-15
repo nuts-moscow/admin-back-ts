@@ -7,6 +7,7 @@ import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
 import { ChevLIcon, MedalIcon } from '@/components/icons';
 import { ScrollScreen } from '@/components/scroll-screen';
+import { mediaUrl } from '@/lib/api';
 import { currentSeasonLabel, formatNumberRu, formatPoints, formatTournamentDate } from '@/lib/format';
 
 interface Props {
@@ -65,7 +66,12 @@ export function PublicProfileScreen({ profile, history }: Props) {
 
         <div className="flex items-center gap-3.5 mt-2 relative">
           <div className="relative">
-            <Avatar name={profile.name ?? profile.nickname} size={84} ring />
+            <Avatar
+              name={profile.name ?? profile.nickname}
+              size={84}
+              ring
+              src={mediaUrl(profile.avatarUrl)}
+            />
             {profile.medal !== 'none' && (
               <div
                 className="flex items-center justify-center"

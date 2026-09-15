@@ -6,6 +6,8 @@ export const HallOfFameEntry = z.object({
   playerId: z.number().int().nullable(),
   nickname: z.string(),
   name: z.string().nullable(),
+  /** Null for entries with no linked playerId, or without a published avatar. */
+  avatarUrl: z.string().nullable().optional(),
   title: z.string(),
   stat: z.string(),
   position: z.number().int(),

@@ -767,15 +767,18 @@ export function playerRoutes() {
             if (p) nameByPlayerId.set(id, { nickname: p.nickname, name: p.name });
           })
         );
+        const avatarByPlayerId = await avatarMediaService.addressesForPlayers(playerIds);
         return Response.json({
           entries: ranked.map((r) => {
             const pid = Number(r.playerId);
             const info = nameByPlayerId.get(pid);
+            const avatarAddress = avatarByPlayerId.get(pid);
             return {
               rank: r.rank,
               playerId: pid,
               nickname: info?.nickname ?? `#${pid}`,
               name: info?.name ?? null,
+              avatarUrl: avatarAddress ? `/public/avatars/${avatarAddress}` : null,
               points: r.totalPoints,
               played: r.tournamentCount,
               itm: r.ratingZoneCount,
@@ -845,17 +848,25 @@ export function playerRoutes() {
         const ctx = getCtx(req);
         if (!ctx) return unauthorized();
         const rows = await hallOfFameRepository.list();
+        const playerIds = Array.from(
+          new Set(rows.map((r) => r.playerId).filter((id): id is number => id != null))
+        );
+        const avatarByPlayerId = await avatarMediaService.addressesForPlayers(playerIds);
         return Response.json({
-          entries: rows.map((r) => ({
-            id: r.id,
-            year: r.year,
-            playerId: r.playerId,
-            nickname: r.nickname,
-            name: r.name,
-            title: r.title,
-            stat: r.stat,
-            position: r.position,
-          })),
+          entries: rows.map((r) => {
+            const avatarAddress = r.playerId != null ? avatarByPlayerId.get(r.playerId) : undefined;
+            return {
+              id: r.id,
+              year: r.year,
+              playerId: r.playerId,
+              nickname: r.nickname,
+              name: r.name,
+              avatarUrl: avatarAddress ? `/public/avatars/${avatarAddress}` : null,
+              title: r.title,
+              stat: r.stat,
+              position: r.position,
+            };
+          }),
         });
       },
     },

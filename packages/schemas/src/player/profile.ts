@@ -64,6 +64,8 @@ export const PlayerPublicProfile = z.object({
   nickname: z.string(),
   name: z.string().nullable(),
   joinedAt: z.string(),
+  /** Same address scheme as PlayerMeProfile.avatarUrl; null means initials. */
+  avatarUrl: z.string().nullable().optional(),
   season: z
     .object({
       year: z.number().int(),
