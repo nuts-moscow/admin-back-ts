@@ -309,12 +309,10 @@ export function playerRoutes() {
         const player = await playerRepository.findById(String(ctx.playerId));
         const eloLiteValue = Math.round(1500 + base.points / 50);
         const achievements = await buildAchievements(ctx.playerId, base.season);
-        const avatarAddress = await avatarMediaService.addressForPlayer(ctx.playerId);
 
         return Response.json({
           ...base,
           achievements,
-          avatarUrl: avatarAddress ? `/public/avatars/${avatarAddress}` : null,
           email: "", // populated by the /me handler in PlayerAuthRoute; not leaked again here
           freeEntryCount: player?.freeEntryCount ?? 0,
           freeReentryCount: player?.freeReentryCount ?? 0,
@@ -968,6 +966,7 @@ interface PublicProfilePayload {
   itm: number;
   bountyCount: number;
   medal: "gold" | "silver" | "bronze" | "none";
+  avatarUrl: string | null;
 }
 
 /**
@@ -1002,6 +1001,8 @@ async function buildPublicProfile(playerId: number): Promise<PublicProfilePayloa
     else if (entry.rank === 3) medal = "bronze";
   }
 
+  const avatarAddress = await avatarMediaService.addressForPlayer(playerId);
+
   return {
     id: player.id,
     nickname: player.nickname,
@@ -1016,6 +1017,7 @@ async function buildPublicProfile(playerId: number): Promise<PublicProfilePayloa
     itm: ratingZonePct,
     bountyCount: agg.knockouts,
     medal,
+    avatarUrl: avatarAddress ? `/public/avatars/${avatarAddress}` : null,
   };
 }
 
