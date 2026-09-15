@@ -13,6 +13,7 @@ export const PlayerSeasonRatingEntry = z.object({
   playerId: z.number().int(),
   nickname: z.string(),
   name: z.string().nullable(),
+  avatarUrl: z.string().nullable().optional(),
   points: z.number(),
   played: z.number().int(),
   itm: z.number().int(),

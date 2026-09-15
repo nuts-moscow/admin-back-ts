@@ -27,7 +27,6 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChanged }: HomeScreenProps) {
-  const firstName = (me.name ?? me.nickname).split(' ')[0] ?? me.nickname;
   const [supportOpen, setSupportOpen] = useState(false);
   const finalDate = seasonFinal.date != null ? formatTournamentDate(seasonFinal.date) : null;
 
@@ -42,9 +41,9 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
     <ScrollScreen>
       <div className="px-5 pt-1 pb-1">
         <h1 className="serif text-[26px] font-bold text-ink leading-tight m-0">
-          Добрый вечер,
+          Доброго времени суток,
           <br />
-          {firstName}
+          {me.nickname}
         </h1>
       </div>
 
