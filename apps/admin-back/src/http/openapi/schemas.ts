@@ -1162,7 +1162,10 @@ export const SeasonalRatingEntrySchema = z
     playerId: z.string().openapi({ description: "Player ID", example: "42" }),
     totalPoints: z
       .number()
-      .openapi({ description: "Sum of total_points across all tournaments in the season", example: 153.5 }),
+      .openapi({
+        description: "Sum of total_points across the player's best 5 tournaments in the season",
+        example: 153.5,
+      }),
     tournamentCount: z
       .number()
       .int()
