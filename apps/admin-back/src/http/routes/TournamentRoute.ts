@@ -194,6 +194,7 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
   ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
+  ratingBountyRebuyOnly?: boolean;
   ratingTableId?: number;
   ratingEnabled?: boolean;
   ratingSeasonYear?: number | null;
@@ -234,6 +235,13 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
       return { ok: false, error: "ratingBountyCoefficient must be a finite number" };
     }
     ratingBountyCoefficient = body.ratingBountyCoefficient;
+  }
+  let ratingBountyRebuyOnly: boolean | undefined;
+  if ("ratingBountyRebuyOnly" in body && body.ratingBountyRebuyOnly !== undefined) {
+    if (typeof body.ratingBountyRebuyOnly !== "boolean") {
+      return { ok: false, error: "ratingBountyRebuyOnly must be a boolean" };
+    }
+    ratingBountyRebuyOnly = body.ratingBountyRebuyOnly;
   }
   let ratingTableId: number | undefined;
   if ("ratingTableId" in body && body.ratingTableId !== undefined) {
@@ -289,6 +297,7 @@ function parseOptionalTournamentRating(body: Record<string, unknown>): {
     ratingGuaranteeBonusPoints,
     ratingPointsCoefficient,
     ratingBountyCoefficient,
+    ratingBountyRebuyOnly,
     ratingTableId,
     ratingEnabled,
     ratingSeasonYear,
@@ -495,6 +504,7 @@ export function tournamentRoutes() {
             ratingGuaranteeBonusPoints: t.ratingGuaranteeBonusPoints,
             ratingPointsCoefficient: t.ratingPointsCoefficient,
             ratingBountyCoefficient: t.ratingBountyCoefficient,
+            ratingBountyRebuyOnly: t.ratingBountyRebuyOnly,
             ratingTableId: t.ratingTableId,
             ratingEnabled: t.ratingEnabled,
             ratingSeasonYear: t.ratingSeasonYear,
@@ -561,6 +571,7 @@ export function tournamentRoutes() {
           ratingGuaranteeBonusPoints: ratingParsed.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
+          ratingBountyRebuyOnly: ratingParsed.ratingBountyRebuyOnly,
           ratingTableId: ratingParsed.ratingTableId,
           ratingEnabled: ratingParsed.ratingEnabled,
           ratingSeasonYear: ratingParsed.ratingSeasonYear,
@@ -676,6 +687,7 @@ export function tournamentRoutes() {
           ratingGuaranteeBonusPoints: ratingParsed.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: ratingParsed.ratingPointsCoefficient,
           ratingBountyCoefficient: ratingParsed.ratingBountyCoefficient,
+          ratingBountyRebuyOnly: ratingParsed.ratingBountyRebuyOnly,
           ratingTableId: ratingParsed.ratingTableId,
           ratingEnabled: ratingParsed.ratingEnabled,
           ratingSeasonYear: ratingParsed.ratingSeasonYear,
@@ -707,6 +719,7 @@ export function tournamentRoutes() {
           ratingGuaranteeBonusPoints: result.tournament.ratingGuaranteeBonusPoints,
           ratingPointsCoefficient: result.tournament.ratingPointsCoefficient,
           ratingBountyCoefficient: result.tournament.ratingBountyCoefficient,
+          ratingBountyRebuyOnly: result.tournament.ratingBountyRebuyOnly,
           ratingTableId: result.tournament.ratingTableId,
         });
         // Rating settings describe how THIS tournament pays: when they change,
@@ -718,6 +731,7 @@ export function tournamentRoutes() {
           ratingParsed.ratingGuaranteeBonusPoints,
           ratingParsed.ratingPointsCoefficient,
           ratingParsed.ratingBountyCoefficient,
+          ratingParsed.ratingBountyRebuyOnly,
           ratingParsed.ratingTableId,
           ratingParsed.ratingEnabled,
         ].some((v) => v !== undefined);

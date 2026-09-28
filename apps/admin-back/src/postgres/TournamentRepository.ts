@@ -11,6 +11,7 @@ export interface MakeTournamentInput {
   ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
+  ratingBountyRebuyOnly?: boolean;
   ratingTableId?: number;
   ratingEnabled?: boolean;
   ratingSeasonYear?: number | null;
@@ -29,6 +30,12 @@ export interface TournamentRow {
   ratingGuaranteeBonusPoints: number;
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
+  /**
+   * Mystery format: only knockouts the victim re-buys from earn bounty rating
+   * points; a knockout that ends the victim's tournament earns none. The
+   * knockout itself still counts everywhere else (profile, achievements).
+   */
+  ratingBountyRebuyOnly: boolean;
   ratingTableId: number;
   ratingEnabled: boolean;
   ratingSeasonYear: number | null;
@@ -86,6 +93,7 @@ function rowToTournament(row: Record<string, unknown>): TournamentRow {
     ),
     ratingPointsCoefficient: Number(row.rating_points_coefficient ?? 1),
     ratingBountyCoefficient: Number(row.rating_bounty_coefficient ?? 1),
+    ratingBountyRebuyOnly: Boolean(row.rating_bounty_rebuy_only ?? false),
     ratingTableId: Number(row.rating_table_id ?? DEFAULT_RATING_TABLE_ID),
     ratingEnabled: row.rating_enabled == null ? true : Boolean(row.rating_enabled),
     ratingSeasonYear: row.rating_season_year != null ? Number(row.rating_season_year) : null,
@@ -108,6 +116,7 @@ export interface UpdateTournamentInput {
   ratingGuaranteeBonusPoints?: number | null;
   ratingPointsCoefficient?: number | null;
   ratingBountyCoefficient?: number | null;
+  ratingBountyRebuyOnly?: boolean | null;
   ratingTableId?: number | null;
   ratingEnabled?: boolean | null;
 }
@@ -115,7 +124,7 @@ export interface UpdateTournamentInput {
 const SELECT_COLUMNS = `
   id, name, status, date, entry_price, reentry_price,
   rating_guarantee_enabled, rating_guarantee_bonus_points,
-  rating_points_coefficient, rating_bounty_coefficient,
+  rating_points_coefficient, rating_bounty_coefficient, rating_bounty_rebuy_only,
   rating_table_id, rating_enabled, rating_season_year, rating_season_month,
   late_registration_closed, month_final
 `;
@@ -161,6 +170,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
         input.ratingGuaranteeBonusPoints ?? DEFAULT_RATING_GUARANTEE_BONUS_POINTS;
       const ratingPointsCoefficient = input.ratingPointsCoefficient ?? 1;
       const ratingBountyCoefficient = input.ratingBountyCoefficient ?? 1;
+      const ratingBountyRebuyOnly = input.ratingBountyRebuyOnly ?? false;
       const ratingTableId = input.ratingTableId ?? DEFAULT_RATING_TABLE_ID;
       const ratingEnabled = input.ratingEnabled ?? true;
       const ratingSeasonYear = ratingEnabled ? (input.ratingSeasonYear ?? null) : null;
@@ -172,9 +182,9 @@ class TournamentRepositoryImpl implements TournamentRepository {
            rating_guarantee_enabled, rating_guarantee_bonus_points,
            rating_points_coefficient, rating_bounty_coefficient,
            rating_table_id, rating_enabled, rating_season_year, rating_season_month,
-           month_final
+           month_final, rating_bounty_rebuy_only
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING ${SELECT_COLUMNS}`,
         [
           input.name,
@@ -191,6 +201,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           ratingSeasonYear,
           ratingSeasonMonth,
           monthFinal,
+          ratingBountyRebuyOnly,
         ]
       );
       const row = result.rows[0];
@@ -284,7 +295,8 @@ class TournamentRepositoryImpl implements TournamentRepository {
            rating_points_coefficient = COALESCE($7, rating_points_coefficient),
            rating_bounty_coefficient = COALESCE($8, rating_bounty_coefficient),
            rating_table_id = COALESCE($9, rating_table_id),
-           rating_enabled = COALESCE($10, rating_enabled)
+           rating_enabled = COALESCE($10, rating_enabled),
+           rating_bounty_rebuy_only = COALESCE($11, rating_bounty_rebuy_only)
          WHERE id = $4
          RETURNING ${SELECT_COLUMNS}`,
         [
@@ -298,6 +310,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           input.ratingBountyCoefficient ?? null,
           input.ratingTableId ?? null,
           input.ratingEnabled ?? null,
+          input.ratingBountyRebuyOnly ?? null,
         ]
       );
       const row = result.rows[0];

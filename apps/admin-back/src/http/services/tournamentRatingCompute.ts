@@ -1,3 +1,4 @@
+import type { BountyEliminationEventRecord } from "../../cache/BountyEliminationEventsCache";
 import type { TournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
 export { ratingWithManualAdjustment } from "../../domain/TournamentRatingBreakdown";
 import { InGamePlayerStatus, type InGameUserState } from "../../domain/cache/InGameUserState";
@@ -68,6 +69,32 @@ export function buildPublicRatingPlaceRows(
 
 export const TOURNAMENT_BOUNTY_RATING_BASE = 0.5;
 
+/**
+ * How many of a player's knockouts earn bounty rating points.
+ *
+ * Normally every knockout does, so this is just `knockouts` (the player's
+ * bountyCount). In the Mystery format (`ratingBountyRebuyOnly`) only knockouts
+ * the victim re-buys from pay: the sum of this player's shares over Rebuy
+ * events. Out events — and manual bountyCount corrections, which carry no event
+ * type — earn nothing there.
+ */
+export function ratedBountyCount(
+  playerId: string,
+  knockouts: number,
+  tournament: Pick<TournamentRow, "ratingBountyRebuyOnly">,
+  events: ReadonlyArray<
+    Pick<BountyEliminationEventRecord, "type" | "recordedBounty" | "bountyShare" | "killerPlayerIds">
+  >
+): number {
+  if (!tournament.ratingBountyRebuyOnly) return knockouts;
+  let rated = 0;
+  for (const e of events) {
+    if (e.type !== "Rebuy" || !e.recordedBounty) continue;
+    if (e.killerPlayerIds.includes(playerId)) rated += e.bountyShare;
+  }
+  return rated;
+}
+
 export type { TournamentRatingBreakdown };
 
 export function computeTournamentPlayerRating(
@@ -82,7 +109,13 @@ export function computeTournamentPlayerRating(
     | "ratingPointsCoefficient"
     | "ratingBountyCoefficient"
   >,
-  ratingTable: RatingTable
+  ratingTable: RatingTable,
+  /**
+   * Knockouts that earn bounty points (see ratedBountyCount). Defaults to
+   * `bountyCount`; the breakdown keeps `bountyCount` as the full knockout
+   * count, which feeds the profile and achievements.
+   */
+  ratedBounties: number = bountyCount
 ): TournamentRatingBreakdown {
   const place = finishPlace != null && Number.isFinite(finishPlace) ? Math.floor(finishPlace) : null;
   const base =
@@ -100,7 +133,7 @@ export function computeTournamentPlayerRating(
   const fromTableAfterCoefficient = base * coef + guaranteeBonus;
 
   const bountyCoef = tournament.ratingBountyCoefficient;
-  const bountyPoints = bountyCount * TOURNAMENT_BOUNTY_RATING_BASE * bountyCoef;
+  const bountyPoints = ratedBounties * TOURNAMENT_BOUNTY_RATING_BASE * bountyCoef;
 
   const nonPlacementAccrued = 0;
   const totalPoints =

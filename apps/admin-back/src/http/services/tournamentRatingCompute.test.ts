@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RatingTable } from "../../domain/RatingTable";
-import { computeTournamentPlayerRating } from "./tournamentRatingCompute";
+import { computeTournamentPlayerRating, ratedBountyCount } from "./tournamentRatingCompute";
 
 const TOURNAMENT = {
   ratingGuaranteeEnabled: true,
@@ -55,5 +55,40 @@ describe("computeTournamentPlayerRating (base × coef + guarantee + bounty)", ()
     const b = computeTournamentPlayerRating(39, 2, 2, -3, TOURNAMENT, TABLE);
     // 30 × 1.3 + 15 + (2 × 0.5 × 1) − 3
     expect(b.totalPoints).toBeCloseTo(30 * 1.3 + 15 + 1 - 3, 6);
+  });
+});
+
+describe("Mystery format: bounty points only for Rebuy knockouts", () => {
+  const MYSTERY = { ratingBountyRebuyOnly: true };
+  const REGULAR = { ratingBountyRebuyOnly: false };
+  const ev = (type: "Rebuy" | "Out", killers: string[], recordedBounty = true) => ({
+    type,
+    killerPlayerIds: killers,
+    recordedBounty,
+    bountyShare: recordedBounty ? 1 / killers.length : 0,
+  });
+  const EVENTS = [
+    ev("Rebuy", ["a"]), // a: +1 rated
+    ev("Out", ["a"]), // a: knockout, but not rated in Mystery
+    ev("Rebuy", ["a", "b"]), // a, b: +0.5 rated each
+    ev("Rebuy", ["b"], false), // burned stack: no bounty at all
+    ev("Out", ["b"]),
+  ];
+
+  test("regular tournament: every knockout is rated", () => {
+    expect(ratedBountyCount("a", 2.5, REGULAR, EVENTS)).toBe(2.5);
+  });
+
+  test("Mystery: only Rebuy shares count, Out knockouts pay nothing", () => {
+    expect(ratedBountyCount("a", 2.5, MYSTERY, EVENTS)).toBe(1.5);
+    expect(ratedBountyCount("b", 1.5, MYSTERY, EVENTS)).toBe(0.5);
+    expect(ratedBountyCount("c", 0, MYSTERY, EVENTS)).toBe(0);
+  });
+
+  test("breakdown keeps the full knockout count, pays only rated ones", () => {
+    const b = computeTournamentPlayerRating(39, 11, 2.5, 0, TOURNAMENT, TABLE, 1.5);
+    expect(b.bountyCount).toBe(2.5);
+    expect(b.bountyPoints).toBe(0.75);
+    expect(b.totalPoints).toBeCloseTo(5 * 1.3 + 0.75, 6);
   });
 });

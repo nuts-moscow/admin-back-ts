@@ -30,6 +30,7 @@ import {
   applyNonPlacementAccrued,
   computeTournamentPlayerRating,
   matrixFinishPlaceFromEliminationSlot,
+  ratedBountyCount,
   ratingParticipantCount,
   ratingWithManualAdjustment,
 } from "./tournamentRatingCompute";
@@ -827,7 +828,8 @@ export class InGameUserStateService {
                 row.bountyCount,
                 row.ratingManualAdjustment,
                 tournament,
-                ratingTable
+                ratingTable,
+                ratedBountyCount(row.playerId, row.bountyCount, tournament, allEliminationEvents)
               );
         return {
           tournamentPlayerId: row.tournamentPlayerId,
@@ -1423,6 +1425,10 @@ export class InGameUserStateService {
       );
       return;
     }
+    // Mystery format needs the event log to tell Rebuy knockouts from Out ones.
+    const events = row.ratingBountyRebuyOnly
+      ? await BountyEliminationEventsCache.listAll(tournamentId)
+      : [];
     const breakdown = applyNonPlacementAccrued(
       computeTournamentPlayerRating(
         nRating,
@@ -1430,7 +1436,8 @@ export class InGameUserStateService {
         state.bountyCount,
         0,
         row,
-        ratingTable
+        ratingTable,
+        ratedBountyCount(playerId, state.bountyCount, row, events)
       ),
       state.ratingNonPlacementAccrued ?? 0
     );

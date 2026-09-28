@@ -922,6 +922,14 @@ export const MakeTournamentBodySchema = z
         description: "Multiplier for bounty points (0.5 per bounty); default 1",
         example: 1,
       }),
+    ratingBountyRebuyOnly: z
+      .boolean()
+      .optional()
+      .openapi({
+        description:
+          "Mystery format: bounty points only for Rebuy knockouts (Out knockouts earn none); default false",
+        example: false,
+      }),
     ratingEnabled: z
       .boolean()
       .optional()
@@ -991,6 +999,7 @@ export const TournamentResponseSchema = z
       .openapi({ description: "Bonus for places 1–10 when guarantee is on", example: 10 }),
     ratingPointsCoefficient: z.number(),
     ratingBountyCoefficient: z.number(),
+    ratingBountyRebuyOnly: z.boolean(),
     ratingEnabled: z.boolean().openapi({ description: "False for non-rated tournaments", example: true }),
     ratingSeasonYear: z.number().int().nullable().openapi({ description: "Season year or null", example: 2026 }),
     ratingSeasonMonth: z.number().int().nullable().openapi({ description: "Season month 1–12 or null", example: 4 }),
@@ -1025,6 +1034,7 @@ export const TournamentWithStructureResponseSchema = z
     ratingGuaranteeBonusPoints: z.number().int().min(0),
     ratingPointsCoefficient: z.number(),
     ratingBountyCoefficient: z.number(),
+    ratingBountyRebuyOnly: z.boolean(),
     ratingEnabled: z.boolean().openapi({ description: "False for non-rated tournaments", example: true }),
     ratingSeasonYear: z.number().int().nullable().openapi({ description: "Season year or null", example: 2026 }),
     ratingSeasonMonth: z.number().int().nullable().openapi({ description: "Season month 1–12 or null", example: 4 }),
@@ -1080,6 +1090,7 @@ export const UpdateTournamentBodySchema = z
     ratingGuaranteeBonusPoints: z.number().int().min(0).optional(),
     ratingPointsCoefficient: z.number().finite().optional(),
     ratingBountyCoefficient: z.number().finite().optional(),
+    ratingBountyRebuyOnly: z.boolean().optional(),
     ratingEnabled: z.boolean().optional().openapi({ description: "When false, disables rating for this tournament" }),
     ratingSeasonYear: z
       .number().int().min(2000).max(2100).nullable().optional()

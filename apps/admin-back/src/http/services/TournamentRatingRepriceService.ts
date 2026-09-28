@@ -1,4 +1,4 @@
-import { InGameUserStateCache } from "../../cache";
+import { BountyEliminationEventsCache, InGameUserStateCache } from "../../cache";
 import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import {
   normalizeTournamentRatingBreakdown,
@@ -8,6 +8,7 @@ import { logger } from "../../logger";
 import {
   playerTournamentRatingFactsRepository,
   ratingTableRepository,
+  tournamentEliminationSnapshotRepository,
   tournamentRepository,
   tournamentResultRepository,
   withTransaction,
@@ -17,6 +18,7 @@ import {
   applyNonPlacementAccrued,
   computeTournamentPlayerRating,
   matrixFinishPlaceFromEliminationSlot,
+  ratedBountyCount,
 } from "./tournamentRatingCompute";
 
 /**
@@ -42,6 +44,11 @@ export async function repriceTournamentRating(
     const rows = await tournamentResultRepository.findByTournamentId(tournamentId);
     if (rows.length === 0) return { ok: true, repriced: 0 };
     const nRating = rows.filter((r) => r.status !== InGamePlayerStatus.Registered).length;
+    // The event log survives completion in tournament_elimination_snapshots;
+    // the Mystery format reads it to price only Rebuy knockouts.
+    const events = tournament.ratingBountyRebuyOnly
+      ? ((await tournamentEliminationSnapshotRepository.findByTournamentId(tournamentId)) ?? [])
+      : [];
 
     const factRows: PlayerTournamentRatingFactInsert[] = [];
     const persistedByPlayer = new Map<string, ReturnType<typeof applyNonPlacementAccrued>>();
@@ -70,7 +77,8 @@ export async function repriceTournamentRating(
           row.bountyCount,
           0,
           tournament,
-          ratingTable
+          ratingTable,
+          ratedBountyCount(row.playerId, row.bountyCount, tournament, events)
         ),
         oldAccrued
       );
@@ -119,6 +127,9 @@ export async function repriceTournamentRating(
   // Live tournament: re-freeze snapshots of players already eliminated.
   const states = await InGameUserStateCache.getAllByTournament(String(tournamentId));
   const nRating = states.filter((s) => s.status !== InGamePlayerStatus.Registered).length;
+  const liveEvents = tournament.ratingBountyRebuyOnly
+    ? await BountyEliminationEventsCache.listAll(String(tournamentId))
+    : [];
   let repriced = 0;
   for (const state of states) {
     if (state.status !== InGamePlayerStatus.Out || state.ratingSnapshot == null) continue;
@@ -131,7 +142,8 @@ export async function repriceTournamentRating(
         state.bountyCount,
         0,
         tournament,
-        ratingTable
+        ratingTable,
+        ratedBountyCount(state.playerId, state.bountyCount, tournament, liveEvents)
       ),
       state.ratingNonPlacementAccrued ?? 0
     );
