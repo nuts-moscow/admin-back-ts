@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react';
 import { getStoredToken } from '@/lib/api';
 import { beginSignup, checkNickname, completeSignup } from '@/lib/auth';
 import { signupErrorMessage } from '@/lib/signupErrors';
+import { PinIcon } from '@/components/icons';
+import { CLUB_ADDRESS, CLUB_MAPS_URL } from '@/data/club-info';
 import { LEGAL_DOCS } from '@/data/legal';
 
 function passwordIssue(password: string): string | null {
@@ -265,6 +267,23 @@ export default function RegisterPage() {
             Войти
           </Link>
         </p>
+
+        {/* Venue address — a newcomer signing up also needs to know where to come. */}
+        <div className="mt-6 pt-4 border-t border-line text-center">
+          <div className="text-[10px] uppercase font-bold tracking-widest text-ink-3">
+            Где мы играем
+          </div>
+          <a
+            href={CLUB_MAPS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] leading-snug underline underline-offset-[3px]"
+            style={{ color: 'var(--gold-2)', textDecorationColor: 'rgba(181,138,60,0.5)' }}
+          >
+            <PinIcon size={14} strokeWidth={2.2} className="shrink-0" />
+            {CLUB_ADDRESS}
+          </a>
+        </div>
       </div>
     </main>
   );

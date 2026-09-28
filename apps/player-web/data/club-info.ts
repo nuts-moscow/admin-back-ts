@@ -2,6 +2,9 @@
 export const CLUB_MAPS_URL =
   'https://yandex.com/maps/org/mansarda_lounge_bar/83750617761/?ll=37.637362%2C55.754532&z=16';
 
+/** Venue name and street address, shown next to the maps link. */
+export const CLUB_ADDRESS = 'Мансарда Лаунж-Бар, Большой Спасоглинищевский пер., 9/1с16А';
+
 export const CLUB_INFO = {
   about: {
     title: 'О клубе',
@@ -57,7 +60,7 @@ export const ABOUT_CLUB = {
       text: 'Здесь быстро становятся своими. NUTS FAMILY — это люди, которые возвращаются снова и снова, потому что это не просто клуб. Это семья.',
     },
   ],
-  address: '📍 Мансарда Лаунж-Бар, Большой Спасоглинищевский пер., 9/1с16А',
+  address: `📍 ${CLUB_ADDRESS}`,
   addressMapsUrl: CLUB_MAPS_URL,
 };
 
