@@ -10,6 +10,10 @@
  * and repriceTournamentRating rebuilds its rating facts and results, exactly
  * as ticking the box in the admin and saving would.
  *
+ * The dry run reads plain columns only, so it works against a database that
+ * hasn't had migration 032 yet — handy to preview the numbers before deploying.
+ * `--apply` needs the migration.
+ *
  * Tournaments with no stored elimination log are skipped: without it Rebuy and
  * Out knockouts can't be told apart, and repricing would wipe every bounty.
  *
@@ -28,7 +32,6 @@ import { PostgresClient } from "../src/postgres/PostgresClient";
 import {
   playerRepository,
   tournamentEliminationSnapshotRepository,
-  tournamentRepository,
   tournamentResultRepository,
 } from "../src/postgres";
 import { normalizeTournamentRatingBreakdown } from "../src/domain/TournamentRatingBreakdown";
@@ -47,19 +50,28 @@ async function main() {
   await initLogger();
   await PostgresClient.init();
 
-  const all = await tournamentRepository.list({ limit: 1000 });
-  const targets = all.filter(
-    (t) =>
-      t.status === "completed" &&
-      (ids.length > 0 ? ids.includes(t.id) : /mystery/i.test(t.name))
+  // Plain columns, not tournamentRepository: its SELECT includes
+  // rating_bounty_rebuy_only, which a pre-032 database doesn't have.
+  const { rows: all } = await PostgresClient.instance.query(
+    `SELECT id, name, date, rating_enabled, rating_bounty_coefficient
+       FROM tournaments WHERE status = 'completed' ORDER BY date ASC`
   );
+  const targets = all
+    .map((r: Record<string, unknown>) => ({
+      id: Number(r.id),
+      name: String(r.name ?? ""),
+      date: Number(r.date ?? 0),
+      ratingEnabled: r.rating_enabled == null ? true : Boolean(r.rating_enabled),
+      ratingBountyCoefficient: Number(r.rating_bounty_coefficient ?? 1),
+    }))
+    .filter((t) => (ids.length > 0 ? ids.includes(t.id) : /mystery/i.test(t.name)));
 
   console.log(`${apply ? "APPLY" : "DRY RUN"} — ${targets.length} tournament(s)\n`);
 
   for (const t of targets) {
     const events = await tournamentEliminationSnapshotRepository.findByTournamentId(t.id);
     const date = new Date(t.date < 1e12 ? t.date * 1000 : t.date).toISOString().slice(0, 10);
-    console.log(`#${t.id} «${t.name}» ${date}${t.ratingBountyRebuyOnly ? " (already rebuy-only)" : ""}`);
+    console.log(`#${t.id} «${t.name}» ${date}`);
     if (!t.ratingEnabled) {
       console.log("  skipped: rating disabled\n");
       continue;
