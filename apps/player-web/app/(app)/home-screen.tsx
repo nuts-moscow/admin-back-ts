@@ -94,7 +94,7 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
             </Card>
           )}
           {heroCards.map((t, i) => (
-            <ActiveTournamentCard key={t.id} t={t} primary={i === 0} onChanged={onChanged} />
+            <ActiveTournamentCard key={t.id} t={t} primary={i === 0} onChanged={onChanged} showRoute />
           ))}
         </div>
       </div>

@@ -1,3 +1,7 @@
+/** Yandex Maps card of the venue (Мансарда Лаунж-Бар) — the single maps link. */
+export const CLUB_MAPS_URL =
+  'https://yandex.com/maps/org/mansarda_lounge_bar/83750617761/?ll=37.637362%2C55.754532&z=16';
+
 export const CLUB_INFO = {
   about: {
     title: 'О клубе',
@@ -54,7 +58,7 @@ export const ABOUT_CLUB = {
     },
   ],
   address: '📍 Мансарда Лаунж-Бар, Большой Спасоглинищевский пер., 9/1с16А',
-  addressMapsUrl: 'https://yandex.ru/maps/org/83750617761',
+  addressMapsUrl: CLUB_MAPS_URL,
 };
 
 /**
@@ -86,7 +90,7 @@ export const QA_CLUB: Array<{
   {
     q: 'Где вы находитесь?',
     a: 'Мансарда Лаунж-Бар, Большой Спасоглинищевский пер., 9/1с16А.',
-    href: 'https://yandex.ru/maps/org/83750617761',
+    href: CLUB_MAPS_URL,
   },
   {
     q: 'Нужно ли записываться заранее?',
