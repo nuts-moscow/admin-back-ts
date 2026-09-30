@@ -38,7 +38,7 @@ export default function AboutPage() {
           <div className="serif text-[17px] font-semibold mb-3">{ABOUT_CLUB.schedule.title}</div>
           <div className="flex flex-col gap-2">
             {ABOUT_CLUB.schedule.rows.map((r) => (
-              <div key={r.name} className="flex items-baseline justify-between gap-3">
+              <div key={r.day} className="flex items-baseline justify-between gap-3">
                 {/* One typeface and size on both sides — the mono/sans mix read
                     as two unrelated columns. */}
                 <span className="text-[13px] text-ink-2 shrink-0">{r.day}</span>

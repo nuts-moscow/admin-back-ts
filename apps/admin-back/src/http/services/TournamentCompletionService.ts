@@ -29,6 +29,7 @@ import {
   applyNonPlacementAccrued,
   computeTournamentPlayerRating,
   matrixFinishPlaceFromEliminationSlot,
+  ratedBountyCount,
   ratingParticipantCount,
 } from "./tournamentRatingCompute";
 import { normalizeTournamentRatingBreakdown } from "../../domain/TournamentRatingBreakdown";
@@ -144,7 +145,8 @@ export async function runTournamentCompletion(
               state.bountyCount,
               0,
               tournament,
-              ratingTable
+              ratingTable,
+              ratedBountyCount(state.playerId, state.bountyCount, tournament, eliminationEvents)
             );
       ratingPersisted = applyNonPlacementAccrued(
         baseRating,

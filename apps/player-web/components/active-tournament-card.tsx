@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import type { PlayerTournamentSummary } from '@admin/schemas';
 import { Card } from '@/components/card';
-import { ChevRIcon } from '@/components/icons';
+import { ChevRIcon, PinIcon } from '@/components/icons';
+import { CLUB_MAPS_URL } from '@/data/club-info';
 import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
 import { useLevelCountdown } from '@/lib/use-level-countdown';
 import { useTournamentRegistration } from '@/lib/use-tournament-registration';
@@ -13,16 +14,19 @@ import { useTournamentRegistration } from '@/lib/use-tournament-registration';
  * ("Сейчас в игре"). For in-progress tournaments it shows live stats + the clock;
  * for a not-yet-started (registration_open) tournament it shows entry / starting
  * stack / registered count plus a register button — same footprint either way.
- * Pass `primary` for the dark hero variant; `onChanged` refreshes after register.
+ * Pass `primary` for the dark hero variant; `onChanged` refreshes after register;
+ * `showRoute` adds a «Построить маршрут» button under the register control.
  */
 export function ActiveTournamentCard({
   t,
   primary = false,
   onChanged,
+  showRoute = false,
 }: {
   t: PlayerTournamentSummary;
   primary?: boolean;
   onChanged?: () => void;
+  showRoute?: boolean;
 }) {
   const fd = formatTournamentDate(t.date);
   const dim = primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)';
@@ -180,6 +184,7 @@ export function ActiveTournamentCard({
               >
                 По приглашению
               </span>
+              {showRoute && <RouteButton primary={primary} />}
             </div>
           ) : isUpcoming ? (
             <div className="mt-3">
@@ -210,6 +215,7 @@ export function ActiveTournamentCard({
                   {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
                 </span>
               </span>
+              {showRoute && <RouteButton primary={primary} />}
             </div>
           ) : (
             <div className="flex flex-nowrap gap-x-4 mt-3 overflow-hidden">
@@ -230,6 +236,39 @@ export function ActiveTournamentCard({
         </div>
       </Card>
     </Link>
+  );
+}
+
+/** Opens the venue in Yandex Maps without following the card's own link. */
+function RouteButton({ primary }: { primary: boolean }) {
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      onClick={(e) => {
+        // The whole card is a link to the tournament — open the map instead.
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(CLUB_MAPS_URL, '_blank', 'noopener,noreferrer');
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(CLUB_MAPS_URL, '_blank', 'noopener,noreferrer');
+        }
+      }}
+      className="mt-2 flex items-center justify-center gap-1.5 rounded-lg font-bold uppercase tracking-wider cursor-pointer select-none"
+      style={{
+        padding: '9px 12px',
+        fontSize: 12,
+        color: primary ? 'var(--gold)' : 'var(--gold-2)',
+        border: '1px solid rgba(181,138,60,0.55)',
+      }}
+    >
+      <PinIcon size={12} strokeWidth={2.4} />
+      Построить маршрут
+    </span>
   );
 }
 

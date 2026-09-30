@@ -74,9 +74,10 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
               className="text-[12px] mt-2 m-0"
               style={{ color: 'rgba(251,245,233,0.75)', lineHeight: 1.5 }}
             >
-              В конце каждого сезона проходит финал месяца в элитном загородном доме. Топ-27 игроков
-              по рейтингу получают уникальную возможность сразиться друг с другом на выездном
-              мероприятии.
+              В конце каждого месяца лучшие игроки NUTS Family встречаются на большом финальном
+              событии. Топ-27 по рейтингу получают возможность сыграть друг с другом в особом
+              формате. Это не просто турнир, а большой ивент с атмосферой, эмоциями и всей NUTS
+              Family.
             </p>
           </div>
         </Card>
@@ -93,7 +94,7 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
             </Card>
           )}
           {heroCards.map((t, i) => (
-            <ActiveTournamentCard key={t.id} t={t} primary={i === 0} onChanged={onChanged} />
+            <ActiveTournamentCard key={t.id} t={t} primary={i === 0} onChanged={onChanged} showRoute />
           ))}
         </div>
       </div>

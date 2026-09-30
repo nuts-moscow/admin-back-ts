@@ -48,6 +48,12 @@ export const UserIcon = (p: Props) => (
     <path d="M4 21c1-4 5-6 8-6s7 2 8 6" />
   </svg>
 );
+export const PinIcon = (p: Props) => (
+  <svg {...base(p)}>
+    <path d="M12 22s7-7.2 7-12.5A7 7 0 005 9.5C5 14.8 12 22 12 22z" />
+    <circle cx="12" cy="9.5" r="2.5" />
+  </svg>
+);
 export const ChevRIcon = (p: Props) => (
   <svg {...base({ size: 14, ...p, strokeWidth: 2 })}>
     <path d="M9 6l6 6-6 6" />

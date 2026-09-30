@@ -10,9 +10,10 @@ import type {
 } from '@admin/schemas';
 import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
-import { ChevLIcon, MedalIcon } from '@/components/icons';
+import { ChevLIcon, MedalIcon, PinIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
+import { CLUB_MAPS_URL } from '@/data/club-info';
 import { fetchPlayerApi } from '@/lib/api';
 import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
 import { useLevelCountdown } from '@/lib/use-level-countdown';
@@ -511,22 +512,26 @@ function RegisterButton({
   // never self-registration — show a marker instead of the toggle.
   if (monthFinal) {
     return (
-      <span
-        className="rounded-full font-bold uppercase tracking-wider text-center"
-        style={{
-          padding: '10px 16px',
-          fontSize: 12,
-          color: 'rgba(251,245,233,0.7)',
-          border: '1px solid rgba(251,245,233,0.2)',
-        }}
-      >
-        По приглашению
-      </span>
+      <div className="flex flex-col items-stretch gap-2">
+        <span
+          className="rounded-full font-bold uppercase tracking-wider text-center"
+          style={{
+            padding: '10px 16px',
+            fontSize: 12,
+            color: 'rgba(251,245,233,0.7)',
+            border: '1px solid rgba(251,245,233,0.2)',
+          }}
+        >
+          По приглашению
+        </span>
+        <RouteButton />
+      </div>
     );
   }
 
   // Hide entirely when late registration has closed AND player isn't already
   // signed up — they can still see (and cancel) an existing registration.
+  // The route button goes with it: nobody new is coming to this game.
   if (lateRegClosed && !registered) return null;
 
   async function toggle() {
@@ -556,7 +561,7 @@ function RegisterButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-stretch gap-2">
       <button
         type="button"
         onClick={toggle}
@@ -583,12 +588,34 @@ function RegisterButton({
           {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
         </span>
       </button>
+      <RouteButton />
       {error && (
-        <div className="text-[10px] text-crimson max-w-[140px] text-right">
+        <div className="text-[10px] text-crimson max-w-[140px] self-end text-right">
           {error}
         </div>
       )}
     </div>
+  );
+}
+
+/** Opens the venue in Yandex Maps — sits under the register control. */
+function RouteButton() {
+  return (
+    <a
+      href={CLUB_MAPS_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="rounded-full font-bold uppercase tracking-wider inline-flex items-center justify-center gap-1.5 whitespace-nowrap"
+      style={{
+        padding: '10px 16px',
+        fontSize: 12,
+        color: 'var(--gold)',
+        border: '1px solid rgba(181,138,60,0.55)',
+      }}
+    >
+      <PinIcon size={12} strokeWidth={2.4} />
+      Построить маршрут
+    </a>
   );
 }
 

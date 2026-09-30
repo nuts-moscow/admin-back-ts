@@ -10,6 +10,12 @@ import { PostgresClient } from "./PostgresClient";
 
 const LOG_PREFIX = "[PlayerTournamentRatingFactsRepository]";
 
+/**
+ * How many of a player's best tournaments (by total_points) count in full
+ * toward the seasonal standing; the rest contribute their bounty points only.
+ */
+export const SEASONAL_RATING_BEST_COUNT = 5;
+
 export interface PlayerTournamentRatingFactInsert {
   playerId: string;
   tournamentPlayerId: number;
@@ -53,9 +59,11 @@ export interface ClubTournament {
 
 export interface SeasonalRatingEntry {
   playerId: string;
+  /** Sum of the player's best SEASONAL_RATING_BEST_COUNT tournaments this season, not all of them. */
   totalPoints: number;
+  /** Every tournament played this season, regardless of how many count toward totalPoints. */
   tournamentCount: number;
-  /** Tournaments finished in the rating zone (earned base points). */
+  /** Tournaments finished in the rating zone (earned base points) — also uncapped. */
   ratingZoneCount: number;
 }
 
@@ -381,14 +389,33 @@ class PlayerTournamentRatingFactsRepositoryImpl
 
   async getSeasonalRating(year: number, month: number): Promise<SeasonalRatingEntry[]> {
     try {
+      // The standing counts every tournament played (tournament_count,
+      // rating_zone_count). Points: the best SEASONAL_RATING_BEST_COUNT
+      // tournaments by total_points count in full (placement, guarantee,
+      // bounties, manual adjustment); every other tournament adds only its
+      // bounty_points — a bad night doesn't drag the season down, but
+      // knockouts made on it still pay.
       const res = await PostgresClient.instance.query(
-        `SELECT player_id, SUM(total_points) AS total_points, COUNT(*) AS tournament_count,
-                COUNT(*) FILTER (WHERE base_points > 0) AS rating_zone_count
-         FROM player_tournament_rating_facts
-         WHERE rating_season_year = $1 AND rating_season_month = $2
+        `WITH ranked AS (
+           SELECT
+             player_id,
+             total_points,
+             base_points,
+             bounty_points,
+             ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY total_points DESC) AS rn
+           FROM player_tournament_rating_facts
+           WHERE rating_season_year = $1 AND rating_season_month = $2
+         )
+         SELECT
+           player_id,
+           COALESCE(SUM(total_points) FILTER (WHERE rn <= $3::int), 0)
+             + COALESCE(SUM(bounty_points) FILTER (WHERE rn > $3::int), 0) AS total_points,
+           COUNT(*) AS tournament_count,
+           COUNT(*) FILTER (WHERE base_points > 0) AS rating_zone_count
+         FROM ranked
          GROUP BY player_id
-         ORDER BY SUM(total_points) DESC`,
-        [year, month]
+         ORDER BY total_points DESC`,
+        [year, month, SEASONAL_RATING_BEST_COUNT]
       );
       return res.rows.map((row) => {
         const r = row as Record<string, unknown>;

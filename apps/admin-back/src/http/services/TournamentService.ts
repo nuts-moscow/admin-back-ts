@@ -35,6 +35,8 @@ export interface MakeTournamentBody {
   ratingGuaranteeBonusPoints?: number;
   ratingPointsCoefficient?: number;
   ratingBountyCoefficient?: number;
+  /** Mystery format: bounty rating points only for Rebuy knockouts; default false. */
+  ratingBountyRebuyOnly?: boolean;
   ratingTableId?: number;
   ratingEnabled?: boolean;
   ratingSeasonYear?: number | null;
@@ -52,6 +54,7 @@ export type TournamentApiSummary = {
   ratingGuaranteeBonusPoints: number;
   ratingPointsCoefficient: number;
   ratingBountyCoefficient: number;
+  ratingBountyRebuyOnly: boolean;
   ratingTableId: number;
   ratingEnabled: boolean;
   ratingSeasonYear: number | null;
@@ -70,6 +73,7 @@ export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
     ratingGuaranteeBonusPoints: row.ratingGuaranteeBonusPoints,
     ratingPointsCoefficient: row.ratingPointsCoefficient,
     ratingBountyCoefficient: row.ratingBountyCoefficient,
+    ratingBountyRebuyOnly: row.ratingBountyRebuyOnly,
     ratingTableId: row.ratingTableId,
     ratingEnabled: row.ratingEnabled,
     ratingSeasonYear: row.ratingSeasonYear,
@@ -185,6 +189,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: input.ratingPointsCoefficient,
       ratingBountyCoefficient: input.ratingBountyCoefficient,
+      ratingBountyRebuyOnly: input.ratingBountyRebuyOnly,
       ratingTableId: input.ratingTableId,
       ratingEnabled,
       ratingSeasonYear: ratingEnabled ? (input.ratingSeasonYear ?? null) : null,
@@ -246,6 +251,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints: tournament.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: tournament.ratingPointsCoefficient,
       ratingBountyCoefficient: tournament.ratingBountyCoefficient,
+      ratingBountyRebuyOnly: tournament.ratingBountyRebuyOnly,
       ratingTableId: tournament.ratingTableId,
       ratingEnabled: tournament.ratingEnabled,
       ratingSeasonYear: tournament.ratingSeasonYear,
@@ -305,6 +311,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints?: number;
       ratingPointsCoefficient?: number;
       ratingBountyCoefficient?: number;
+      ratingBountyRebuyOnly?: boolean;
       ratingTableId?: number;
       ratingEnabled?: boolean;
       ratingSeasonYear?: number | null;
@@ -361,6 +368,7 @@ export class TournamentService {
       ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints ?? null,
       ratingPointsCoefficient: input.ratingPointsCoefficient ?? null,
       ratingBountyCoefficient: input.ratingBountyCoefficient ?? null,
+      ratingBountyRebuyOnly: input.ratingBountyRebuyOnly ?? null,
       ratingTableId: input.ratingTableId ?? null,
       ratingEnabled: ratingEnabledInput,
     });
