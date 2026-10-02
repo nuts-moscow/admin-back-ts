@@ -104,28 +104,28 @@ export function ProfileAvatarPanel({ hasAvatar, onChanged }: Props) {
           </div>
         ) : null}
 
-        <AvatarUpload onSubmitted={setSubmission} />
+        <AvatarUpload onSubmitted={setSubmission}>
+          {hasAvatar ? (
+            <button
+              type="button"
+              onClick={() => void removeOwn()}
+              className="border-0 cursor-pointer font-bold uppercase self-start"
+              style={{
+                background: 'rgba(251,245,233,0.1)',
+                borderRadius: 999,
+                padding: '4px 10px',
+                fontSize: 9,
+                letterSpacing: 0.5,
+                color: 'rgba(251,245,233,0.7)',
+                fontFamily: 'inherit',
+                flexShrink: 0,
+              }}
+            >
+              Убрать
+            </button>
+          ) : null}
+        </AvatarUpload>
       </div>
-
-      {hasAvatar ? (
-        <button
-          type="button"
-          onClick={() => void removeOwn()}
-          className="border-0 cursor-pointer font-bold uppercase"
-          style={{
-            background: 'rgba(251,245,233,0.1)',
-            borderRadius: 999,
-            padding: '4px 10px',
-            fontSize: 9,
-            letterSpacing: 0.5,
-            color: 'rgba(251,245,233,0.7)',
-            fontFamily: 'inherit',
-            flexShrink: 0,
-          }}
-        >
-          Убрать
-        </button>
-      ) : null}
     </div>
   );
 }

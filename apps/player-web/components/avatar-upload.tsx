@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { apiBaseUrl, getStoredToken } from '@/lib/api';
 
 export type SubmissionState =
@@ -10,6 +10,7 @@ export type SubmissionState =
 
 interface Props {
   onSubmitted: (submission: SubmissionState) => void;
+  children?: ReactNode;
 }
 
 /**
@@ -20,7 +21,7 @@ interface Props {
  * and that it will not appear until they do. Uploading is the consent, so the
  * words have to come first — not in a document nobody opens, and not after.
  */
-export function AvatarUpload({ onSubmitted }: Props) {
+export function AvatarUpload({ onSubmitted, children }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +87,8 @@ export function AvatarUpload({ onSubmitted }: Props) {
       >
         {busy ? 'Отправляем...' : 'Загрузить фото'}
       </button>
+
+      {children}
 
       {/* The notice sits with the control, before anything is sent: uploading is
           the consent, so the words have to be readable at the moment of it. */}
