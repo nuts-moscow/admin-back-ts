@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type {
   PlayerMyTournamentState,
   PlayerTournamentDetail,
@@ -10,7 +10,7 @@ import type {
 } from '@admin/schemas';
 import { Avatar } from '@/components/avatar';
 import { Card } from '@/components/card';
-import { ChevLIcon, MedalIcon, PinIcon } from '@/components/icons';
+import { ChevLIcon, ChevRIcon, MedalIcon, PinIcon, TrophyIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
 import { getTournamentVenue, type TournamentVenue } from '@admin/schemas';
@@ -656,6 +656,7 @@ function MyResultPanel({ r }: { r: PlayerTournamentDetail['myResult'] }) {
   const isTop3 = r.place != null && r.place <= 3;
 
   return (
+    <>
     <div className="mt-4 relative" style={panelStyle}>
       <div
         className="uppercase font-bold"
@@ -710,7 +711,131 @@ function MyResultPanel({ r }: { r: PlayerTournamentDetail['myResult'] }) {
         />
       </div>
     </div>
+    {r.pointsTable && <PointsTable t={r.pointsTable} panelStyle={panelStyle} />}
+    </>
   );
+}
+
+type PointsTableData = NonNullable<
+  NonNullable<PlayerTournamentDetail['myResult']>['pointsTable']
+>;
+
+/** Rounds away float noise from base × coefficient (1 × 1.3 → 1.3). */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * «Турнирные баллы» toggle under the result: the base points per place for
+ * this tournament's table and field size, the player's own row highlighted
+ * with how the coefficient turned it into their placement points.
+ */
+function PointsTable({
+  t,
+  panelStyle,
+}: {
+  t: PointsTableData;
+  panelStyle: CSSProperties;
+}) {
+  const [open, setOpen] = useState(false);
+  const lastPlace = t.rows.length > 0 ? t.rows[t.rows.length - 1]!.place : 0;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="mt-3 relative w-full rounded-full font-bold uppercase tracking-wider inline-flex items-center justify-center gap-1.5 cursor-pointer"
+        style={{
+          padding: '10px 16px',
+          fontSize: 12,
+          color: 'var(--gold)',
+          background: open ? 'rgba(181,138,60,0.15)' : 'transparent',
+          border: '1px solid rgba(181,138,60,0.55)',
+          fontFamily: 'inherit',
+        }}
+      >
+        <TrophyIcon size={14} strokeWidth={2} />
+        Турнирные баллы
+        <ChevRIcon
+          size={12}
+          style={{ transform: `rotate(${open ? -90 : 90}deg)`, transition: 'transform 0.2s ease' }}
+        />
+      </button>
+
+      {open && (
+        <div className="mt-3 relative" style={panelStyle}>
+          <div
+            className="uppercase font-bold"
+            style={{ fontSize: 10, letterSpacing: 0.6, color: 'rgba(251,245,233,0.5)' }}
+          >
+            Баллы за места · {t.participantCount} {pluralPlayers(t.participantCount)}
+          </div>
+          <div className="mt-1" style={{ fontSize: 11, color: 'rgba(251,245,233,0.5)' }}>
+            Коэффициент турнира ×{formatNumberRu(t.coefficient)}
+            {t.guaranteeBonus > 0 && ` · +${formatNumberRu(t.guaranteeBonus)} за гарантию в топ-10`}
+          </div>
+
+          <div
+            className="flex justify-between uppercase font-bold mt-3 px-2 pb-1"
+            style={{ fontSize: 9.5, letterSpacing: 0.6, color: 'rgba(251,245,233,0.5)' }}
+          >
+            <span>Место</span>
+            <span>Баллы</span>
+          </div>
+          {t.rows.map((row) => {
+            const mine = row.place === t.myPlace;
+            const bonus = row.place <= 10 ? t.guaranteeBonus : 0;
+            return (
+              <div
+                key={row.place}
+                className="flex justify-between gap-3 px-2 py-1 text-[13px]"
+                style={{
+                  borderLeft: `3px solid ${mine ? 'var(--gold-2)' : 'transparent'}`,
+                  background: mine ? 'rgba(181,138,60,0.22)' : 'transparent',
+                  color: mine ? 'var(--gold)' : 'var(--paper)',
+                  fontWeight: mine ? 700 : 400,
+                }}
+              >
+                <span>
+                  {row.place}
+                  {mine && ' · вы'}
+                </span>
+                <span className="text-right">
+                  {formatNumberRu(row.basePoints)}
+                  {mine &&
+                    ` → ×${formatNumberRu(t.coefficient)}${
+                      bonus > 0 ? ` + ${formatNumberRu(bonus)}` : ''
+                    } = ${formatNumberRu(round2(row.basePoints * t.coefficient + bonus))}`}
+                </span>
+              </div>
+            );
+          })}
+          {t.rows.length === 0 ? (
+            <div className="mt-2 px-2 text-[11px]" style={{ color: 'rgba(251,245,233,0.5)' }}>
+              При таком числе участников места баллов не дают
+            </div>
+          ) : (
+            <div className="mt-2 px-2 text-[11px]" style={{ color: 'rgba(251,245,233,0.5)' }}>
+              {t.myPlace != null && t.myPlace > lastPlace
+                ? `Ваше ${t.myPlace}-е место баллов не даёт: баллы получают места с 1-го по ${lastPlace}-е`
+                : `Места с ${lastPlace + 1}-го баллов не дают`}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** «участник / участника / участников» for the field size. */
+function pluralPlayers(n: number): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return 'участник';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'участника';
+  return 'участников';
 }
 
 function ResultRow({ k, v }: { k: string; v: string }) {

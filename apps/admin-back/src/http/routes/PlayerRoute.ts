@@ -17,8 +17,11 @@ import {
   playerTournamentRatingFactsRepository,
   type SeasonalRatingEntry,
 } from "../../postgres/PlayerTournamentRatingFactsRepository";
+import { ratingTableRepository } from "../../postgres/RatingTableRepository";
 import { tournamentRepository, type TournamentRow } from "../../postgres/TournamentRepository";
 import { tournamentResultRepository } from "../../postgres/TournamentResultRepository";
+import { getTableBaseRatingPoints } from "../../domain/tournamentRatingMatrix";
+import { maxPrizePlace } from "../../domain/publicRatingDistribution";
 import {
   computeChipPoolSummaryFromStates,
   InGameUserStateService,
@@ -894,6 +897,15 @@ interface MyCompletedResult {
   knockouts: PlayerRef[];
   /** Who knocked me out — a list because a bounty can be split across killers. */
   eliminatedBy: PlayerRef[];
+  pointsTable: MyPointsTable | null;
+}
+
+interface MyPointsTable {
+  participantCount: number;
+  coefficient: number;
+  guaranteeBonus: number;
+  myPlace: number | null;
+  rows: { place: number; basePoints: number }[];
 }
 
 /** Parse a stored player-id list (JSON array, else comma-separated) into ids. */
@@ -936,10 +948,9 @@ async function buildMyCompletedResult(
   // Points from the same rating-facts source the profile history uses, so the
   // number matches there; fall back to the persisted snapshot on the result row.
   const facts = await queryPlayerRatingFacts(myPlayerId);
-  const points =
-    facts.find((f) => f.tournamentId === tournamentId)?.totalPoints ??
-    mine.ratingPersisted?.totalPoints ??
-    0;
+  const myFact = facts.find((f) => f.tournamentId === tournamentId);
+  const points = myFact?.totalPoints ?? mine.ratingPersisted?.totalPoints ?? 0;
+  const pointsTable = myFact ? await buildMyPointsTable(tournament, myFact) : null;
 
   // Both columns store JSON arrays of player ids (eliminatedBy can hold several
   // when a bounty was split across killers); an empty tournament records "[]".
@@ -965,6 +976,50 @@ async function buildMyCompletedResult(
     points,
     knockouts: killIds.map(ref),
     eliminatedBy: killerIds.map(ref),
+    pointsTable,
+  };
+}
+
+/**
+ * The base-points-by-place column the player's points came from: the rating
+ * table and field size frozen in their rating fact at completion, so it
+ * matches what was awarded even if the tournament's table changed since.
+ */
+async function buildMyPointsTable(
+  tournament: TournamentRow,
+  fact: { playerStatus: string; placement: number | null; ratingTableId: number; ratingFieldSize: number }
+): Promise<MyPointsTable | null> {
+  const n = fact.ratingFieldSize;
+  if (n < 1) return null;
+  const table = await ratingTableRepository.findById(fact.ratingTableId);
+  if (!table) return null;
+
+  const rows: MyPointsTable["rows"] = [];
+  const depth = maxPrizePlace(table, n);
+  for (let place = 1; place <= depth; place++) {
+    rows.push({ place, basePoints: getTableBaseRatingPoints(table, n, place) });
+  }
+
+  // Same mapping as TournamentCompletionService: `placement` is elimination
+  // order (1 = first out) for busted players; anyone still in at the end is
+  // the winner; a registration that never entered has no rating place.
+  const myPlace =
+    fact.playerStatus === InGamePlayerStatus.Registered
+      ? null
+      : fact.playerStatus === InGamePlayerStatus.Out
+        ? fact.placement != null
+          ? n - fact.placement + 1
+          : null
+        : 1;
+
+  return {
+    participantCount: n,
+    coefficient: tournament.ratingPointsCoefficient,
+    guaranteeBonus: tournament.ratingGuaranteeEnabled
+      ? (tournament.ratingGuaranteeBonusPoints ?? 10)
+      : 0,
+    myPlace,
+    rows,
   };
 }
 
@@ -1183,11 +1238,14 @@ async function queryPlayerRatingFacts(playerId: number): Promise<
     totalPoints: number;
     placement: number | null;
     playerStatus: string;
+    ratingTableId: number;
+    ratingFieldSize: number;
   }>
 > {
   try {
     const res = await PostgresClient.instance.query(
-      `SELECT tournament_id, total_points, placement, player_status
+      `SELECT tournament_id, total_points, placement, player_status,
+              rating_table_id, rating_field_size
        FROM player_tournament_rating_facts
        WHERE player_id = $1`,
       [String(playerId)]
@@ -1199,6 +1257,8 @@ async function queryPlayerRatingFacts(playerId: number): Promise<
         totalPoints: Number(r.total_points),
         placement: r.placement != null ? Number(r.placement) : null,
         playerStatus: String(r.player_status ?? ""),
+        ratingTableId: Number(r.rating_table_id),
+        ratingFieldSize: Number(r.rating_field_size ?? 0),
       };
     });
   } catch (err) {

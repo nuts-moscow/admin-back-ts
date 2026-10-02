@@ -76,6 +76,25 @@ export const PlayerTournamentDetail = PlayerTournamentSummary.extend({
       points: z.number(),
       knockouts: z.array(z.object({ playerId: z.number().int(), nickname: z.string() })),
       eliminatedBy: z.array(z.object({ playerId: z.number().int(), nickname: z.string() })),
+      /**
+       * Base rating points per finishing place for this tournament's rating
+       * table and field size — null for non-rated tournaments. Optional while
+       * the previous backend is still serving requests.
+       */
+      pointsTable: z
+        .object({
+          /** Field size that picked the table column (players who entered). */
+          participantCount: z.number().int(),
+          /** Tournament coefficient applied to the base points. */
+          coefficient: z.number(),
+          /** Guarantee bonus added unscaled to places 1–10; 0 when off. */
+          guaranteeBonus: z.number(),
+          /** The player's place in the rating table; null if it has none. */
+          myPlace: z.number().int().nullable(),
+          /** Only places that earn base points, best first. */
+          rows: z.array(z.object({ place: z.number().int(), basePoints: z.number() })),
+        })
+        .nullish(),
     })
     .nullable(),
 });
