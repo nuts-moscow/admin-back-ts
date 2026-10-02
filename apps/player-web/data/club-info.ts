@@ -1,9 +1,6 @@
-/** Yandex Maps card of the venue (Мансарда Лаунж-Бар) — the single maps link. */
-export const CLUB_MAPS_URL =
-  'https://yandex.com/maps/org/mansarda_lounge_bar/83750617761/?ll=37.637362%2C55.754532&z=16';
+import { TOURNAMENT_VENUES } from '@admin/schemas';
 
-/** Venue name and street address, shown next to the maps link. */
-export const CLUB_ADDRESS = 'Мансарда Лаунж-Бар, Большой Спасоглинищевский пер., 9/1с16А';
+export const CLUB_VENUES = TOURNAMENT_VENUES;
 
 export const CLUB_INFO = {
   about: {
@@ -60,8 +57,7 @@ export const ABOUT_CLUB = {
       text: 'Здесь быстро становятся своими. NUTS FAMILY - это люди, которые возвращаются снова и снова, потому что это не просто клуб. Это семья.',
     },
   ],
-  address: `📍 ${CLUB_ADDRESS}`,
-  addressMapsUrl: CLUB_MAPS_URL,
+  venues: CLUB_VENUES,
 };
 
 /**
@@ -92,8 +88,11 @@ export const QA_CLUB: Array<{
   },
   {
     q: 'Где вы находитесь?',
-    a: 'Мансарда Лаунж-Бар, Большой Спасоглинищевский пер., 9/1с16А.',
-    href: CLUB_MAPS_URL,
+    a: 'Играем на двух площадках. Место конкретного турнира указано на его странице.',
+    links: CLUB_VENUES.map((venue) => ({
+      label: `${venue.name}, ${venue.address}`,
+      href: venue.mapsUrl,
+    })),
   },
   {
     q: 'Нужно ли записываться заранее?',

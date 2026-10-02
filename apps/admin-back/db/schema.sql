@@ -26,6 +26,7 @@ create table if not exists tournaments
 (
     id                            SERIAL  not null primary key,
     name                          text    not null,
+    venue_id                      text    not null default 'mansarda' check (venue_id in ('mansarda', 'everest-mansion')),
     status                        text    not null,
     date                          bigint  not null,
     entry_price                   bigint  not null default 1000,

@@ -1,3 +1,4 @@
+import type { TournamentVenueId } from "@admin/schemas";
 import type { BlindType } from "../../domain/BlindType";
 import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { effectiveAllowedReentryCount } from "../../domain/tournamentReentryPolicy";
@@ -27,6 +28,7 @@ export interface MakeTournamentStructureBody {
 }
 
 export interface MakeTournamentBody {
+  venueId?: TournamentVenueId;
   name: string;
   date: number;
   structure: MakeTournamentStructureBody;
@@ -46,6 +48,7 @@ export interface MakeTournamentBody {
 }
 
 export type TournamentApiSummary = {
+  venueId: TournamentVenueId;
   id: number;
   name: string;
   status: string;
@@ -65,6 +68,7 @@ export type TournamentApiSummary = {
 
 export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
   return {
+    venueId: row.venueId,
     id: row.id,
     name: row.name,
     status: row.status,
@@ -185,6 +189,7 @@ export class TournamentService {
     const tournament = await tournamentRepository.create({
       name: input.name,
       date: input.date,
+      venueId: input.venueId,
       ratingGuaranteeEnabled: input.ratingGuaranteeEnabled,
       ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: input.ratingPointsCoefficient,
@@ -243,6 +248,7 @@ export class TournamentService {
           }
         : null;
     return {
+      venueId: tournament.venueId,
       id: tournament.id,
       name: tournament.name,
       status: tournament.status,
@@ -260,6 +266,11 @@ export class TournamentService {
       monthFinal: tournament.monthFinal,
       structure: structureOut,
     };
+  }
+
+  async setVenue(id: number, venueId: TournamentVenueId) {
+    const tournament = await tournamentRepository.updateVenue(id, venueId);
+    return tournament ? tournamentRowToApi(tournament) : null;
   }
 
   async updateTournamentStatus(

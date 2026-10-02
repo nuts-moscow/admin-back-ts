@@ -1,3 +1,4 @@
+import { DEFAULT_TOURNAMENT_VENUE_ID, getTournamentVenue, type TournamentVenueId } from "@admin/schemas";
 import { logger } from "../logger";
 import { PostgresClient } from "./PostgresClient";
 
@@ -5,6 +6,7 @@ const DEFAULT_RATING_GUARANTEE_BONUS_POINTS = 10;
 const DEFAULT_RATING_TABLE_ID = 1;
 
 export interface MakeTournamentInput {
+  venueId?: TournamentVenueId;
   name: string;
   date: number;
   ratingGuaranteeEnabled?: boolean;
@@ -20,6 +22,7 @@ export interface MakeTournamentInput {
 }
 
 export interface TournamentRow {
+  venueId: TournamentVenueId;
   id: number;
   name: string;
   status: string;
@@ -80,6 +83,7 @@ const DEFAULT_REENTRY_PRICE = 1000;
 
 function rowToTournament(row: Record<string, unknown>): TournamentRow {
   return {
+    venueId: getTournamentVenue(row.venue_id as string | undefined).id,
     id: Number(row.id),
     name: String(row.name ?? ""),
     status: String(row.status ?? DEFAULT_STATUS),
@@ -126,10 +130,11 @@ const SELECT_COLUMNS = `
   rating_guarantee_enabled, rating_guarantee_bonus_points,
   rating_points_coefficient, rating_bounty_coefficient, rating_bounty_rebuy_only,
   rating_table_id, rating_enabled, rating_season_year, rating_season_month,
-  late_registration_closed, month_final
+  late_registration_closed, month_final, venue_id
 `;
 
 export interface TournamentRepository {
+  updateVenue(id: number, venueId: TournamentVenueId): Promise<TournamentRow | null>;
   create(input: MakeTournamentInput): Promise<TournamentRow | null>;
   findById(id: number): Promise<TournamentRow | null>;
   list(options?: ListTournamentsOptions): Promise<TournamentRow[]>;
@@ -163,6 +168,15 @@ export interface TournamentRepository {
 }
 
 class TournamentRepositoryImpl implements TournamentRepository {
+  async updateVenue(id: number, venueId: TournamentVenueId): Promise<TournamentRow | null> {
+    // Keep this independent of status/structure updates: never touch registrations or clocks.
+    const result = await PostgresClient.instance.query(
+      `UPDATE tournaments SET venue_id = $1 WHERE id = $2 RETURNING ${SELECT_COLUMNS}`,
+      [venueId, id]
+    );
+    return result.rows[0] ? rowToTournament(result.rows[0]) : null;
+  }
+
   async create(input: MakeTournamentInput): Promise<TournamentRow | null> {
     try {
       const ratingGuaranteeEnabled = input.ratingGuaranteeEnabled ?? false;
@@ -182,9 +196,9 @@ class TournamentRepositoryImpl implements TournamentRepository {
            rating_guarantee_enabled, rating_guarantee_bonus_points,
            rating_points_coefficient, rating_bounty_coefficient,
            rating_table_id, rating_enabled, rating_season_year, rating_season_month,
-           month_final, rating_bounty_rebuy_only
+           month_final, rating_bounty_rebuy_only, venue_id
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING ${SELECT_COLUMNS}`,
         [
           input.name,
@@ -202,6 +216,7 @@ class TournamentRepositoryImpl implements TournamentRepository {
           ratingSeasonMonth,
           monthFinal,
           ratingBountyRebuyOnly,
+          input.venueId ?? DEFAULT_TOURNAMENT_VENUE_ID,
         ]
       );
       const row = result.rows[0];

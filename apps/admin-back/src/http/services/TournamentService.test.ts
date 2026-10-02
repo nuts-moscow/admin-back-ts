@@ -3,6 +3,8 @@ import type { TournamentRow } from "../../postgres/TournamentRepository";
 import { planMonthFinalFlip, tournamentRowToApi } from "./TournamentService";
 
 const baseRow: TournamentRow = {
+  venueId: "mansarda",
+  ratingBountyRebuyOnly: false,
   id: 1,
   name: "t",
   status: "registration_open",
@@ -22,6 +24,12 @@ const baseRow: TournamentRow = {
 };
 
 describe("tournamentRowToApi", () => {
+  test("exposes the selected venue without changing the tournament identity or status", () => {
+    const result = tournamentRowToApi({ ...baseRow, venueId: "everest-mansion" });
+    expect(result.venueId).toBe("everest-mansion");
+    expect(result.id).toBe(baseRow.id);
+    expect(result.status).toBe(baseRow.status);
+  });
   test("exposes monthFinal so the admin edit form reads current state", () => {
     expect(tournamentRowToApi({ ...baseRow, monthFinal: true }).monthFinal).toBe(true);
     expect(tournamentRowToApi(baseRow).monthFinal).toBe(false);

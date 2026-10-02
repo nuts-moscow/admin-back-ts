@@ -1,10 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import type { PlayerTournamentSummary } from '@admin/schemas';
+import { getTournamentVenue, type PlayerTournamentSummary, type TournamentVenue } from '@admin/schemas';
 import { Card } from '@/components/card';
 import { ChevRIcon, PinIcon } from '@/components/icons';
-import { CLUB_MAPS_URL } from '@/data/club-info';
 import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
 import { useLevelCountdown } from '@/lib/use-level-countdown';
 import { useTournamentRegistration } from '@/lib/use-tournament-registration';
@@ -29,6 +28,7 @@ export function ActiveTournamentCard({
   showRoute?: boolean;
 }) {
   const fd = formatTournamentDate(t.date);
+  const venue = getTournamentVenue(t.venueId);
   const dim = primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)';
   const levelTimeRemainingSec = useLevelCountdown(t.levelTimeRemainingSec);
   const isUpcoming = t.status === 'registration_open';
@@ -53,6 +53,9 @@ export function ActiveTournamentCard({
       >
         {primary && <div className="grain" style={{ opacity: 0.15, mixBlendMode: 'screen' }} />}
         <div className="p-4 relative">
+          <div className="text-[11px] leading-snug mb-2" style={{ color: dim }}>
+            {venue.name}, {venue.address}
+          </div>
           <div className="flex justify-between items-start mb-3.5 gap-3">
             <div className="flex-1 min-w-0">
               {/* Metadata row: date / time / status as space-separated chunks. */}
@@ -184,7 +187,7 @@ export function ActiveTournamentCard({
               >
                 По приглашению
               </span>
-              {showRoute && <RouteButton primary={primary} />}
+              {showRoute && <RouteButton primary={primary} venue={venue} />}
             </div>
           ) : isUpcoming ? (
             <div className="mt-3">
@@ -215,7 +218,7 @@ export function ActiveTournamentCard({
                   {busy ? '...' : registered ? 'Отменить запись' : 'Записаться'}
                 </span>
               </span>
-              {showRoute && <RouteButton primary={primary} />}
+              {showRoute && <RouteButton primary={primary} venue={venue} />}
             </div>
           ) : (
             <div className="flex flex-nowrap gap-x-4 mt-3 overflow-hidden">
@@ -240,22 +243,23 @@ export function ActiveTournamentCard({
 }
 
 /** Opens the venue in Yandex Maps without following the card's own link. */
-function RouteButton({ primary }: { primary: boolean }) {
+function RouteButton({ primary, venue }: { primary: boolean; venue: TournamentVenue }) {
   return (
     <span
       role="link"
+      aria-label={`Построить маршрут: ${venue.name}, ${venue.address}`}
       tabIndex={0}
       onClick={(e) => {
         // The whole card is a link to the tournament — open the map instead.
         e.preventDefault();
         e.stopPropagation();
-        window.open(CLUB_MAPS_URL, '_blank', 'noopener,noreferrer');
+        window.open(venue.mapsUrl, '_blank', 'noopener,noreferrer');
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           e.stopPropagation();
-          window.open(CLUB_MAPS_URL, '_blank', 'noopener,noreferrer');
+          window.open(venue.mapsUrl, '_blank', 'noopener,noreferrer');
         }
       }}
       className="mt-2 flex items-center justify-center gap-1.5 rounded-lg font-bold uppercase tracking-wider cursor-pointer select-none"

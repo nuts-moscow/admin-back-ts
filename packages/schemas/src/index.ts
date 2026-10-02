@@ -1,3 +1,4 @@
+export * from './venues';
 export * from './player/auth';
 export * from './player/achievements';
 export * from './player/profile';

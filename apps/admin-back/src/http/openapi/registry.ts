@@ -1,3 +1,4 @@
+import { TournamentVenue, TournamentVenueId } from "@admin/schemas";
 import { z } from "zod";
 import {
   AuthChangePasswordBodySchema,
@@ -1795,5 +1796,35 @@ openApiRegistry.registerPath({
     404: {
       description: "Player not found",
     },
+  },
+});
+
+
+openApiRegistry.registerPath({
+  method: "get",
+  path: "/api/tournament-venues",
+  tags: ["Tournaments"],
+  security: [{ bearerAuth: [] }],
+  summary: "List available tournament venues",
+  responses: {
+    200: { description: "Venue catalogue", content: { "application/json": { schema: z.object({ venues: z.array(TournamentVenue) }) } } },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: "patch",
+  path: "/api/tournaments/{id}/venue",
+  tags: ["Tournaments"],
+  security: [{ bearerAuth: [] }],
+  summary: "Change tournament venue without modifying registrations, status or clock",
+  request: {
+    params: TournamentParamsSchema,
+    body: { content: { "application/json": { schema: z.object({ venueId: TournamentVenueId }) } } },
+  },
+  responses: {
+    200: { description: "Venue saved", content: { "application/json": { schema: TournamentResponseSchema } } },
+    400: { description: "Invalid ID or venue" },
+    404: { description: "Tournament not found" },
+    500: { description: "Failed to save venue" },
   },
 });

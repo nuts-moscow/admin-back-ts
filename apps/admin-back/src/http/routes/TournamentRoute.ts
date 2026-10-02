@@ -1,3 +1,4 @@
+import { TournamentVenueId, TOURNAMENT_VENUES } from "@admin/schemas";
 import type { BunRequest } from "bun";
 import { logger } from "../../logger";
 import type { BlindType } from "../../domain/BlindType";
@@ -474,6 +475,35 @@ export function tournamentRoutes() {
         return Response.json(structureResponseFromEntity(s));
       },
     },
+    "/api/tournament-venues": {
+      GET: async () => Response.json({ venues: TOURNAMENT_VENUES }),
+    },
+    "/api/tournaments/:id/venue": {
+      PATCH: async (req: BunRequest<"/api/tournaments/:id/venue"> & { params: { id: string } }) => {
+        const id = Number(req.params?.id);
+        if (!Number.isSafeInteger(id) || id < 1) {
+          return Response.json({ error: "id must be a positive integer" }, { status: 400 });
+        }
+        let body: unknown;
+        try { body = await req.json(); } catch {
+          return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+        }
+        const venue = TournamentVenueId.safeParse(
+          body && typeof body === "object" ? (body as Record<string, unknown>).venueId : undefined
+        );
+        if (!venue.success) {
+          return Response.json({ error: "Unknown tournament venue" }, { status: 400 });
+        }
+        const tournament = await service.setVenue(id, venue.data);
+        if (!tournament) {
+          return Response.json({ error: "Tournament not found" }, { status: 404 });
+        }
+        await writeTournamentAuditLog(id, TournamentAuditEventType.TournamentMetaUpdated, {
+          venueId: tournament.venueId,
+        });
+        return Response.json(tournament);
+      },
+    },
     "/api/tournaments": {
       GET: async (req: BunRequest<"/api/tournaments">) => {
         const url = new URL(req.url);
@@ -496,6 +526,7 @@ export function tournamentRoutes() {
         const tournaments = await service.listTournaments(offset, limit);
         return Response.json({
           tournaments: tournaments.map((t) => ({
+            venueId: t.venueId,
             id: t.id,
             name: t.name,
             status: t.status,
@@ -549,6 +580,10 @@ export function tournamentRoutes() {
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
+        const venue = TournamentVenueId.optional().safeParse(o.venueId);
+        if (!venue.success) {
+          return Response.json({ error: "Unknown tournament venue" }, { status: 400 });
+        }
         const structureParsed = validateStructureBody(o.structure);
         if (!structureParsed.ok) {
           return new Response(
@@ -564,6 +599,7 @@ export function tournamentRoutes() {
           );
         }
         const result = await service.createTournament({
+          venueId: venue.data,
           name: o.name.trim(),
           date: o.date,
           structure: structureParsed.data,
@@ -585,6 +621,7 @@ export function tournamentRoutes() {
           );
         }
         await writeTournamentAuditLog(result.tournament.id, TournamentAuditEventType.TournamentCreated, {
+          venueId: result.tournament.venueId,
           name: result.tournament.name,
           date: result.tournament.date,
           status: result.tournament.status,

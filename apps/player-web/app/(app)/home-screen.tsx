@@ -1,5 +1,7 @@
 'use client';
 
+import { getTournamentVenue } from '@admin/schemas';
+
 import Link from 'next/link';
 import { useState } from 'react';
 import type {
@@ -277,6 +279,7 @@ function ScheduleRow({
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[11px] font-semibold text-ink leading-tight">{u.name}</div>
+        <div className="text-[11px] text-ink-3 mt-1">{getTournamentVenue(u.venueId).name}</div>
         <div className="mono text-[10px] text-ink-3 flex gap-2 mt-0.5 leading-none">
           <span>{fd.time}</span>
           <span>{formatNumberRu(u.buyin)}</span>

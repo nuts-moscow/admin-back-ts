@@ -13,7 +13,7 @@ import { Card } from '@/components/card';
 import { ChevLIcon, MedalIcon, PinIcon } from '@/components/icons';
 import { KV } from '@/components/kv';
 import { ScrollScreen } from '@/components/scroll-screen';
-import { CLUB_MAPS_URL } from '@/data/club-info';
+import { getTournamentVenue, type TournamentVenue } from '@admin/schemas';
 import { fetchPlayerApi } from '@/lib/api';
 import { formatNumberRu, formatSeconds, formatTournamentDate } from '@/lib/format';
 import { useLevelCountdown } from '@/lib/use-level-countdown';
@@ -42,6 +42,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
   // Completed tournaments drop the live clock/blinds/register header and the
   // Обзор/Игроки tabs: instead we show the player's own result, then the final
   // standings list directly.
+  const venue = getTournamentVenue(detail.venueId);
   const isCompleted = detail.status === 'completed';
 
   // Field size for inverting elimination order → finishing place. `registeredCount`
@@ -123,6 +124,16 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
           );
         })()}
 
+        <a
+          href={venue.mapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="relative block mt-3 text-[12px] leading-snug underline underline-offset-2"
+          style={{ color: 'var(--gold)' }}
+        >
+          {venue.name}, {venue.address}
+        </a>
+
         {isCompleted ? (
           <MyResultPanel r={detail.myResult} />
         ) : (
@@ -173,7 +184,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div
               style={{
                 fontFamily: 'var(--font-mono), ui-monospace, monospace',
@@ -187,6 +198,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
               {formatSeconds(s)}
             </div>
             <RegisterButton
+              venue={venue}
               tournamentId={detail.id}
               initiallyRegistered={myState != null}
               lateRegClosed={detail.lateRegistrationClosed}
@@ -486,12 +498,14 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
 }
 
 function RegisterButton({
+  venue,
   tournamentId,
   initiallyRegistered,
   lateRegClosed,
   monthFinal,
   onChanged,
 }: {
+  venue: TournamentVenue;
   tournamentId: number;
   initiallyRegistered: boolean;
   lateRegClosed: boolean;
@@ -524,7 +538,7 @@ function RegisterButton({
         >
           По приглашению
         </span>
-        <RouteButton />
+        <RouteButton venue={venue} />
       </div>
     );
   }
@@ -588,7 +602,7 @@ function RegisterButton({
           {pending ? '...' : registered ? 'Отменить запись' : 'Записаться'}
         </span>
       </button>
-      <RouteButton />
+      <RouteButton venue={venue} />
       {error && (
         <div className="text-[10px] text-crimson max-w-[140px] self-end text-right">
           {error}
@@ -599,10 +613,11 @@ function RegisterButton({
 }
 
 /** Opens the venue in Yandex Maps — sits under the register control. */
-function RouteButton() {
+function RouteButton({ venue }: { venue: TournamentVenue }) {
   return (
     <a
-      href={CLUB_MAPS_URL}
+      href={venue.mapsUrl}
+      aria-label={`Построить маршрут: ${venue.name}, ${venue.address}`}
       target="_blank"
       rel="noopener noreferrer"
       className="rounded-full font-bold uppercase tracking-wider inline-flex items-center justify-center gap-1.5 whitespace-nowrap"
@@ -758,4 +773,3 @@ function DarkStat({ label, v, sub }: { label: string; v: string; sub?: string })
     </div>
   );
 }
-

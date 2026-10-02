@@ -1,3 +1,4 @@
+import { TournamentVenueId } from "@admin/schemas";
 import { z } from "zod";
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -892,6 +893,7 @@ export const MakeTournamentBodySchema = z
   .object({
     name: z.string().min(1).openapi({ description: "Tournament name" }),
     date: z.number().min(0).openapi({ description: "Unix timestamp" }),
+    venueId: TournamentVenueId.optional().openapi({ description: "Venue; defaults to mansarda when omitted" }),
     structure: MakeTournamentStructureBodySchema,
     ratingGuaranteeEnabled: z
       .boolean()
@@ -987,6 +989,7 @@ export const TournamentStructureResponseSchema = z
 /** Response: tournament (created) */
 export const TournamentResponseSchema = z
   .object({
+    venueId: TournamentVenueId,
     id: z.number(),
     name: z.string(),
     status: z.string(),
@@ -1026,6 +1029,7 @@ const TournamentStructureDataSchema = z
 /** Response: tournament with structure (get by id) */
 export const TournamentWithStructureResponseSchema = z
   .object({
+    venueId: TournamentVenueId,
     id: z.number(),
     name: z.string(),
     status: z.string(),

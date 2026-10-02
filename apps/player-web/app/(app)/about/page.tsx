@@ -57,15 +57,18 @@ export default function AboutPage() {
           </Card>
         ))}
 
-        <a
-          href={ABOUT_CLUB.addressMapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[12px] text-center py-2 underline underline-offset-2"
-          style={{ color: 'var(--gold-2)', textDecorationColor: 'rgba(181,138,60,0.5)' }}
-        >
-          {ABOUT_CLUB.address}
-        </a>
+        {ABOUT_CLUB.venues.map((venue) => (
+          <a
+            key={venue.id}
+            href={venue.mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[12px] text-center py-2 underline underline-offset-2"
+            style={{ color: 'var(--gold-2)', textDecorationColor: 'rgba(181,138,60,0.5)' }}
+          >
+            📍 {venue.name}, {venue.address}
+          </a>
+        ))}
       </div>
     </ScrollScreen>
   );
