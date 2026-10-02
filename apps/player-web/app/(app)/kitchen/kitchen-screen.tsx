@@ -7,7 +7,7 @@ export function KitchenScreen() {
     <ScrollScreen>
       <div className="px-5 pt-3.5">
         <div className="text-[11px] uppercase tracking-widest font-semibold text-ink-3 mb-1">
-          Бар · Кухня
+          Бар &amp; Кухня
         </div>
       </div>
 

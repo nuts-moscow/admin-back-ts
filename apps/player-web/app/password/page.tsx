@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { requestPasswordReset, resetPassword } from '@/lib/auth';
 
 function passwordIssue(password: string): string | null {
-  if (password.length < 8) return 'Пароль — минимум 8 символов';
+  if (password.length < 8) return 'Пароль - минимум 8 символов';
   if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
     return 'Пароль должен содержать букву и цифру';
   }
@@ -153,7 +153,7 @@ export default function PasswordPage() {
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
           >
             {submitting
-              ? 'Отправляем…'
+              ? 'Отправляем...'
               : step === 'ask'
                 ? 'Получить код'
                 : 'Сменить пароль'}

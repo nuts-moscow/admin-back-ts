@@ -70,7 +70,7 @@ export function ActiveTournamentCard({
                     {t.status === 'in_progress'
                       ? t.breakActive
                         ? 'Перерыв'
-                        : `Идёт уровень ${t.currentLevelNo ?? '—'}`
+                        : `Идёт уровень ${t.currentLevelNo ?? '-'}`
                       : t.status === 'registration_open'
                         ? 'Регистрация открыта'
                         : 'Поздняя регистрация'}
@@ -161,7 +161,7 @@ export function ActiveTournamentCard({
                   v={
                     t.currentBlinds
                       ? `${t.currentBlinds.smallBlind}/${t.currentBlinds.bigBlind}`
-                      : '—'
+                      : '-'
                   }
                   primary={primary}
                 />
@@ -212,7 +212,7 @@ export function ActiveTournamentCard({
                 {/* Longest label sizes the button invisibly — no footprint jump. */}
                 <span style={{ visibility: 'hidden' }}>Отменить запись</span>
                 <span className="absolute inset-0 flex items-center justify-center">
-                  {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+                  {busy ? '...' : registered ? 'Отменить запись' : 'Записаться'}
                 </span>
               </span>
               {showRoute && <RouteButton primary={primary} />}

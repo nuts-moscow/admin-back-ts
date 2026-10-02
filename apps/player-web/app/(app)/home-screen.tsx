@@ -68,7 +68,7 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
               className="serif mt-1"
               style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.15, color: 'var(--paper)' }}
             >
-              {finalDate ? `${finalDate.day}, ${finalDate.date} · ${finalDate.time}` : 'Дата пока не анонсирована'}
+              {finalDate ? `${finalDate.day}, ${finalDate.date}, ${finalDate.time}` : 'Дата пока не анонсирована'}
             </div>
             <p
               className="text-[12px] mt-2 m-0"
@@ -324,7 +324,7 @@ function ScheduleRow({
             toggling never changes its footprint. */}
         <span style={{ visibility: 'hidden' }}>Записаться</span>
         <span className="absolute inset-0 flex items-center justify-center">
-          {busy ? '…' : registered ? 'Отменить' : 'Записаться'}
+          {busy ? '...' : registered ? 'Отменить' : 'Записаться'}
         </span>
       </span>
       )}

@@ -1,11 +1,11 @@
 export function formatNumberRu(n: number | null | undefined): string {
-  if (n == null) return '—';
+  if (n == null) return '-';
   return n.toLocaleString('ru-RU');
 }
 
 /** Rating points with the correctly declined «балл» (175,75 балла · 112 баллов · 1 балл). */
 export function formatPoints(n: number | null | undefined): string {
-  if (n == null) return '—';
+  if (n == null) return '-';
   const abs = Math.abs(n);
   let word: string;
   if (!Number.isInteger(abs)) {
@@ -22,14 +22,14 @@ export function formatPoints(n: number | null | undefined): string {
 }
 
 export function formatSeconds(s: number | null | undefined): string {
-  if (s == null) return '—';
+  if (s == null) return '-';
   const m = Math.floor(s / 60);
   const ss = Math.max(0, s % 60);
   return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
 export function formatRub(n: number | null | undefined): string {
-  if (n == null) return '—';
+  if (n == null) return '-';
   return `${n.toLocaleString('ru-RU')} ₽`;
 }
 

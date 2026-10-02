@@ -194,7 +194,7 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
             border: '1px solid rgba(251,245,233,0.08)',
           }}
         >
-          <DarkStat label="Рейтинг" v={me.rank != null ? String(me.rank) : '—'} sub={formatPoints(me.points)} />
+          <DarkStat label="Рейтинг" v={me.rank != null ? String(me.rank) : '-'} sub={formatPoints(me.points)} />
           <DarkStat label="Рейтинговая зона" v={`${me.itm}%`} sub={`${me.playedTournaments} турн.`} />
           <DarkStat
             label="Нокауты"
@@ -302,7 +302,7 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
                 color: 'var(--ink-3)',
               }}
             >
-              Сезон · {me.season?.label ?? currentSeasonLabel()}
+              Сезон: {me.season?.label ?? currentSeasonLabel()}
             </div>
             <div className="grid grid-cols-2 gap-3.5">
               <Stat label="Турниров" value={String(me.playedTournaments)} />
@@ -378,7 +378,7 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
                                 : 'var(--ink)',
                           }}
                         >
-                          {displayPlace ?? '—'}
+                          {displayPlace ?? '-'}
                           <span className="text-[10px] text-ink-3"> / {h.fieldSize}</span>
                         </div>
                         <div
@@ -470,7 +470,7 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
                                 : 'var(--ink)',
                           }}
                         >
-                          {displayPlace ?? '—'}
+                          {displayPlace ?? '-'}
                           <span className="text-xs text-ink-3"> / {h.fieldSize}</span>
                         </div>
                       );
@@ -546,7 +546,7 @@ export function ProfileScreen({ me, history, onChanged }: Props) {
                 className="flex-1 border-0 rounded-lg py-2.5 text-[12px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-60"
                 style={{ background: 'var(--ink)', color: 'var(--paper)', fontFamily: 'inherit' }}
               >
-                {nickSaving ? '…' : 'Сохранить'}
+                {nickSaving ? '...' : 'Сохранить'}
               </button>
             </div>
           </div>

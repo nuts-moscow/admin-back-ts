@@ -117,7 +117,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
                   color: 'var(--gold)',
                 }}
               >
-                {fd.day} {fd.date} · {fd.time}
+                {fd.day} {fd.date}, {fd.time}
               </span>
             </div>
           );
@@ -138,14 +138,14 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
                   color: 'rgba(251,245,233,0.5)',
                 }}
               >
-                {detail.breakActive ? 'Перерыв' : `Уровень ${detail.currentLevelNo ?? '—'}`}
+                {detail.breakActive ? 'Перерыв' : `Уровень ${detail.currentLevelNo ?? '-'}`}
               </div>
               <div className="mono mt-0.5" style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 600 }}>
                 {detail.breakActive
                   ? 'До конца перерыва'
                   : detail.currentBlinds
                     ? `${detail.currentBlinds.smallBlind} / ${detail.currentBlinds.bigBlind}`
-                    : '— / —'}
+                    : '- / -'}
                 {!detail.breakActive && detail.currentBlinds && detail.currentBlinds.ante > 0 && (
                   <span style={{ color: 'rgba(251,245,233,0.5)' }}>
                     {'  '}ante {detail.currentBlinds.ante}
@@ -169,7 +169,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
                   ? 'Перерыв'
                   : detail.nextBlinds
                     ? `${detail.nextBlinds.smallBlind} / ${detail.nextBlinds.bigBlind}`
-                    : '—'}
+                    : '-'}
               </div>
             </div>
           </div>
@@ -324,7 +324,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
                     ? detail.structure.freezeOutEnabled
                       ? 'Нет'
                       : String(detail.structure.maxReentries)
-                    : '—'
+                    : '-'
                 }
               />
             </div>
@@ -585,7 +585,7 @@ function RegisterButton({
             label is centered on top. */}
         <span style={{ visibility: 'hidden' }}>Отменить запись</span>
         <span className="absolute inset-0 flex items-center justify-center">
-          {pending ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+          {pending ? '...' : registered ? 'Отменить запись' : 'Записаться'}
         </span>
       </button>
       <RouteButton />
@@ -655,7 +655,7 @@ function MyResultPanel({ r }: { r: PlayerTournamentDetail['myResult'] }) {
             className="serif font-bold leading-none"
             style={{ fontSize: 34, color: isTop3 ? 'var(--gold)' : 'var(--paper)' }}
           >
-            {r.place ?? '—'}
+            {r.place ?? '-'}
           </div>
           <div className="mono mt-1" style={{ fontSize: 10, color: 'rgba(251,245,233,0.5)' }}>
             место из {r.fieldSize}
@@ -681,7 +681,7 @@ function MyResultPanel({ r }: { r: PlayerTournamentDetail['myResult'] }) {
       >
         <ResultRow
           k="Кого выбил"
-          v={r.knockouts.length > 0 ? r.knockouts.map((k) => k.nickname).join(', ') : '—'}
+          v={r.knockouts.length > 0 ? r.knockouts.map((k) => k.nickname).join(', ') : '-'}
         />
         <ResultRow
           k="Меня выбил"
@@ -690,7 +690,7 @@ function MyResultPanel({ r }: { r: PlayerTournamentDetail['myResult'] }) {
               ? '🏆 Победитель'
               : r.eliminatedBy.length > 0
                 ? r.eliminatedBy.map((k) => k.nickname).join(', ')
-                : '—'
+                : '-'
           }
         />
       </div>

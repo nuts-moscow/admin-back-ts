@@ -11,7 +11,7 @@ import { CLUB_ADDRESS, CLUB_MAPS_URL } from '@/data/club-info';
 import { LEGAL_DOCS } from '@/data/legal';
 
 function passwordIssue(password: string): string | null {
-  if (password.length < 8) return 'Пароль — минимум 8 символов';
+  if (password.length < 8) return 'Пароль - минимум 8 символов';
   if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
     return 'Пароль должен содержать букву и цифру';
   }
@@ -167,7 +167,7 @@ export default function RegisterPage() {
             disabled={submitting || !consentGiven}
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
             >
-            {submitting ? 'Отправляем код…' : 'Получить код'}
+            {submitting ? 'Отправляем код...' : 'Получить код'}
             </button>
           </form>
         ) : (
@@ -224,7 +224,7 @@ export default function RegisterPage() {
             )}
 
             <p className="mt-4 text-[11px] leading-relaxed text-ink-3">
-              В письме нет ссылок — только код. Никто из клуба никогда не
+              В письме нет ссылок - только код. Никто из клуба никогда не
               спросит его у вас.
             </p>
 
@@ -256,7 +256,7 @@ export default function RegisterPage() {
             disabled={submitting || nickname.trim().length === 0}
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
             >
-            {submitting ? 'Создаём…' : 'Зарегистрироваться'}
+            {submitting ? 'Создаём...' : 'Зарегистрироваться'}
             </button>
           </form>
         )}

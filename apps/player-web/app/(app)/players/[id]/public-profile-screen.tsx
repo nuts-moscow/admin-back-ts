@@ -101,7 +101,7 @@ export function PublicProfileScreen({ profile, history }: Props) {
               {profile.name ?? profile.nickname}
             </div>
             <div className="text-[11px] mt-1" style={{ color: 'rgba(251,245,233,0.6)' }}>
-              Рейтинг: {profile.rank != null ? profile.rank : '—'} ·{' '}
+              Рейтинг: {profile.rank != null ? profile.rank : '-'} -{' '}
               {formatPoints(profile.points)}
             </div>
           </div>
@@ -114,7 +114,7 @@ export function PublicProfileScreen({ profile, history }: Props) {
             className="uppercase font-bold mb-2.5"
             style={{ fontSize: 10, letterSpacing: 0.6, color: 'var(--ink-3)' }}
           >
-            Сезон · {profile.season?.label ?? currentSeasonLabel()}
+            Сезон: {profile.season?.label ?? currentSeasonLabel()}
           </div>
           <div className="grid grid-cols-2 gap-3.5">
             <Stat label="Турниров" value={String(profile.playedTournaments)} />
@@ -181,7 +181,7 @@ export function PublicProfileScreen({ profile, history }: Props) {
                               : 'var(--ink)',
                         }}
                       >
-                        {displayPlace ?? '—'}
+                        {displayPlace ?? '-'}
                         <span className="text-[10px] text-ink-3"> / {h.fieldSize}</span>
                       </div>
                       <div

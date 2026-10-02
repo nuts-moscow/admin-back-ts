@@ -108,7 +108,7 @@ export function RatingScreen({
     <ScrollScreen>
       <div className="px-5 pt-3.5">
         <div className="text-[11px] uppercase tracking-widest font-semibold text-ink-3 mb-1">
-          Сезон · {currentSeasonLabel}
+          Сезон: {currentSeasonLabel}
         </div>
         <h1 className="serif m-0 text-[40px] font-semibold text-ink leading-none">Рейтинг</h1>
       </div>
@@ -205,7 +205,7 @@ export function RatingScreen({
                 <div className="text-center" style={{ whiteSpace: 'nowrap' }}>Рейтинговая зона</div>
               </div>
               {loading && (
-                <div className="text-center text-[11px] text-ink-3 py-6">Загрузка…</div>
+                <div className="text-center text-[11px] text-ink-3 py-6">Загрузка...</div>
               )}
               {!loading && entries.map((p, i, arr) => {
                 /* Season-final qualification: 1–3 medal colors, 4–27 a soft
@@ -285,7 +285,7 @@ export function RatingScreen({
             </Card>
             {!loading && hasMore && (
               <div ref={sentinelRef} className="text-center text-[11px] text-ink-3 py-3">
-                {loadingMore ? 'Загрузка…' : ''}
+                {loadingMore ? 'Загрузка...' : ''}
               </div>
             )}
           </div>

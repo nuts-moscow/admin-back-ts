@@ -84,13 +84,13 @@ export function AvatarUpload({ onSubmitted }: Props) {
           fontFamily: 'inherit',
         }}
       >
-        {busy ? 'Отправляем…' : 'Загрузить фото'}
+        {busy ? 'Отправляем...' : 'Загрузить фото'}
       </button>
 
       {/* The notice sits with the control, before anything is sent: uploading is
           the consent, so the words have to be readable at the moment of it. */}
       <p className="text-[11px] m-0" style={{ color: 'rgba(251,245,233,0.5)' }}>
-        Фото проверит администратор — оно появится в профиле после этого.
+        Фото проверит администратор - оно появится в профиле после этого.
       </p>
 
       {error ? (

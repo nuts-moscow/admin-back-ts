@@ -23,7 +23,7 @@ const cinzel = Cinzel({
 
 export const metadata: Metadata = {
   title: 'NUTS Family',
-  description: 'Player app — NUTS Family poker club',
+  description: 'Player app - NUTS Family poker club',
 };
 
 export const viewport: Viewport = {

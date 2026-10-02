@@ -115,7 +115,7 @@ export function ScheduleScreen({
                           letterSpacing: 0.4,
                         }}
                       >
-                        {formatTournamentDate(new Date(h.date).getTime()).date} · орг. взнос{' '}
+                        {formatTournamentDate(new Date(h.date).getTime()).date}, орг. взнос{' '}
                         {formatNumberRu(h.buyin)}
                       </div>
                       <div className="serif text-[17px] font-semibold leading-tight mt-1">
@@ -142,7 +142,7 @@ export function ScheduleScreen({
                                   : 'var(--ink)',
                             }}
                           >
-                            {displayPlace ?? '—'}
+                            {displayPlace ?? '-'}
                             <span className="text-xs text-ink-3"> / {h.fieldSize}</span>
                           </div>
                         );
@@ -264,7 +264,7 @@ function UpcomingCard({
               {/* Longest label sizes the button invisibly — no footprint jump. */}
               <span style={{ visibility: 'hidden' }}>Отменить запись</span>
               <span className="absolute inset-0 flex items-center justify-center">
-                {busy ? '…' : registered ? 'Отменить запись' : 'Записаться'}
+                {busy ? '...' : registered ? 'Отменить запись' : 'Записаться'}
               </span>
             </button>
             )}

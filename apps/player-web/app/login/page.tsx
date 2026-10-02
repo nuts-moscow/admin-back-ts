@@ -90,7 +90,7 @@ export default function LoginPage() {
             disabled={submitting}
             className="mt-6 w-full rounded-md bg-ink text-paper py-3 text-sm font-bold uppercase tracking-wider disabled:opacity-60"
           >
-            {submitting ? 'Входим…' : 'Войти'}
+            {submitting ? 'Входим...' : 'Войти'}
           </button>
 
           <p className="mt-5 text-center text-xs text-ink-3 leading-relaxed">
