@@ -1,4 +1,4 @@
-import { TournamentVenue, TournamentVenueId } from "@admin/schemas";
+import { TournamentVenue, TournamentVenueSelection } from "@admin/schemas";
 import { z } from "zod";
 import {
   AuthChangePasswordBodySchema,
@@ -1819,7 +1819,7 @@ openApiRegistry.registerPath({
   summary: "Change tournament venue without modifying registrations, status or clock",
   request: {
     params: TournamentParamsSchema,
-    body: { content: { "application/json": { schema: z.object({ venueId: TournamentVenueId }) } } },
+    body: { content: { "application/json": { schema: TournamentVenueSelection } } },
   },
   responses: {
     200: { description: "Venue saved", content: { "application/json": { schema: TournamentResponseSchema } } },

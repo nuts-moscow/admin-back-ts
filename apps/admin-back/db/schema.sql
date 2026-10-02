@@ -26,7 +26,17 @@ create table if not exists tournaments
 (
     id                            SERIAL  not null primary key,
     name                          text    not null,
-    venue_id                      text    not null default 'mansarda' check (venue_id in ('mansarda', 'everest-mansion')),
+    venue_id                      text    not null default 'mansarda' constraint tournaments_venue_id_check check (venue_id in ('mansarda', 'everest-mansion', 'custom')),
+    custom_venue                  jsonb,
+    constraint tournaments_custom_venue_check CHECK (venue_id <> 'custom' OR COALESCE(
+      jsonb_typeof(custom_venue) = 'object'
+      AND jsonb_typeof(custom_venue->'name') = 'string'
+      AND length(btrim(custom_venue->>'name')) BETWEEN 1 AND 150
+      AND jsonb_typeof(custom_venue->'address') = 'string'
+      AND length(btrim(custom_venue->>'address')) BETWEEN 1 AND 300
+      AND jsonb_typeof(custom_venue->'mapsUrl') = 'string'
+      AND length(custom_venue->>'mapsUrl') BETWEEN 1 AND 2048
+      AND custom_venue->>'mapsUrl' ~ '^https?://[^[:space:]]+$', false)),
     status                        text    not null,
     date                          bigint  not null,
     entry_price                   bigint  not null default 1000,

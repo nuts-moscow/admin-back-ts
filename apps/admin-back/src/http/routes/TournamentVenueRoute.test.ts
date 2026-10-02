@@ -6,7 +6,7 @@ import type { TournamentRow } from "../../postgres/TournamentRepository";
 
 const row: TournamentRow = {
   id: 42, name: "Открытый турнир", date: 1790960400, status: "registration_open",
-  venueId: "everest-mansion", entryPrice: 1000, reentryPrice: 1000,
+  venueId: "everest-mansion", customVenue: null, entryPrice: 1000, reentryPrice: 1000,
   ratingGuaranteeEnabled: false, ratingGuaranteeBonusPoints: 10,
   ratingPointsCoefficient: 1, ratingBountyCoefficient: 1, ratingBountyRebuyOnly: false,
   ratingTableId: 1, ratingEnabled: true, ratingSeasonYear: 2026, ratingSeasonMonth: 10,
@@ -33,14 +33,14 @@ describe("tournament venue API", () => {
     const audit = spyOn(tournamentAuditLogRepository, "append").mockResolvedValue(true);
     restores.push(() => update.mockRestore(), () => genericUpdate.mockRestore(), () => audit.mockRestore());
     const handler = tournamentRoutes()["/api/tournaments/:id/venue"].PATCH;
-    const response = await handler(request({ venueId: "everest-mansion", status: "completed", monthFinal: true }) as Parameters<typeof handler>[0]);
+    const response = await handler(request({ venueId: "everest-mansion", customVenue: null, status: "completed", monthFinal: true }) as Parameters<typeof handler>[0]);
     expect(response.status).toBe(200);
     const result = await response.json() as TournamentApiSummary;
     expect(result.venueId).toBe("everest-mansion");
     expect(result.status).toBe("registration_open");
     expect(result.monthFinal).toBe(false);
     expect(result.id).toBe(42);
-    expect(update).toHaveBeenCalledWith(42, "everest-mansion");
+    expect(update).toHaveBeenCalledWith(42, "everest-mansion", null);
     expect(genericUpdate).not.toHaveBeenCalled();
     expect(audit).toHaveBeenCalledTimes(1);
   });
@@ -75,10 +75,50 @@ describe("tournament venue API", () => {
         structure: { name: "Структура", playersLimit: 50, stackSize: 10000, freezeOutEnabled: false, blinds: [] } };
       const req = new Request("http://localhost/api/tournaments", { method: "POST", body: JSON.stringify(body) });
       expect((await handler(req as Parameters<typeof handler>[0])).status).toBe(201);
-      expect(create.mock.calls.at(-1)?.[0].venueId).toBe(venueId);
+      expect(create.mock.calls.at(-1)?.[0].venueId).toBe(venueId ?? "mansarda");
     }
     const invalid = new Request("http://localhost/api/tournaments", { method: "POST", body: JSON.stringify({ name: "Турнир", date: 1, venueId: "bad" }) });
     expect((await handler(invalid as Parameters<typeof handler>[0])).status).toBe(400);
     expect(create).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe("custom venue API", () => {
+  const customVenue = { name: "Другая площадка", address: "Житная ул., 5", mapsUrl: "https://example.com/map" };
+
+  test("saves all custom fields together through the isolated operation", async () => {
+    const update = spyOn(tournamentRepository, "updateVenue").mockResolvedValue({ ...row, venueId: "custom", customVenue });
+    const audit = spyOn(tournamentAuditLogRepository, "append").mockResolvedValue(true);
+    restores.push(() => update.mockRestore(), () => audit.mockRestore());
+    const handler = tournamentRoutes()["/api/tournaments/:id/venue"].PATCH;
+    const response = await handler(request({ venueId: "custom", customVenue: { ...customVenue, name: " Другая площадка " } }) as Parameters<typeof handler>[0]);
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(42, "custom", customVenue);
+    expect(((await response.json()) as TournamentApiSummary).customVenue).toEqual(customVenue);
+  });
+
+  test("rejects incomplete and unsafe custom places before touching the database", async () => {
+    const update = spyOn(tournamentRepository, "updateVenue");
+    restores.push(() => update.mockRestore());
+    const handler = tournamentRoutes()["/api/tournaments/:id/venue"].PATCH;
+    for (const custom of [undefined, null, {}, { ...customVenue, address: " " }, { ...customVenue, mapsUrl: "javascript:alert(1)" }]) {
+      expect((await handler(request({ venueId: "custom", customVenue: custom }) as Parameters<typeof handler>[0])).status).toBe(400);
+    }
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  test("creation passes custom details and rejects an incomplete custom venue", async () => {
+    const create = spyOn(TournamentService.prototype, "createTournament").mockResolvedValue({ ok: true, tournament: { ...row, venueId: "custom", customVenue } });
+    const audit = spyOn(tournamentAuditLogRepository, "append").mockResolvedValue(true);
+    restores.push(() => create.mockRestore(), () => audit.mockRestore());
+    const handler = tournamentRoutes()["/api/tournaments"].POST;
+    const body = { name: "Турнир", date: 1790960400, venueId: "custom", customVenue,
+      structure: { name: "Структура", playersLimit: 50, stackSize: 10000, freezeOutEnabled: false, blinds: [] } };
+    const req = (value: unknown) => new Request("http://localhost/api/tournaments", { method: "POST", body: JSON.stringify(value) });
+    expect((await handler(req(body) as Parameters<typeof handler>[0])).status).toBe(201);
+    expect(create.mock.calls[0]?.[0].customVenue).toEqual(customVenue);
+    expect((await handler(req({ ...body, customVenue: undefined }) as Parameters<typeof handler>[0])).status).toBe(400);
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

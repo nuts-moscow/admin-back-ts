@@ -1,8 +1,26 @@
 import { z } from 'zod';
 
-export const TournamentVenueId = z.enum(['mansarda', 'everest-mansion']);
+export const TournamentVenueId = z.enum(['mansarda', 'everest-mansion', 'custom']);
 export type TournamentVenueId = z.infer<typeof TournamentVenueId>;
 export const DEFAULT_TOURNAMENT_VENUE_ID: TournamentVenueId = 'mansarda';
+
+export const CustomTournamentVenue = z.object({
+  name: z.string().trim().min(1).max(150),
+  address: z.string().trim().min(1).max(300),
+  mapsUrl: z.string().trim().max(2048).url().refine((value) => {
+    try { return ['https:', 'http:'].includes(new URL(value).protocol); } catch { return false; }
+  }, 'Map link must use http or https'),
+});
+export type CustomTournamentVenue = z.infer<typeof CustomTournamentVenue>;
+
+export const TournamentVenueSelection = z.object({
+  venueId: TournamentVenueId,
+  customVenue: CustomTournamentVenue.nullish(),
+}).superRefine((value, ctx) => {
+  if (value.venueId === 'custom' && !value.customVenue) {
+    ctx.addIssue({ code: 'custom', path: ['customVenue'], message: 'Name, address and map link are required' });
+  }
+});
 
 export const TournamentVenue = z.object({
   id: TournamentVenueId,
@@ -28,6 +46,7 @@ export const TOURNAMENT_VENUES: readonly TournamentVenue[] = [
 ];
 
 /** Old API responses without a venue still point to the original location. */
-export function getTournamentVenue(id?: string | null): TournamentVenue {
+export function getTournamentVenue(id?: string | null, customVenue?: CustomTournamentVenue | null): TournamentVenue {
+  if (id === 'custom' && customVenue) return { id, ...customVenue };
   return TOURNAMENT_VENUES.find((venue) => venue.id === id) ?? TOURNAMENT_VENUES[0]!;
 }

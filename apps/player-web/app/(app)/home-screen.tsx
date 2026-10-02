@@ -32,11 +32,10 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
   const [supportOpen, setSupportOpen] = useState(false);
   const finalDate = seasonFinal.date != null ? formatTournamentDate(seasonFinal.date) : null;
 
-  // When nothing is live, promote the nearest upcoming (open-registration)
-  // tournament into the hero slot, and drop it from the schedule list below.
+  // When nothing is live, also show the nearest upcoming tournament in the hero slot.
+  // Keep it in the schedule below so the list includes every upcoming tournament.
   const promotedUpcoming = active.length === 0 ? (upcoming[0] ?? null) : null;
   const heroCards = active.length > 0 ? active.slice(0, 2) : promotedUpcoming ? [promotedUpcoming] : [];
-  const upcomingList = promotedUpcoming ? upcoming.slice(1) : upcoming;
   const heroTitle = promotedUpcoming ? 'Ближайший турнир' : 'Сейчас идёт';
 
   return (
@@ -113,7 +112,7 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
               </div>
             </div>
             <div className="flex-1 flex flex-col">
-              {upcomingList.slice(0, 5).map((u, i, arr) => (
+              {upcoming.slice(0, 5).map((u, i, arr) => (
                 <ScheduleRow
                   key={u.id}
                   u={u}
@@ -121,7 +120,7 @@ export function HomeScreen({ me, active, upcoming, leaders, seasonFinal, onChang
                   onChanged={onChanged}
                 />
               ))}
-              {upcomingList.length === 0 && (
+              {upcoming.length === 0 && (
                 <div className="flex-1 flex items-center justify-center text-[11px] text-ink-3">
                   Нет турниров
                 </div>
@@ -279,7 +278,7 @@ function ScheduleRow({
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[11px] font-semibold text-ink leading-tight">{u.name}</div>
-        <div className="text-[11px] text-ink-3 mt-1">{getTournamentVenue(u.venueId).name}</div>
+        <div className="text-[11px] text-ink-3 mt-1">{getTournamentVenue(u.venueId, u.customVenue).name}</div>
         <div className="mono text-[10px] text-ink-3 flex gap-2 mt-0.5 leading-none">
           <span>{fd.time}</span>
           <span>{formatNumberRu(u.buyin)}</span>

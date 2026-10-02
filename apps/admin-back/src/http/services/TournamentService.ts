@@ -1,4 +1,4 @@
-import type { TournamentVenueId } from "@admin/schemas";
+import type { TournamentVenueId, CustomTournamentVenue } from "@admin/schemas";
 import type { BlindType } from "../../domain/BlindType";
 import { InGamePlayerStatus } from "../../domain/cache/InGameUserState";
 import { effectiveAllowedReentryCount } from "../../domain/tournamentReentryPolicy";
@@ -29,6 +29,7 @@ export interface MakeTournamentStructureBody {
 
 export interface MakeTournamentBody {
   venueId?: TournamentVenueId;
+  customVenue?: CustomTournamentVenue | null;
   name: string;
   date: number;
   structure: MakeTournamentStructureBody;
@@ -49,6 +50,7 @@ export interface MakeTournamentBody {
 
 export type TournamentApiSummary = {
   venueId: TournamentVenueId;
+  customVenue: CustomTournamentVenue | null;
   id: number;
   name: string;
   status: string;
@@ -69,6 +71,7 @@ export type TournamentApiSummary = {
 export function tournamentRowToApi(row: TournamentRow): TournamentApiSummary {
   return {
     venueId: row.venueId,
+    customVenue: row.customVenue,
     id: row.id,
     name: row.name,
     status: row.status,
@@ -190,6 +193,7 @@ export class TournamentService {
       name: input.name,
       date: input.date,
       venueId: input.venueId,
+      customVenue: input.customVenue,
       ratingGuaranteeEnabled: input.ratingGuaranteeEnabled,
       ratingGuaranteeBonusPoints: input.ratingGuaranteeBonusPoints,
       ratingPointsCoefficient: input.ratingPointsCoefficient,
@@ -249,6 +253,7 @@ export class TournamentService {
         : null;
     return {
       venueId: tournament.venueId,
+      customVenue: tournament.customVenue,
       id: tournament.id,
       name: tournament.name,
       status: tournament.status,
@@ -268,8 +273,8 @@ export class TournamentService {
     };
   }
 
-  async setVenue(id: number, venueId: TournamentVenueId) {
-    const tournament = await tournamentRepository.updateVenue(id, venueId);
+  async setVenue(id: number, venueId: TournamentVenueId, customVenue?: CustomTournamentVenue | null) {
+    const tournament = await tournamentRepository.updateVenue(id, venueId, customVenue);
     return tournament ? tournamentRowToApi(tournament) : null;
   }
 

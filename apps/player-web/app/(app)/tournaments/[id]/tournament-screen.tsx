@@ -42,7 +42,7 @@ export function TournamentScreen({ detail, players, tables, myState, onChanged }
   // Completed tournaments drop the live clock/blinds/register header and the
   // Обзор/Игроки tabs: instead we show the player's own result, then the final
   // standings list directly.
-  const venue = getTournamentVenue(detail.venueId);
+  const venue = getTournamentVenue(detail.venueId, detail.customVenue);
   const isCompleted = detail.status === 'completed';
 
   // Field size for inverting elimination order → finishing place. `registeredCount`

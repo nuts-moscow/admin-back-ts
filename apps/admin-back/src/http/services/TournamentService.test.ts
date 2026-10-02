@@ -3,7 +3,7 @@ import type { TournamentRow } from "../../postgres/TournamentRepository";
 import { planMonthFinalFlip, tournamentRowToApi } from "./TournamentService";
 
 const baseRow: TournamentRow = {
-  venueId: "mansarda",
+  venueId: "mansarda", customVenue: null,
   ratingBountyRebuyOnly: false,
   id: 1,
   name: "t",

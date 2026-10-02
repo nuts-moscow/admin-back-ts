@@ -28,7 +28,7 @@ export function ActiveTournamentCard({
   showRoute?: boolean;
 }) {
   const fd = formatTournamentDate(t.date);
-  const venue = getTournamentVenue(t.venueId);
+  const venue = getTournamentVenue(t.venueId, t.customVenue);
   const dim = primary ? 'rgba(251,245,233,0.6)' : 'var(--ink-3)';
   const levelTimeRemainingSec = useLevelCountdown(t.levelTimeRemainingSec);
   const isUpcoming = t.status === 'registration_open';

@@ -1,4 +1,4 @@
-import type { TournamentVenueId } from "@admin/schemas";
+import type { TournamentVenueId, CustomTournamentVenue } from "@admin/schemas";
 import type { BunRequest } from "bun";
 import { tournamentStructureCache } from "../../cache";
 import type { BlindType } from "../../domain/BlindType";
@@ -108,6 +108,7 @@ function blindToWire(b: BlindType): {
 
 interface TournamentSummaryPayload {
   venueId: TournamentVenueId;
+  customVenue: CustomTournamentVenue | null;
   id: number;
   name: string;
   status: string;
@@ -199,6 +200,7 @@ async function buildTournamentSummary(
 
   return {
     venueId: tournament.venueId,
+    customVenue: tournament.customVenue,
     id: tournament.id,
     name: tournament.name,
     status: tournament.status,

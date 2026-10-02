@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TournamentVenueId } from '../venues';
+import { CustomTournamentVenue, TournamentVenueId } from '../venues';
 
 export const TournamentStatus = z.enum(['registration_open', 'in_progress', 'completed']);
 export type TournamentStatus = z.infer<typeof TournamentStatus>;
@@ -21,6 +21,7 @@ const Blind = z.object({
 export const PlayerTournamentSummary = z.object({
   /** Optional while the previous backend is still serving requests. */
   venueId: TournamentVenueId.optional(),
+  customVenue: CustomTournamentVenue.nullish(),
   id: z.number().int(),
   name: z.string(),
   status: TournamentStatus,

@@ -233,12 +233,12 @@ function UpcomingCard({
             {registered && <Pill tone="gold">Вы записаны</Pill>}
           </div>
           <a
-            href={getTournamentVenue(u.venueId).mapsUrl}
+            href={getTournamentVenue(u.venueId, u.customVenue).mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="block mt-2 text-[11px] leading-snug text-ink-3 underline underline-offset-2"
           >
-            {getTournamentVenue(u.venueId).name}, {getTournamentVenue(u.venueId).address}
+            {getTournamentVenue(u.venueId, u.customVenue).name}, {getTournamentVenue(u.venueId, u.customVenue).address}
           </a>
           <div className="grid grid-cols-2 gap-x-2.5 gap-y-1.5 mt-2.5">
             <KV k="Орг. взнос" v={formatRub(u.buyin)} />
